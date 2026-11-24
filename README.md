@@ -157,6 +157,12 @@ El estilo toma como referencia la paleta y los volúmenes suaves de los juegos d
 
 Todo se genera en código, sin texturas ni modelos externos, y el audio también: disparos, gruñidos, explosiones, campanas del amanecer y música en bucle (vals de verbena de día, pulso tenso de noche que crece con el combate).
 
+**Defensas.** Cada defensa tiene su propio aspecto: barricadas con sacos terreros y banderín (tablones, tablones reforzados y chapa con remaches), alambrada de espino en caballos de frisa, bobina tipo Tesla con aisladores de porcelana, torreta con escudo y sacos, generador con ruedas y bidón, banco de taller con panel de herramientas y mina de petardos. El foco es un mástil con un proyector que ilumina toda la zona donde deslumbra (marcada en el suelo de noche) y gira para seguir al brotado más cercano. La cabeza de la torreta apunta al blanco en cada disparo y el proyectil sale del cañón con una estela larga para que se vea hacia dónde va.
+
+**Rebuscar.** Al mantener E junto a un coche o un contenedor, el personaje se gira hacia él, se inclina y revuelve con las dos manos; el maletero o la tapa se abren, el coche se balancea y salen volando latas, tornillos y trapos.
+
+**El Gigantón.** Un gigante de feria reventado desde dentro: piel podrida, raíces por piernas, espinas en la espalda, fauces con colmillos, cuatro ojos rojos que brillan, un brazo con garras y otro acabado en un garrote con clavos.
+
 ## Arquitectura
 
 | Archivo | Responsabilidad |

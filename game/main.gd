@@ -46,6 +46,7 @@ var last_ev := 0
 var paused := false
 var local_pos := Vector2.INF
 var last_shot_key := ""
+var search_t := 0.0
 var house_portrait
 var collapse_dust := 0.0     # seconds of dust and rumble while the house comes down
 var prev_pos := Vector2.INF   # local_pos one physics tick ago, to draw smoothly between ticks
@@ -731,6 +732,12 @@ func handle_event(type:String, d:Array, me:int):
 			var key := "%d:%d" % [owner, Engine.get_process_frames()]
 			var first := key != last_shot_key
 			last_shot_key = key
+			if owner <= -100:
+				# turrets: the head snaps to the target and the dart leaves the barrel
+				var tip:Vector3 = actors.turret_fired(-100 - owner, v3(d[4] - d[2], d[5] - d[3]))
+				if tip != Vector3.INF:
+					a = tip
+					b.y = 0.95
 			if owner > 0 and actors.heroes.has(owner):
 				var r = actors.heroes[owner]
 				var muzzle_at:Vector3 = r.muzzle_point()
@@ -977,6 +984,18 @@ func _process(dt:float):
 	var lp := Vector3(drawn.x, 0, drawn.y) if drawn != Vector2.INF else Vector3.INF
 	actors.update(dt, age, s, lp, local_aim, night, s.ph == P.NIGHT and s.ev == 1)
 	# camera
+	# odds and ends fly out of whatever is being searched
+	search_t -= dt
+	if search_t <= 0:
+		search_t = 0.28
+		for q in s.pl.values():
+			var hk:String = q.get("hk", "")
+			if q.use and hk.begins_with("lo"):
+				var li := int(hk.substr(2))
+				if li >= 0 and li < Map.LOOT.size():
+					var lp2:Vector2 = Map.LOOT[li].p
+					fx.burst("bits", v3(lp2.x, lp2.y, 1.0 if Map.LOOT[li].kind <= 1 else 0.7))
+					if randf() < 0.4: audio.play("click", v3(lp2.x, lp2.y, 1), -12, randf_range(0.7, 1.3))
 	world.update_collapse(dt)
 	world.house_glow(night)
 	if house_portrait and int(age * 0.5) != int((age - dt) * 0.5): house_portrait.refresh()

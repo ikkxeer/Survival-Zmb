@@ -357,6 +357,19 @@ func draw_badge():
 	else:
 		draw_arc(ac, 28 + 2 * sin(t * 4.0), 0, TAU, 32, Color(S.SKY, 0.6), 2.5, true)
 	S.text(self, ac + Vector2(-25, 9), key("ability", "Q"), 24, Color.WHITE, "title", 600, HORIZONTAL_ALIGNMENT_CENTER, 50, 5, S.INK)
+	# build: always reachable from here, with its key
+	var bc := ac + Vector2(62, 0)
+	var building:bool = local.get("build", -1) >= 0
+	draw_circle(bc, 25, S.INK)
+	draw_circle(bc, 22, S.SUN if building else S.CARD)
+	if building: draw_arc(bc, 28 + 2 * sin(t * 4.0), 0, TAU, 32, Color(S.SUN, 0.7), 2.5, true)
+	S.icon(self, "hammer", bc + Vector2(-1, -2), 30)
+	S.keycap(self, bc + Vector2(18, 16), key("build", "B"), 22, S.SUN if not building else S.CARD)
+	var lbl := "Salir (%s)" % key("build", "B") if building else "Construir"
+	var lw := S.text_width(lbl, 15) + 20
+	var lr := Rect2(bc + Vector2(34, -16), Vector2(lw, 28))
+	draw_style_box(S.card(S.PAPER, 10, S.INK, 2, 3), lr)
+	S.text(self, lr.position + Vector2(10, 20), lbl, 15, S.INK, "body", 900)
 	# items
 	var x := c.x + 70
 	var y := c.y + 34

@@ -86,6 +86,18 @@ static func icon(ci:CanvasItem, name:String, c:Vector2, s:float, tint:Color = Co
 			ci.draw_style_box(card(WOOD, int(s * 0.1), INK, maxi(1, int(s * 0.05)), 0), r)
 			for i in 2: ci.draw_line(c + Vector2(-0.35, -0.06 + i * 0.12) * s, c + Vector2(0.3, -0.06 + i * 0.12) * s, Color("9a6a48"), maxf(1.0, s * 0.04), true)
 			ci.draw_circle(c + Vector2(0.38, 0), s * 0.05, Color("9a6a48"))
+		"hammer":
+			# claw hammer: wooden handle and a steel head
+			var hx := Transform2D(-0.7, c)
+			var handle := PackedVector2Array([Vector2(-0.07, -0.05), Vector2(0.07, -0.05), Vector2(0.06, 0.45), Vector2(-0.06, 0.45)])
+			var head := PackedVector2Array([Vector2(-0.34, -0.22), Vector2(0.2, -0.22), Vector2(0.24, -0.05), Vector2(-0.34, -0.05)])
+			var claw := PackedVector2Array([Vector2(0.2, -0.22), Vector2(0.42, -0.36), Vector2(0.36, -0.12), Vector2(0.24, -0.05)])
+			for shape in [[handle, WOOD], [head, Color("8f9fb5")], [claw, Color("8f9fb5")]]:
+				var pts := PackedVector2Array()
+				for v in shape[0]: pts.append(hx * (v * s))
+				ci.draw_colored_polygon(pts, shape[1])
+				pts.append(pts[0])
+				ci.draw_polyline(pts, INK, maxf(1.0, s * 0.06), true)
 		"coin":
 			ci.draw_circle(c, s * 0.42, INK)
 			ci.draw_circle(c, s * 0.36, SUN)
