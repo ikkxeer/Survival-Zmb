@@ -212,6 +212,38 @@ func quad(xf:Transform3D, size:Vector2, c:Color):
 		cols.append(c)
 	idx.append_array([base, base + 1, base + 2, base + 1, base + 3, base + 2])
 
+func blade(xf:Transform3D, width:float, height:float, bottom:Color, top:Color):
+	## Tapered double-sided triangle for grass; normals point up so it shades like the ground.
+	var n := (xf.basis.orthonormalized() * Vector3.UP).normalized()
+	var pts := [xf * Vector3(-width * 0.5, 0, 0), xf * Vector3(width * 0.5, 0, 0), xf * Vector3(0, height, 0)]
+	var cs := [bottom, bottom, top]
+	for side in 2:
+		var base := verts.size()
+		for i in 3:
+			verts.append(pts[i])
+			norms.append(n)
+			cols.append(cs[i])
+		if side == 0: idx.append_array([base, base + 1, base + 2])
+		else: idx.append_array([base, base + 2, base + 1])
+
+func disc(xf:Transform3D, radius:float, sides:int, c:Color, center:Color):
+	## Flat double-sided fan (flower heads, lily pads).
+	var n := (xf.basis.orthonormalized() * Vector3.UP).normalized()
+	for side in 2:
+		var base := verts.size()
+		verts.append(xf * Vector3.ZERO)
+		norms.append(n)
+		cols.append(center)
+		for i in sides:
+			var a := TAU * i / sides
+			verts.append(xf * Vector3(cos(a) * radius, 0, sin(a) * radius))
+			norms.append(n)
+			cols.append(c)
+		for i in sides:
+			var j := (i + 1) % sides
+			if side == 0: idx.append_array([base, base + 1 + j, base + 1 + i])
+			else: idx.append_array([base, base + 1 + i, base + 1 + j])
+
 # ------------------------------------------------------------------ helpers
 static func at(x:float, y:float, z:float) -> Transform3D:
 	return Transform3D(Basis(), Vector3(x, y, z))

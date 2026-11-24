@@ -61,6 +61,10 @@ var rmb_travel := 0.0
 var orbiting := false
 var saved_cursor := Vector2.ZERO
 var map_click := false
+var autopilot := {}        # tests and benchmarks: {"move":Vector2, "cursor":Vector2, "buttons":int}
+var latency := 0.0          # simulated one-way delay for clients (--latencia=ms)
+var lag_in := []
+var lag_out := []
 var last_phase := -1
 var crosshair:ImageTexture
 
@@ -100,6 +104,8 @@ func _ready():
 	multiplayer.connection_failed.connect(stop.bind("No se pudo conectar con esa dirección."))
 	multiplayer.server_disconnected.connect(stop.bind("El anfitrión ha cerrado la partida."))
 	crosshair = make_crosshair()
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--latencia="): latency = float(a.substr(11)) / 1000.0
 	ui.sync_settings()
 	apply_settings(prefs.values)
 	ui.show_menu(true)
@@ -170,6 +176,8 @@ func stop(reason:String):
 		multiplayer.multiplayer_peer.close()
 		multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	state = {}
+	lag_in.clear()
+	lag_out.clear()
 	actors.clear_all()
 	set_build(-1)
 	shop_open = false
@@ -206,12 +214,28 @@ func interact(what:String, args:Array = []):
 @rpc("authority", "call_remote", "unreliable_ordered", 2)
 func receive(payload:PackedByteArray):
 	if mode != "join": return
+	if latency > 0:
+		lag_in.append([Time.get_ticks_msec() + latency * 1000.0, payload])
+		return
+	unpack(payload)
+
+func unpack(payload:PackedByteArray):
 	var data = bytes_to_var(payload.decompress_dynamic(1 << 21, FileAccess.COMPRESSION_DEFLATE))
 	if data is Dictionary: on_state(data)
 
+func flush_lag():
+	var now := Time.get_ticks_msec()
+	while lag_in.size() > 0 and lag_in[0][0] <= now: unpack(lag_in.pop_front()[1])
+	while lag_out.size() > 0 and lag_out[0][0] <= now:
+		var c:Array = lag_out.pop_front()
+		if c[1] == "controls": controls.rpc_id(1, c[2], c[3], c[4])
+		else: interact.rpc_id(1, c[2], c[3])
+
 func send_action(what:String, args:Array = []):
 	if state.is_empty(): return
-	if mode == "join": interact.rpc_id(1, what, args)
+	if mode == "join":
+		if latency > 0: lag_out.append([Time.get_ticks_msec() + latency * 1000.0, "interact", what, args])
+		else: interact.rpc_id(1, what, args)
 	else: sim.act(1, what, args)
 
 func my_id() -> int:
@@ -407,6 +431,7 @@ func place():
 	send_action("build", [build_kind, cell])
 
 func move_input() -> Vector2:
+	if autopilot.has("move"): return autopilot.move
 	if paused or shop_open: return Vector2.ZERO
 	var v := Vector2(int(prefs.pressed("right")) - int(prefs.pressed("left")), int(prefs.pressed("down")) - int(prefs.pressed("up")))
 	return camera.movement(v.normalized())
@@ -427,11 +452,14 @@ func _physics_process(dt:float):
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and build_kind < 0 and not over_ui and not map_click: buttons |= 1
 		if prefs.pressed("use") and not shop_open: buttons |= 2
 		if roll_t > 0: buttons |= 4
+		if autopilot.has("buttons"): buttons = autopilot.buttons
 		predict_fire(dt, me, buttons & 1 != 0)
 	net_clock -= dt
 	if mode == "join":
+		flush_lag()
 		if not me.is_empty() and net_clock <= 0:
-			controls.rpc_id(1, local_pos, cursor - local_pos, buttons)
+			if latency > 0: lag_out.append([Time.get_ticks_msec() + latency * 1000.0, "controls", local_pos, cursor - local_pos, buttons])
+			else: controls.rpc_id(1, local_pos, cursor - local_pos, buttons)
 			net_clock = 1.0 / 30.0
 		return
 	if not me.is_empty(): sim.drive(1, local_pos, cursor - local_pos, buttons)
@@ -475,6 +503,7 @@ func local_move(dt:float, me:Dictionary):
 	else:
 		var ray := camera.project_ray_normal(mouse)
 		cursor = local_pos + Vector2(ray.x, ray.z).normalized() * 12.0
+	if autopilot.has("cursor"): cursor = autopilot.cursor
 	if cursor.distance_to(local_pos) > 0.3: local_aim = (cursor - local_pos).normalized()
 
 func predict_fire(dt:float, me:Dictionary, firing:bool):

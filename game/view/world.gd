@@ -778,10 +778,10 @@ func tree_mesh(variant:int) -> ArrayMesh:
 		0, 1, 3:
 			k.cylinder(Kit.at(0, 0.9, 0), 0.22, 0.16, 1.8, trunk, 8, false, 0.3)
 			var fc := Color.WHITE
-			k.sphere(Kit.at(0, 2.5, 0), Vector3(1.35, 1.15, 1.35), fc, 14, 9, 0.38)
-			k.sphere(Kit.at(0.55, 2.95, 0.3), Vector3(0.85, 0.75, 0.85), fc.lightened(0.1), 12, 8, 0.3)
-			k.sphere(Kit.at(-0.6, 2.75, -0.25), Vector3(0.8, 0.7, 0.8), fc, 12, 8, 0.32)
-			k.sphere(Kit.at(0.1, 3.4, -0.1), Vector3(0.65, 0.55, 0.65), fc.lightened(0.15), 10, 7, 0.25)
+			k.sphere(Kit.at(0, 2.5, 0), Vector3(1.35, 1.15, 1.35), fc, 11, 7, 0.38)
+			k.sphere(Kit.at(0.55, 2.95, 0.3), Vector3(0.85, 0.75, 0.85), fc.lightened(0.1), 9, 6, 0.3)
+			k.sphere(Kit.at(-0.6, 2.75, -0.25), Vector3(0.8, 0.7, 0.8), fc, 9, 6, 0.32)
+			k.sphere(Kit.at(0.1, 3.4, -0.1), Vector3(0.65, 0.55, 0.65), fc.lightened(0.15), 8, 5, 0.25)
 			if variant == 3:
 				for i in 7:
 					var a := i * 2.4
@@ -816,8 +816,8 @@ func build_trees():
 		add.call(p, v, tree_color(v, p), rng.randf_range(0.95, 1.5))
 	# bushes within the neighbourhood (decorative, low)
 	var bush := Kit.new()
-	bush.sphere(Kit.at(0, 0.35, 0), Vector3(0.6, 0.5, 0.6), Color.WHITE, 10, 6, 0.35)
-	bush.sphere(Kit.at(0.35, 0.5, 0.1), Vector3(0.4, 0.35, 0.4), Color.WHITE.lightened(0.1), 8, 5, 0.3)
+	bush.sphere(Kit.at(0, 0.35, 0), Vector3(0.6, 0.5, 0.6), Color.WHITE, 8, 5, 0.35)
+	bush.sphere(Kit.at(0.35, 0.5, 0.1), Vector3(0.4, 0.35, 0.4), Color.WHITE.lightened(0.1), 7, 4, 0.3)
 	var bush_list := []
 	for i in 160:
 		var p := Vector2(rng.randf_range(-34, 34), rng.randf_range(-30, 30))
@@ -857,16 +857,14 @@ func spawn_mm(mesh:Mesh, list:Array, mat:Material, shadows:bool) -> MultiMeshIns
 
 func build_grass():
 	var tuft := Kit.new()
-	for i in 4:
-		var a := i * PI / 4.0 + 0.3
-		var xf := Transform3D(Basis(Vector3.UP, a) * Basis(Vector3(1, 0, 0), 0.25 * (1 if i % 2 else -1)), Vector3(0, 0.16, 0))
-		tuft.box(xf, Vector3(0.05, 0.34, 0.02), Color.WHITE, 0.0, 0.55)
-	var flower := Kit.new()
-	flower.cylinder(Kit.at(0, 0.14, 0), 0.015, 0.015, 0.28, col("5a9a50"), 4, false)
 	for i in 5:
-		var a := TAU * i / 5.0
-		flower.sphere(Kit.at(cos(a) * 0.06, 0.3, sin(a) * 0.06), Vector3(0.05, 0.025, 0.05), Color.WHITE, 6, 3)
-	flower.sphere(Kit.at(0, 0.31, 0), Vector3(0.035, 0.03, 0.035), col("ffd166"), 6, 3)
+		var a := i * TAU / 5.0 + 0.3
+		var xf := Transform3D(Basis(Vector3.UP, a) * Basis(Vector3(1, 0, 0), 0.3 * (1 if i % 2 else -1)), Vector3(cos(a) * 0.04, 0, sin(a) * 0.04))
+		tuft.blade(xf, 0.09, 0.3 + 0.08 * (i % 3), Color(0.55, 0.55, 0.55), Color.WHITE)
+	var flower := Kit.new()
+	flower.blade(Kit.at(0, 0, 0), 0.03, 0.3, col("4f8a46"), col("6aa85a"))
+	flower.blade(Kit.rot(0, 0, 0, PI * 0.5), 0.03, 0.3, col("4f8a46"), col("6aa85a"))
+	flower.disc(Kit.at(0, 0.3, 0), 0.085, 6, Color.WHITE, col("ffd166"))
 	var tufts := []
 	var flowers := []
 	var grng := RandomNumberGenerator.new()

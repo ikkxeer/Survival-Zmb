@@ -1278,7 +1278,9 @@ func near_enemies(at:Vector2, radius:float) -> Array:
 	for x in range(bx - r, bx + r + 1):
 		for z in range(bz - r, bz + r + 1):
 			var key := Vector2i(x, z)
-			if buckets.has(key): out.append_array(buckets[key])
+			if not buckets.has(key): continue
+			for k in buckets[key]:
+				if enemies.has(k): out.append(k)  # skip enemies killed earlier this tick
 	return out
 
 func build_buckets():

@@ -19,8 +19,14 @@ Objetivo de la próxima versión: que un grupo pueda descargar el juego, entrar 
   - Comprobado con `camera_test`, `coop_test`, `match_test` y `network_test` (anfitrión y tres clientes con señales y barricadas), y con capturas del plano abierto y de la tercera persona. Falta repetirlo a mano con ratón y teclado.
 - [x] **Empaquetar Windows x64.** Perfil de exportación release, instrucciones de juego y avisos del motor incluidos en el ZIP. Dos instancias del ejecutable descomprimido bajo Wine se conectaron por bucle local y mostraron Equipo 2/4. [Procedimiento de exportación](distribution/DISTRIBUCION.md)
 - [ ] **Entregar un ZIP de Windows.** Preparar una exportación reproducible y abrirla en un PC sin Godot instalado. Dos equipos deben poder crear y unirse a una partida con esa misma descarga.
-- [ ] **Sostener una sesión de tres noches.** Probar con uno, dos y cuatro jugadores, incluyendo una salida durante la oleada y una conexión con latencia. Registrar si divergen la vida de la casa, las fichas o las defensas y si el equipo puede seguir jugando.
+- [x] **Sostener una sesión de tres noches.** `python tests/run_session.py --jugadores 1|2|4` lanza un anfitrión y clientes reales por ENet con bots y el tiempo a ×4. Con cuatro, un cliente tiene 150 ms de latencia simulada (`--latencia=ms`) y otro sale a mitad de la segunda noche. Al tercer amanecer todos los procesos comparan vida de la casa, materiales, defensas, jugadores y fichas de cada uno.
+  - Resultado: coherentes con uno, dos y cuatro jugadores, y el equipo sigue jugando tras la salida.
+  - La prueba destapó un fallo real que ya está corregido: una torreta podía consultar un brotado que había caído antes en el mismo paso.
+  - Falta una partida a mano por Internet con latencia real.
 - [ ] **Medir una oleada llena.** Registrar CPU, GPU, memoria y tiempos de fotograma con 48 enemigos y las dos opciones gráficas en un PC identificado. Repetir el mismo recorrido tras integrar los cambios visuales.
+  - Herramienta lista: `godot --path . -s tests/benchmark.gd -- --calidades=0,2 --enemigos=50` juega la misma noche con cuatro jugadores en cada calidad. Guarda en `user://benchmark.md` el equipo, los FPS, la media, p95, p99 y máximo, el render en CPU y GPU, la física, las llamadas de dibujo, las primitivas, la RAM y la VRAM.
+  - Primera medida en la máquina de integración (Xeon de 4 núcleos con render por software, no representativa de GPU): reveló demasiadas primitivas en la vegetación. El césped, las flores y el follaje se aligeraron de 0,74 M a 0,53 M primitivas en Baja y de 1,69 M a 1,31 M en Alta.
+  - Pendiente: ejecutarla en un PC con GPU identificada y anotar aquí sus resultados.
 
 ## P1 · Mejorar las decisiones que se toman durante una noche
 
