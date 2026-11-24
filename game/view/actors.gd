@@ -32,6 +32,8 @@ var loot_nodes := []
 var beacons := []
 var drops := {}
 var bundles := {}
+var piece_nodes := []
+const STAGE_SLOTS = [Vector2(-8.0, 1.1), Vector2(-8.0, -0.3), Vector2(-8.0, -1.7), Vector2(-8.0, -3.1)]
 var people := {}
 var community := []
 var projectiles := []
@@ -678,6 +680,31 @@ func loot_mesh(kind:int) -> ArrayMesh:
 				k.box(Kit.at(0, 0.3, 0.28), Vector3(0.4, 0.12, 0.02), C("f2c14e"), 0.0)
 	)
 
+func piece_mesh(i:int) -> ArrayMesh:
+	return cached("piece%d" % i, func(k:Kit):
+		var c := C(Data.PIECES[i].color)
+		match i:
+			0:
+				k.box(Kit.at(0, 0.4, 0), Vector3(0.7, 0.8, 0.35), C("dfe6ee"), 0.06, 0.25)
+				k.box(Kit.at(0, 0.45, 0.18), Vector3(0.55, 0.55, 0.04), c, 0.03)
+				for j in 3: k.box(Kit.at(-0.15 + j * 0.15, 0.55, 0.21), Vector3(0.08, 0.16, 0.03), Kit.glow(C("ffd166")), 0.01)
+				k.box(Kit.rot(0.1, 0.3, 0.21, 0, 0, 0.6), Vector3(0.25, 0.04, 0.03), C("e8463c"), 0.0)
+			1:
+				k.cylinder(Kit.at(0, 0.3, 0), 0.4, 0.4, 0.5, C("8b5e3c"), 14, true, 0.2)
+				for j in 10:
+					var a := TAU * j / 10.0
+					k.sphere(Kit.at(cos(a) * 0.42, 0.45, sin(a) * 0.42), Vector3(0.08, 0.1, 0.08), Kit.glow(C(["ffd166", "ff6b6b", "4cc9f0"][j % 3])), 6, 4)
+			2:
+				for sx in [-0.22, 0.22]:
+					k.box(Kit.at(sx, 0.45, 0), Vector3(0.4, 0.9, 0.4), C("2f2f38"), 0.06, 0.2)
+					k.cylinder(Kit.rot(sx, 0.55, 0.2, 0, PI * 0.5), 0.13, 0.13, 0.04, c, 14)
+					k.cylinder(Kit.rot(sx, 0.25, 0.2, 0, PI * 0.5), 0.07, 0.07, 0.04, c, 10)
+			3:
+				k.cylinder(Kit.at(0, 0.45, 0), 0.3, 0.3, 0.9, c, 14, true, 0.25)
+				for y in [0.2, 0.7]: k.cylinder(Kit.at(0, y, 0), 0.31, 0.31, 0.05, C("b8433a"), 14, false)
+				k.cylinder(Kit.at(0.12, 0.93, 0), 0.06, 0.06, 0.08, C("2f2f38"), 8)
+	)
+
 func sparkle_mesh() -> ArrayMesh:
 	return cached("sparkle", func(k:Kit):
 		k.box(Kit.rot(0, 0, 0, PI * 0.25, PI * 0.25), Vector3(0.22, 0.22, 0.22), Kit.glow(C("fff3b0")), 0.06)
@@ -792,6 +819,32 @@ func build_static():
 		add_child(n)
 		beacons.append(n)
 		set_beacon(i, false, 0.0)
+	for i in Data.PIECES.size():
+		var n := Node3D.new()
+		var mi := MeshInstance3D.new()
+		mi.mesh = piece_mesh(i)
+		mi.material_override = toon_char
+		mi.name = "Mesh"
+		n.add_child(mi)
+		var sp := MeshInstance3D.new()
+		sp.mesh = sparkle_mesh()
+		sp.material_override = glow_mat
+		sp.position.y = 1.5
+		sp.name = "Sparkle"
+		n.add_child(sp)
+		var l := Label3D.new()
+		l.text = Data.PIECES[i].name
+		l.font_size = 48
+		l.outline_size = 12
+		l.pixel_size = 0.006
+		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		l.position.y = 2.0
+		l.modulate = Color(Data.PIECES[i].color).lightened(0.3)
+		l.name = "Label"
+		n.add_child(l)
+		n.visible = false
+		add_child(n)
+		piece_nodes.append(n)
 	ghost = MeshInstance3D.new()
 	ghost.material_override = ghost_mat
 	ghost.visible = false
@@ -820,6 +873,9 @@ func clear_all():
 	projectiles.clear()
 	for i in beacons.size(): set_beacon(i, false, 0.0)
 	for n in loot_nodes: n.visible = true
+	for n in piece_nodes:
+		n.visible = false
+		if n.has_meta("info"): n.remove_meta("info")
 	ghost.visible = false
 
 # ================================================================== snapshot reconciliation
@@ -984,6 +1040,10 @@ func apply(s:Dictionary, me:int):
 		if not dr_seen.has(id):
 			drops[id].queue_free()
 			drops.erase(id)
+	# pieces of the verbena
+	var pcs:Array = s.get("pc", [])
+	for i in mini(pcs.size(), piece_nodes.size()):
+		piece_nodes[i].set_meta("info", pcs[i])
 	# supply bundles left on the porch
 	var bu_seen := {}
 	for b in s.get("bu", []):
@@ -1125,6 +1185,30 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		var r:Rig = community[i]
 		r.animate_hero(dt, t, 0.0, false, false, 0, false, false, i % 3 == 0)
 	bundle_bob(t, dt)
+	for i in piece_nodes.size():
+		var n:Node3D = piece_nodes[i]
+		if not n.has_meta("info"): continue
+		var info:Array = n.get_meta("info")
+		var st:int = info[0]
+		n.visible = st > 0
+		if not n.visible: continue
+		var sp:Node3D = n.get_node("Sparkle")
+		var lab:Label3D = n.get_node("Label")
+		sp.visible = st == 1 or st == 3
+		lab.visible = st != 4
+		var target := Vector3(info[1], 0, info[2])
+		if st == 2 and heroes.has(info[3]):
+			target = heroes[info[3]].position + Vector3(0, 2.2, 0)
+			n.rotation.y = heroes[info[3]].rotation.y
+		elif st == 4:
+			var slot:Vector2 = STAGE_SLOTS[i]
+			target = Vector3(slot.x, 0.9 + 0.08 * sin(t * 2.0 + i), slot.y)
+			n.rotation.y = PI * 0.5 + sin(t * 0.8 + i) * 0.2
+		else:
+			target.y = 0.15 + 0.12 * sin(t * 2.5 + i)
+			n.rotation.y = t * 0.8
+		n.position = n.position.lerp(target, 1.0 - exp(-14.0 * dt)) if n.position.distance_to(target) < 6.0 else target
+		sp.position.y = 1.5 + sin(t * 3.0) * 0.1
 	for id in drops:
 		var d:Array = drop_info[id]
 		var mi:MeshInstance3D = drops[id]

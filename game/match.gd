@@ -64,6 +64,11 @@ var respite := 0.0
 var bundles := []         # supply bundles left at the porch for team-mates
 var journal := []         # telemetry lines for playtests (read and cleared by the host)
 var breach_open := [-1.0, -1.0, -1.0, -1.0]
+var pieces := []          # {state:0 locked,1 waiting,2 carried,3 dropped,4 installed, p, carrier}
+var finale := false
+var finale_t := 0.0
+var victory := false
+var match_id := 0
 
 func _init():
 	rng.randomize()
@@ -71,6 +76,9 @@ func _init():
 		sites.append({"claimed":false, "hp":0.0, "max":200.0})
 		site_hit.append(0.0)
 	for i in 4: alerts.append({"hit":0.0, "breach":false, "house":0.0})
+	match_id = rng.randi_range(1, 1 << 30)
+	for pc in Data.PIECES:
+		pieces.append({"state":0, "p":Map.SITES[pc.site].beacon + Vector2(0, 1.6), "carrier":-1})
 	for l in Map.LOOT: loot.append(true)
 	for i in Map.SITES.size():
 		for g in (3 if i == 5 else 2): spawn_guard(i)
@@ -147,11 +155,12 @@ func player_speed(p:Dictionary) -> float:
 	var s := BASE_SPEED * float(Data.ROLES[p.role].speed)
 	if p.role == 3: s *= 1.0 + 0.03 * (p.lvl - 1)
 	if p.role == 3 and p.buff > 0: s *= 1.45
+	if p.get("carry", -1) >= 0: s *= 0.8
 	if p.st == 1: s = 0.9
 	return s
 
 # ================================================================== players
-func join(id:int, role:int, name:String = "") -> bool:
+func join(id:int, role:int, name:String = "", rank:int = 1) -> bool:
 	if players.has(id) or players.size() >= 4 or phase == P.OVER: return false
 	role = clampi(role, 0, 3)
 	var idx := players.size()
@@ -163,15 +172,48 @@ func join(id:int, role:int, name:String = "") -> bool:
 		"fire": false, "use": false, "roll": false, "ab": 0.0, "buff": 0.0, "med": 2 if role == 1 else 1,
 		"tr": 2, "kills": 0, "notice": "", "nt": 0.0, "hold": "", "ht": 0.0, "hm": 0.0, "hkey": "",
 		"prompt": "", "ready": false, "melee": 0.0, "heal": 0.0, "acc": 0.0, "last": time, "fix": 0,
-		"ping": null, "ping_left": 0.0, "active": time, "last_p": Vector2.ZERO, "helped": 0, "dmg": 0.0, "flame": 0.0, "cursor": Vector2.ZERO,
+		"ping": null, "ping_left": 0.0, "active": time, "last_p": Vector2.ZERO, "helped": 0, "carry": -1, "dmg": 0.0, "flame": 0.0, "cursor": Vector2.ZERO,
 	}
 	players[id] = p
+	apply_rank(p, clampi(rank, 1, 4))
 	emit("join", [id])
 	announce("%s se une como %s" % [p.name, Data.ROLES[role].name])
 	return true
 
+func apply_rank(p:Dictionary, rank:int):
+	## Perks earned between matches (see profile.gd): rank 2 per role, rank 3 more health.
+	p.rank = rank
+	if rank >= 2:
+		match p.role:
+			0: materials += 4
+			1: p.med = 3
+			2:
+				p.guns[1] = 1
+				p.mag[1] = Data.WEAPONS[1].mag
+				p.res[1] = max_reserve(p, 1) / 2
+			3: p.coins += 8
+	if rank >= 3:
+		p.hpmax += 15.0
+		p.hp = p.hpmax
+
 func leave(id:int):
+	if players.has(id): drop_piece(players[id])
 	if players.erase(id): emit("leave", [id])
+
+func drop_piece(p:Dictionary):
+	if p.carry < 0: return
+	var pc:Dictionary = pieces[p.carry]
+	pc.state = 3
+	pc.p = p.p
+	pc.carrier = -1
+	p.carry = -1
+	emit("piece_drop", [pc.p.x, pc.p.y])
+	announce("¡%s ha soltado una pieza de la verbena!" % p.name)
+
+func installed_pieces() -> int:
+	var n := 0
+	for pc in pieces: if pc.state == 4: n += 1
+	return n
 
 func drive(id:int, pos:Vector2, aim:Vector2, buttons:int):
 	if not players.has(id) or not pos.is_finite() or not aim.is_finite(): return
@@ -201,6 +243,7 @@ func hurt_player(p:Dictionary, dmg:float, _src:Vector2 = Vector2.ZERO):
 		p.st = 1
 		p.bleed = 30.0
 		p.rl = 0.0
+		drop_piece(p)
 		emit("down", [p.p.x, p.p.y])
 		announce("%s ha caído. ¡Levantadlo con E!" % p.name)
 
@@ -407,6 +450,11 @@ func claim(p:Dictionary):
 	sites[site].hp = sites[site].max
 	nav.active["site%d" % site] = true
 	give_xp(p, 15)
+	for i in Data.PIECES.size():
+		if Data.PIECES[i].site == site and pieces[i].state == 0:
+			pieces[i].state = 1
+			emit("piece", [i])
+			announce("En %s espera una pieza de la verbena: %s. ¡Llevadla al escenario!" % [Data.SITES[site].name, Data.PIECES[i].name])
 	emit("claim", [site])
 	announce("%s se une al barrio: %s" % [Data.SITES[site].name, Data.SITES[site].bonus])
 
@@ -843,6 +891,34 @@ func spawn_tick(dt:float):
 			announce("¡Un Gigantón avanza por el %s!" % Map.FRONT_NAMES[front])
 	spawn_timer = maxf(2.2, 5.5 - wave * 0.2) * (0.6 if night_event == 2 else 1.0) + active * 0.04
 
+func start_finale(p:Dictionary):
+	## The last night: lights on, every street at once, hold until the final firecracker.
+	finale = true
+	finale_t = Data.FINALE_TIME
+	fronts = [0, 1, 2, 3]
+	night_event = 6
+	start_night()
+	assaults.clear()
+	assault_count = 1
+	emit("finale", [Data.FINALE_TIME])
+	announce("¡%s enciende la verbena! Aguantad %d s hasta la traca final" % [p.name, int(Data.FINALE_TIME)])
+	log_line({"evento":"final", "noche":wave})
+
+func finale_tick(dt:float):
+	finale_t -= dt
+	if queue.is_empty() and night_alive() < 10 + 4 * players.size():
+		for i in 6: queue.append(rng.randi_range(0, mini(6, 2 + wave / 2)))
+	if finale_t <= 0:
+		victory = true
+		for key in enemies.keys():
+			emit("kill", [enemies[key].p.x, enemies[key].p.y, enemies[key].k, -9])
+		enemies.clear()
+		queue.clear()
+		phase = P.OVER
+		report = ["¡La verbena brilla de nuevo! Habéis salvado el barrio en la noche %d" % wave]
+		emit("victory", [wave])
+		log_line({"evento":"victoria", "noche":wave, "derribos":stats.kills})
+
 func start_dawn():
 	phase = P.DAWN
 	clock = 14.0
@@ -967,6 +1043,10 @@ func tick_phase(dt:float):
 					new_enemy(0, front_point(rng.randi_range(0, 3)), "base", false)
 			if clock <= 0: start_night()
 		P.NIGHT:
+			if finale:
+				finale_tick(dt)
+				spawn_tick(dt)
+				return
 			if respite > 0:
 				respite -= dt
 				if respite <= 0:
@@ -1080,6 +1160,31 @@ func interact(id:int, p:Dictionary, dt:float):
 			if p.ht >= p.hm:
 				open_drop(p, target.drop)
 				p.hkey = ""
+		"carry":
+			if p.ht >= p.hm:
+				var pc:Dictionary = pieces[target.piece]
+				pc.state = 2
+				pc.carrier = id
+				p.carry = target.piece
+				p.hkey = ""
+				emit("piece_take", [pc.p.x, pc.p.y])
+				announce("%s carga con %s" % [p.name, Data.PIECES[target.piece].name])
+		"install":
+			if p.ht >= p.hm:
+				var pc:Dictionary = pieces[p.carry]
+				pc.state = 4
+				pc.carrier = -1
+				pc.p = Map.STAGE
+				p.carry = -1
+				p.hkey = ""
+				give_xp(p, 20)
+				emit("install", [installed_pieces()])
+				log_line({"evento":"pieza", "jugador":p.name, "instaladas":installed_pieces()})
+				announce("Pieza instalada: %d de %d" % [installed_pieces(), pieces.size()] + (". ¡Todo listo para encender la verbena!" if installed_pieces() == pieces.size() else ""))
+		"ignite":
+			if p.ht >= p.hm:
+				p.hkey = ""
+				start_finale(p)
 		"bundle":
 			if p.ht >= p.hm:
 				take_bundle(p, target.bundle)
@@ -1145,6 +1250,15 @@ func find_use_target(id:int, p:Dictionary) -> Dictionary:
 	for d in drops:
 		if d.t <= 0 and d.p.distance_to(p.p) < 2.2:
 			return {"type":"drop", "key":"dr%d" % d.id, "label":"Abriendo suministros", "time":1.0, "drop":d, "prompt":"Mantén E: abrir suministros"}
+	if p.carry >= 0 and Map.STAGE.distance_to(p.p) < 2.8:
+		return {"type":"install", "key":"in%d" % p.carry, "label":"Instalando", "time":1.2, "prompt":"Mantén E: instalar %s en el escenario" % Data.PIECES[p.carry].name}
+	if p.carry < 0:
+		for i in pieces.size():
+			var pc:Dictionary = pieces[i]
+			if (pc.state == 1 or pc.state == 3) and pc.p.distance_to(p.p) < 2.0:
+				return {"type":"carry", "key":"pc%d" % i, "label":"Cargando", "time":0.8, "piece":i, "prompt":"Mantén E: cargar con %s (irás más despacio)" % Data.PIECES[i].name}
+	if phase == P.PREP and not finale and installed_pieces() == pieces.size() and Map.STAGE.distance_to(p.p) < 2.8:
+		return {"type":"ignite", "key":"ignite", "label":"Encendiendo la verbena", "time":2.0, "prompt":"Mantén E: ¡ENCENDER LA VERBENA! (empieza la noche final)"}
 	for b in bundles:
 		if b.owner != id and b.p.distance_to(p.p) < 2.0:
 			var who:String = players[b.owner].name if players.has(b.owner) else "un vecino"
@@ -1258,6 +1372,8 @@ func event_horde():
 
 # ------------------------------------------------------------------ world
 func tick_world(dt:float):
+	for pc in pieces:
+		if pc.state == 2 and players.has(pc.carrier): pc.p = players[pc.carrier].p
 	for a in alerts:
 		a.hit = maxf(0.0, a.hit - dt)
 		a.house = maxf(0.0, a.house - dt)
@@ -1714,7 +1830,7 @@ func snapshot() -> Dictionary:
 		var p:Dictionary = players[id]
 		pl[id] = {"name":p.name, "role":p.role, "slot":p.slot, "p":p.p, "aim":p.aim, "hp":p.hp, "hpmax":p.hpmax, "st":p.st,
 			"bleed":p.bleed, "coins":p.coins, "xp":p.xp, "lvl":p.lvl, "gun":p.gun, "guns":p.guns, "mag":p.mag, "res":p.res,
-			"rl":p.rl, "rlmax":p.rlmax, "ab":p.ab, "buff":p.buff, "med":p.med, "tr":p.tr, "kills":p.kills, "helped":p.helped,
+			"rl":p.rl, "rlmax":p.rlmax, "ab":p.ab, "buff":p.buff, "med":p.med, "tr":p.tr, "kills":p.kills, "helped":p.helped, "carry":p.carry, "rank":p.get("rank", 1),
 			"notice":p.notice if p.nt > 0 else "", "hold":p.hold, "ht":p.ht, "hm":p.hm, "prompt":p.prompt, "ready":p.ready,
 			"roll":p.roll, "fix":p.fix, "ping":p.ping, "ping_left":p.ping_left, "dmg":p.dmg, "fire":p.fire and p.rl <= 0, "use":p.use}
 	var si := []
@@ -1733,7 +1849,7 @@ func snapshot() -> Dictionary:
 	return {"ph":phase, "w":wave, "c":clock, "cl":phase_len, "tod":time_of_day(), "core":core, "cmax":core_max, "clvl":core_level,
 		"mat":materials, "ev":night_event, "wx":weather, "fr":fronts, "rem":remaining(), "rs":respite, "as":[assault_index, assault_count], "bu":bundles.map(func(b): return [b.id, b.p.x, b.p.y, b.owner]), "tot":night_total,
 		"pl":pl, "en":en, "st":st, "si":si, "lo":loot.duplicate(), "pr":pr, "sv":sv, "dr":dr, "cm":community.duplicate(),
-		"fx":events.duplicate(), "rep":report, "boss":boss, "sk":sk, "stats":stats, "time":time, "cc":claim_cost(), "br":br, "sh":site_hit.duplicate()}
+		"fx":events.duplicate(), "rep":report, "boss":boss, "sk":sk, "stats":stats, "time":time, "cc":claim_cost(), "br":br, "pc":pieces.map(func(pc): return [pc.state, pc.p.x, pc.p.y, pc.carrier]), "fin":finale_t if finale else -1.0, "vic":victory, "mid":match_id, "sh":site_hit.duplicate()}
 
 func load_structures(st:PackedInt32Array):
 	## Used by clients so local movement prediction collides with the same structures.

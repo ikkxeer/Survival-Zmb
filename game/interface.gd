@@ -7,6 +7,7 @@ signal leave
 signal resume
 signal action(name:String, args:Array)
 signal build_pick(kind:int)
+signal rematch
 
 const Data = preload("res://game/data.gd")
 const Map = preload("res://game/map.gd")
@@ -34,6 +35,9 @@ var settings_panel := PanelContainer.new()
 var help_panel := PanelContainer.new()
 var settings := {"quality":2, "fullscreen":false, "volume":0.8, "music":0.6, "sfx":1.0, "shake":true, "flashes":true, "numbers":true, "sensitivity":1.0, "ui_scale":1.0}
 var prefs
+var profile
+var rank_labels := []
+var record_label:Label
 var settings_list := VBoxContainer.new()
 var bind_buttons := {}
 var waiting_bind := ""
@@ -51,6 +55,7 @@ var boss_bar := ProgressBar.new()
 var base_bar := ProgressBar.new()
 var base_label := Label.new()
 var res_label := Label.new()
+var goal_label := Label.new()
 var team_box := VBoxContainer.new()
 var me_name := Label.new()
 var hp_bar := ProgressBar.new()
@@ -87,6 +92,9 @@ var pause := PanelContainer.new()
 var over := PanelContainer.new()
 var over_title := Label.new()
 var over_text := Label.new()
+var rematch_button:Button
+var can_rematch := true
+var over_wait := 0.0
 var overlay:Control
 var help_hint := Label.new()
 var prompt_box:VBoxContainer
@@ -284,11 +292,14 @@ func build_menu():
 		inner.offset_top = 8
 		inner.offset_right = -10
 		label(inner, Data.ROLES[i].name, 22, rc.lightened(0.2), 4)
-		label(inner, "Q · " + Data.ROLES[i].ability, 14, YELLOW)
+		var top := hbox(inner, 6)
+		label(top, "Q · " + Data.ROLES[i].ability, 14, YELLOW)
+		rank_labels.append(label(top, "", 13, Color("9ff6c8")))
 		var d := label(inner, Data.ROLES[i].desc, 13, Color("cfd8ee"))
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		d.custom_minimum_size.x = 245
 		role_cards.append(card)
+	record_label = label(col, "", 14, Color("cfd8ee"))
 	var row := hbox(col, 10)
 	var solo := button(row, "▶  Jugar en solitario", func(): emit_launch("solo"), 52)
 	solo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -330,9 +341,20 @@ func draw_bunting(c:Control):
 			var m := (a + b) * 0.5
 			c.draw_colored_polygon(PackedVector2Array([a + (b - a) * 0.15, a + (b - a) * 0.85, m + Vector2(0, 24)]), colors[(i + row * 3) % colors.size()])
 
+func refresh_profile():
+	## Role cards show the rank earned in previous matches and the perks it gives.
+	if profile == null: return
+	for i in rank_labels.size():
+		var r:int = profile.rank(i)
+		var goal:int = profile.next_goal(i)
+		rank_labels[i].text = "· Rango %d%s" % [r, "" if goal < 0 else " (%d/%d)" % [profile.role_xp[i], goal]]
+		role_cards[i].tooltip_text = "Ventajas: " + (", ".join(profile.unlocked(i)) if profile.unlocked(i).size() else "aún ninguna") + "\nRango 2: %s · Rango 3: %s" % [profile.UNLOCKS[i][0], profile.UNLOCKS[i][1]]
+	record_label.text = "Partidas %d · Victorias %d · Mejor noche %d · Rango %d de %s: %s" % [profile.matches, profile.wins, profile.best_night, profile.rank(role), Data.ROLES[role].name, ", ".join(profile.unlocked(role)) if profile.unlocked(role).size() else "sube de rango jugando con este oficio"]
+
 func pick_role(i:int):
 	role = i
 	for j in role_cards.size(): role_cards[j].button_pressed = j == i
+	refresh_profile()
 
 func emit_launch(mode:String):
 	launch.emit(mode, role, address.text.strip_edges(), name_edit.text.strip_edges())
@@ -539,9 +561,12 @@ func build_hud():
 	base_bar.add_theme_stylebox_override("fill", box(Color("ffb35c"), 8, 0))
 	tlc.add_child(res_label)
 	res_label.add_theme_font_size_override("font_size", 16)
+	tlc.add_child(goal_label)
+	goal_label.add_theme_font_size_override("font_size", 15)
+	goal_label.add_theme_color_override("font_color", Color("ffc4e1"))
 	hud.add_child(alert_box)
 	alert_box.add_theme_stylebox_override("panel", box(Color("5a1f2e"), 12, 10, CORAL, 2))
-	alert_box.position = Vector2(16, 128)
+	alert_box.position = Vector2(16, 152)
 	alert_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	alert_box.add_child(alert_label)
 	alert_label.add_theme_font_size_override("font_size", 17)
@@ -549,7 +574,7 @@ func build_hud():
 	alert_box.visible = false
 	# team list
 	hud.add_child(team_box)
-	team_box.position = Vector2(16, 178)
+	team_box.position = Vector2(16, 200)
 	team_box.add_theme_constant_override("separation", 6)
 	team_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(guide_box)
@@ -845,6 +870,7 @@ func build_over():
 	over_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	over_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	over_text.custom_minimum_size.x = 540
+	rematch_button = button(col, "Revancha con el mismo grupo", func(): rematch.emit())
 	button(col, "Volver al menú", func(): leave.emit())
 	over.visible = false
 
@@ -904,7 +930,12 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 			banner_sub.text = "Esta noche: %s · Llegarán por el %s" % [ev.name, front_text]
 		P.NIGHT:
 			var asl:Array = s.get("as", [1, 1])
-			if s.get("rs", 0.0) > 0:
+			if s.get("fin", -1.0) > 0:
+				banner.text = "LA GRAN VERBENA · %d s · %d brotados" % [ceili(s.fin), s.rem]
+				clock_bar.max_value = Data.FINALE_TIME
+				clock_bar.value = s.fin
+				banner_sub.text = "Defended la casa por todas las calles hasta que suene la traca final"
+			elif s.get("rs", 0.0) > 0:
 				banner.text = "NOCHE %d · RESPIRO %d s" % [s.w, ceili(s.rs)]
 				clock_bar.max_value = 15.0
 				clock_bar.value = s.rs
@@ -920,7 +951,7 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 			clock_bar.value = s.c
 			banner_sub.text = "Recuperad fuerzas: la tienda y las reparaciones esperan"
 		P.OVER:
-			banner.text = "FIN DE LA VERBENA"
+			banner.text = "¡VICTORIA!" if s.get("vic", false) else "FIN DE LA VERBENA"
 			banner_sub.text = ""
 	banner.add_theme_color_override("font_color", Color("b9a6ff") if ph == P.NIGHT else YELLOW)
 	boss_box.visible = s.boss.size() > 0
@@ -941,6 +972,7 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 	var claimed := 0
 	for si in s.si: if si[0]: claimed += 1
 	res_label.text = "🪵 Materiales %d   🏳 Territorio %d/6   👥 Comunidad %d" % [s.mat, claimed, s.cm.size()]
+	goal_label.text = goal_text(s)
 	var warn := alert_text(s)
 	alert_box.visible = warn != "" and s.ph != P.OVER
 	alert_label.text = warn
@@ -1059,14 +1091,35 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 		bigmap.queue_redraw()
 	minimap.queue_redraw()
 	overlay.queue_redraw()
-	if s.ph == P.OVER and not over.visible:
+	over_wait = over_wait + dt if s.ph == P.OVER else 0.0
+	if s.ph == P.OVER and not over.visible and over_wait > (5.0 if s.get("vic", false) else 1.5):
 		over.visible = true
-		over_title.text = "Se acabó la verbena"
+		var won:bool = s.get("vic", false)
+		over_title.text = "¡La verbena está encendida!" if won else "Se acabó la verbena"
+		over_title.add_theme_color_override("font_color", YELLOW if won else PINK)
+		rematch_button.visible = can_rematch
+		rematch_button.text = "Revancha con el mismo grupo" if can_rematch else "Esperando al anfitrión…"
 		var lines := []
 		lines.append(str(s.rep[0]) if s.rep.size() > 0 else "")
 		lines.append("Aguantasteis %d noches · %d brotados derrotados · %d vecinos rescatados" % [s.stats.nights, s.stats.kills, s.stats.rescued])
+		var installed := 0
+		for x in s.get("pc", []): if x[0] == 4: installed += 1
+		if not won: lines.append("Piezas de la verbena instaladas: %d de 4" % installed)
 		for q in s.pl.values(): lines.append("%s (%s, nivel %d): %d derribos · %d lotes recogidos por otros" % [q.name, Data.ROLES[q.role].name, q.lvl, q.kills, q.get("helped", 0)])
 		over_text.text = "\n".join(lines)
+
+func goal_text(s:Dictionary) -> String:
+	var pcs:Array = s.get("pc", [])
+	if pcs.is_empty(): return ""
+	if s.get("vic", false): return "🎆 ¡La verbena está encendida!"
+	if s.get("fin", -1.0) > 0: return "🎆 ¡La gran verbena! Aguantad %d s" % ceili(s.fin)
+	var done := 0
+	var missing := []
+	for i in pcs.size():
+		if pcs[i][0] == 4: done += 1
+		else: missing.append(Data.SITES[Data.PIECES[i].site].name)
+	if done == pcs.size(): return "🎆 Verbena lista: encendedla en el escenario (E)"
+	return "🎆 Verbena %d/%d · faltan piezas en %s" % [done, pcs.size(), ", ".join(missing)]
 
 func first_day_steps(s:Dictionary, p:Dictionary) -> String:
 	## Checklist for the first afternoon so new players always know a next step.
@@ -1136,6 +1189,8 @@ func map_text(s:Dictionary) -> String:
 		var si:Array = s.si[i]
 		lines.append("%s %s\n   %s" % ["🏳" if si[0] else "·", Data.SITES[i].name + (" (%d%%)" % int(100.0 * si[1] / si[2]) if si[0] else ""), Data.SITES[i].bonus])
 	lines.append("")
+	lines.append(goal_text(s))
+	lines.append("Cada pieza aparece al conquistar su propiedad: llevadla al escenario de la plaza.")
 	lines.append(weakest_access(s))
 	lines.append("Conquistar cuesta %d materiales (%s junto al estandarte, de día y sin brotados cerca)." % [s.cc, k("claim")])
 	lines.append("")
@@ -1198,6 +1253,16 @@ func draw_map(c:Control, big:bool):
 		c.draw_circle(world_to_map(c, Vector2(en[i + 2], en[i + 3]), big), (5.0 if kind == 7 else 2.2) * (1.4 if big else 1.0), Color("ff4d6d") if int(en[i + 6]) & 4 == 0 else Color("b07a8a"))
 	for sv in s.sv: c.draw_string(ThemeDB.fallback_font, world_to_map(c, Vector2(sv[1], sv[2]), big) - Vector2(3, -6), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, YELLOW)
 	for d in s.dr: c.draw_circle(world_to_map(c, Vector2(d[1], d[2]), big), 5.0, Color("4cc9f0"))
+	var stage_pos := world_to_map(c, Map.STAGE, big)
+	c.draw_rect(Rect2(stage_pos - Vector2(9, 4), Vector2(18, 8)), Color("e8665a"))
+	var pcs:Array = s.get("pc", [])
+	for i in pcs.size():
+		if pcs[i][0] == 0 or pcs[i][0] == 4: continue
+		var pm := world_to_map(c, Vector2(pcs[i][1], pcs[i][2]), big)
+		var pcol := Color(Data.PIECES[i].color)
+		c.draw_circle(pm, 7.0 if big else 5.0, Color(0.1, 0.08, 0.14))
+		c.draw_circle(pm, 5.0 if big else 3.5, pcol)
+		if big: c.draw_string(ThemeDB.fallback_font, pm + Vector2(8, 4), Data.PIECES[i].name, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, pcol.lightened(0.3))
 	var br:Array = s.get("br", [])
 	var bc := world_to_map(c, Map.BASE_CENTER, big)
 	for i in range(0, br.size(), 3):

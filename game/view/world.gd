@@ -32,6 +32,8 @@ var cur_wet := 0.0
 var cur_blackout := 0.0
 var cur_red := 0.0
 var label_nodes := []
+var stage_lights := []
+var finale_on := 0.0
 
 # palette
 const GRASS_A = "7cc46a"
@@ -391,6 +393,48 @@ func build_base():
 	k.sphere(Kit.at(b.x, 1.94, b.y), Vector3(0.07, 0.07, 0.07), col("8b5e3c"), 6, 4)
 	k.box(Kit.at(b.x, 0.08, b.y), Vector3(1.4, 0.16, 0.8), col("cfc5b8"), 0.04)
 	label_at("CAMPANA", Vector3(b.x, 3.25, b.y), 0.004, Color("fff2c9"), true)
+	build_stage()
+
+func build_stage():
+	## Festival stage where the four pieces are installed to light the verbena.
+	var c:Vector2 = Map.STAGE
+	var k := K(c)
+	var xf := Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(c.x, 0, c.y))
+	k.box(xf * Kit.at(0, 0.3, 0), Vector3(6.0, 0.6, 2.6), col("b77a4f"), 0.08, 0.3)
+	for i in 12: k.box(xf * Kit.at(-2.75 + i * 0.5, 0.62, 0), Vector3(0.46, 0.04, 2.5), col("c98a55") if i % 2 else col("b77a4f"), 0.0)
+	for i in 3: k.box(xf * Kit.at(-0.9 + i * 0.9, 0.12, -1.55), Vector3(0.8, 0.24, 0.5), col("cfc5b8"), 0.04)
+	for sx in [-1.0, 1.0]:
+		k.box(xf * Kit.at(sx * 2.85, 2.2, 1.1), Vector3(0.28, 3.8, 0.28), col("e8665a"), 0.06)
+	k.box(xf * Kit.at(0, 4.1, 1.1), Vector3(6.0, 0.4, 0.3), col("e8665a"), 0.08)
+	for i in 15:
+		var x := -2.8 + i * 0.4
+		var colors := ["ff6b6b", "ffd166", "06d6a0", "4cc9f0", "f78fb3"]
+		k.sphere(xf * Kit.at(x, 4.35, 1.1), Vector3(0.11, 0.11, 0.11), Kit.glow(col(colors[i % 5])), 6, 4)
+	for side in [-1, 1]:
+		for j in 6:
+			var colors := ["ffd166", "ff6b6b", "4cc9f0"]
+			k.sphere(xf * Kit.at(side * 2.85, 0.8 + j * 0.55, 1.28), Vector3(0.1, 0.1, 0.1), Kit.glow(col(colors[j % 3])), 6, 4)
+	for i in 4:
+		k.cylinder(xf * Kit.at(-2.1 + i * 1.4, 0.75, 0.2), 0.35, 0.4, 0.3, col("fff2d6"), 12, true, 0.2)
+	label_at("ESCENARIO", xf * Vector3(0, 4.75, 1.1), 0.0055, Color("fff2c9"), true)
+	var colors := [Color("ff6b8b"), Color("4cc9f0"), Color("ffd166"), Color("06d6a0")]
+	for i in 4:
+		var l := SpotLight3D.new()
+		l.position = xf * Vector3(-2.4 + i * 1.6, 4.0, 0.6)
+		l.rotation = Vector3(-1.0, 0, 0)
+		l.light_color = colors[i]
+		l.spot_range = 22.0
+		l.spot_angle = 30.0
+		l.light_energy = 0.0
+		add_child(l)
+		stage_lights.append(l)
+
+func update_finale(on:bool, t:float, dt:float):
+	finale_on = move_toward(finale_on, 1.0 if on else 0.0, dt * 0.8)
+	for i in stage_lights.size():
+		var l:SpotLight3D = stage_lights[i]
+		l.light_energy = finale_on * 6.0
+		l.rotation = Vector3(-0.7 - 0.3 * sin(t * 1.3 + i), PI * 0.5 + sin(t * 0.9 + i * 1.7) * 0.9, 0)
 
 func build_sites():
 	taller(Map.SITES[0])

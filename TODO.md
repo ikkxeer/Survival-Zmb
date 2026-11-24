@@ -42,9 +42,18 @@ Objetivo de la próxima versión: que un grupo pueda descargar el juego, entrar 
 
 ## P2 · Ampliar el barrio después de validar el núcleo
 
-- [ ] **Primer rescate jugable.** Escoltar a un vecino desde un puesto hasta la casa, con recompensa compartida y resolución tanto si llega como si cae.
-- [ ] **Primer jefe de barrio.** Introducir un ataque reconocible que el equipo pueda anticipar y contrarrestar con dos estrategias.
-- [ ] **Progresión entre partidas.** Probar un desbloqueo por rol, guardado local versionado y recuperación tras cerrar el juego durante el guardado.
+- [x] **Primer rescate jugable.** Un vecino atrapado aparece de día en una casa con dos guardianes. Mantener E lo libera y camina solo hasta la casa por la ruta de los brotados; los brotados pueden atacarlo por el camino.
+  - Si llega, se une a la comunidad con una ventaja compartida: el carpintero da materiales, la enfermera cura en la plaza y el vigía dispara desde el tejado.
+  - Si cae, se anuncia y la oportunidad se pierde.
+- [x] **Primer jefe de barrio.** El Gigantón llega cada cinco noches. Antes de su pisotón aparece un anillo rojo durante casi un segundo: dentro reciben daño jugadores y defensas. Además convoca brotados cada 11 s.
+  - Primera estrategia: esquivar el anillo y atacar entre pisotones.
+  - Segunda estrategia: frenarlo lejos de la casa con bobinas que lo aturden, alambradas y minas, porque el pisotón destroza barricadas.
+  - Falta comprobar con jugadores que ambas funcionan.
+- [x] **Progresión entre partidas.** Cada oficio acumula experiencia entre partidas (`user://perfil.cfg`, versionado) y sube de rango:
+  - Rango 2: ingeniera con materiales extra, médico con tres botiquines, soldado con trabuco y exploradora con fichas.
+  - Rango 3: +15 de vida.
+  - Se guarda en cada amanecer, al acabar y al salir. La escritura usa un archivo temporal y conserva una copia anterior, así que si el archivo queda a medias se recupera la copia; un perfil de una versión futura no se aplica.
+  - El menú muestra el rango, el progreso y las ventajas de cada oficio. Verificado en `tests/profile_test.gd`.
 
 ## P1 · Que siempre haya una decisión disponible
 
@@ -62,7 +71,12 @@ Primero probar este ritmo durante tres noches con los cuatro puestos actuales. P
 
 ## P2 · Convertir el barrio en un lugar al que merezca la pena volver
 
-- [ ] **Dar una meta final a la partida.** Prototipar «Encender la verbena»: recuperar piezas en los puestos, llevarlas a la plaza y defender el encendido. Ensayar victoria, derrota y revancha con el mismo grupo. El equipo debe saber desde el primer día qué le falta.
+- [x] **Dar una meta final a la partida.** «Encender la verbena»:
+  - Al conquistar el Taller, el Almacén, el Economato y la Gasolinera aparece en cada uno una pieza: cuadro eléctrico, guirnalda maestra, altavoces y bidón de gasoil.
+  - Hay que cargarla hasta el escenario de la plaza. Quien la lleva va más despacio y la suelta si cae.
+  - Con las cuatro instaladas, el escenario permite encender la verbena: empieza una noche final de 120 s por todas las calles. Si se aguanta hay victoria con fuegos artificiales; si cae la casa, derrota.
+  - Al terminar, el anfitrión ofrece una revancha con el mismo grupo.
+  - Desde el primer día el HUD y el plano indican las piezas que faltan y dónde están. Verificado en `tests/goal_test.gd`. Falta ensayarlo con un grupo.
 - [ ] **Abrir rutas con consecuencias.** Crear un atajo del taller a la plaza que también pueda aprovechar la horda. Comparar dos partidas con la misma oleada y registrar cuándo interesa abrirlo y cuándo conviene mantenerlo cerrado.
 - [ ] **Dar una función jugable a cada interior.** Empezar con el dispensario: una pista visible desde fuera, dos salidas y un botiquín que hay que transportar. Probar que la cámara permite ver al portador y a sus perseguidores en las puertas.
 - [ ] **Encadenar decisiones entre días.** Un vecino rescatado puede atender el dispensario o reforzar el taller. Hacer visible el efecto de su destino la noche siguiente y verificar que ambos destinos aportan ventajas distintas.
@@ -82,6 +96,8 @@ Coordinar estos puntos con la rama de gráficos y jugabilidad. Revisar primero l
 - [ ] **Contar la historia del barrio mientras se juega.** Introducir al menos un detalle que cambie tras cada conquista, como vecinos preparando el escenario o un escaparate que vuelve a encenderse. Verificar que se distingue al regresar desde otra calle.
 - [ ] **Componer un motivo musical de la verbena.** Probar tres arreglos para preparación, asalto y amanecer. Durante una brecha, las señales de peligro deben seguir oyéndose sobre música y disparos. Repetir con auriculares y altavoces.
 - [ ] **Hacer accesible la información bajo presión.** Acompañar las alarmas por sonido con texto e iconos, ajustar tamaño de interfaz y ofrecer reducción de destellos y sacudidas. Completar una reparación y un rescate con el audio silenciado.
+  - Hecho: brechas, golpes a la casa, estandartes atacados, caídos, vecinos atrapados, piezas y suministros tienen texto y marca en pantalla además de sonido. Hay tamaño de interfaz y opciones para quitar sacudidas y destellos (luces, explosiones, relámpagos y pulso de daño).
+  - Falta la prueba con el audio silenciado.
 
 ## Salida comercial · Pasar de la candidata a la versión de venta
 

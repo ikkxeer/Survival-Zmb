@@ -14,6 +14,7 @@ const PLAYER_SPAWN := Vector2(0, 4.5)
 const SHOP_RADIUS := 7.5
 const BELL := Vector2(-4.8, 3.4)                # plaza bell: ring it to bring the night forward
 const PORCH := Vector2(1.8, 3.4)                 # where supply bundles are left
+const STAGE := Vector2(-8.2, -1.0)               # festival stage (west of the plaza, facing the house)
 
 # Roads: purely visual, everything is walkable.
 const ROADS_H = [-12.0, 12.0]   # z centres of east-west avenues (4 m wide)

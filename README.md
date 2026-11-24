@@ -62,6 +62,8 @@ La noche llega en dos o tres **asaltos**. Entre uno y otro hay 15 segundos de **
 
 **Amanecer (recuperación).** Llegan las recompensas de las propiedades y de la comunidad. Los caídos vuelven y el botín se repone. Es el momento de comprar, mejorar y reparar antes del siguiente día.
 
+**La meta: encender la verbena.** Cuatro propiedades guardan una pieza del escenario: cuadro eléctrico, guirnalda maestra, altavoces y bidón de gasoil. Al conquistarlas, hay que llevar cada pieza al escenario de la plaza; quien carga va más despacio y la suelta si cae. Con las cuatro instaladas se enciende la verbena y empieza la noche final: 120 segundos de ataque por todas las calles. Si la casa aguanta, ganáis. Después, el anfitrión puede ofrecer una revancha con el mismo grupo.
+
 La partida acaba si cae la casa o si todo el equipo queda fuera de combate. Un jugador caído aguanta 30 segundos. Un compañero puede reanimarlo manteniendo E, y él mismo puede levantarse con un botiquín.
 
 ## Oficios
@@ -72,6 +74,8 @@ La partida acaba si cae la casa o si todo el equipo queda fuera de combate. Un j
 | Médico | Cura sin gastar materiales y reanima el doble de rápido. Empieza con dos botiquines. | Ola de tila: cura y levanta a los compañeros cercanos. |
 | Soldado | +25 % de daño, recarga rápida y un 50 % más de munición. | Traca final: 6 s de fuego rápido sin gastar balas. |
 | Exploradora | Corre más, rebusca el doble de rápido y saca un 50 % más de botín. | Carrerilla: 5 s más rápida y con la mitad de daño. |
+
+Entre partidas, cada oficio acumula experiencia y sube de rango. En el rango 2 la ingeniera aporta materiales extra, el médico empieza con tres botiquines, el soldado con el trabuco y la exploradora con fichas; en el rango 3 todos tienen +15 de vida. El perfil se guarda en `user://perfil.cfg` con copia de seguridad.
 
 Cada oficio sube cinco niveles con su experiencia: matar, reparar, curar, rebuscar, construir o reanimar. Cada nivel da más vida, mejora el oficio y reduce la recarga de la habilidad. Todos pueden construir, reanimar y usar cualquier arma.
 
@@ -193,6 +197,8 @@ godot --headless -s tests/network_test.gd -- --host
 ```
 
 - `match_test.gd` comprueba 29 reglas: construcción, rutas alrededor de muros, rebuscar, tienda, disparo y recarga, conquista, reanimación, habilidades, ciclo de fases, derribadores y derrotas.
+- `goal_test.gd` comprueba las piezas, la carga, la caída con pieza, la instalación, la noche final, la victoria, la derrota y la revancha.
+- `profile_test.gd` comprueba los rangos, las ventajas, el guardado versionado y la recuperación de un archivo a medias.
 - `settings_test.gd` comprueba que ajustes y teclas se conservan al reiniciar, que una tecla ocupada se intercambia y que la ayuda muestra las teclas elegidas.
 - `python tests/run_session.py --jugadores 1|2|4` juega tres noches con un anfitrión y clientes reales por ENet (latencia simulada y una salida a mitad de oleada) y compara el estado final en todos los procesos.
 - `godot --path . -s tests/benchmark.gd` mide una oleada llena en cada calidad gráfica y guarda `user://benchmark.md`.

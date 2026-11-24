@@ -106,6 +106,14 @@ const SITES = [
 	{"name":"Gasolinera", "bonus":"Corriente garantizada y Soplete de verbena en la tienda.", "color":"e86a5c"},
 	{"name":"Comisaría", "bonus":"Rifle de tómbola y Lanzatracas en la tienda. Munición y una traca al amanecer.", "color":"6f8fd8"},
 ]
+# The end goal: four pieces hidden in properties, carried to the plaza stage.
+const PIECES = [
+	{"site":0, "name":"Cuadro eléctrico", "color":"4cc9f0"},
+	{"site":3, "name":"Guirnalda maestra", "color":"ffd166"},
+	{"site":2, "name":"Altavoces", "color":"f78fb3"},
+	{"site":4, "name":"Bidón de gasoil", "color":"e86a5c"},
+]
+const FINALE_TIME := 120.0
 const CORE_UPGRADE = {"mat":[10,14,18], "coins":[8,12,16], "hp":50.0}
 
 # ---------------------------------------------------------------- loot nodes

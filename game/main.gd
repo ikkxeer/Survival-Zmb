@@ -12,6 +12,7 @@ const Audio = preload("res://game/audio.gd")
 const UI = preload("res://game/interface.gd")
 const CameraRig = preload("res://game/view/camera_rig.gd")
 const Settings = preload("res://game/settings.gd")
+const Profile = preload("res://game/profile.gd")
 const P := Data.Phase
 const PORT := 24680
 const SEND_RATE := 1.0 / 20.0
@@ -23,6 +24,9 @@ var audio := Audio.new()
 var ui := UI.new()
 var camera := CameraRig.new()
 var prefs := Settings.new()
+var profile := Profile.new()
+var xp_saved := 0          # experience of this match already written to the profile
+var result_saved := false
 var listener := AudioListener3D.new()
 var screen := ColorRect.new()
 var screen_mat := ShaderMaterial.new()
@@ -66,6 +70,8 @@ var latency := 0.0          # simulated one-way delay for clients (--latencia=ms
 var lag_in := []
 var lag_out := []
 var journal_file:FileAccess
+var fireworks := 0.0
+var last_mid := 0
 var last_phase := -1
 var crosshair:ImageTexture
 
@@ -79,6 +85,7 @@ func _ready():
 	add_child(camera)
 	camera.current = true
 	prefs.load_file()
+	profile.load_file()
 	add_child(listener)
 	listener.make_current()
 	var post := CanvasLayer.new()
@@ -94,20 +101,23 @@ func _ready():
 	ui.leave.connect(stop.bind(""))
 	ui.resume.connect(func(): set_paused(false))
 	ui.prefs = prefs
+	ui.profile = profile
 	ui.settings_changed.connect(func(v):
 		apply_settings(v)
 		prefs.save_file())
 	ui.action.connect(on_ui_action)
 	ui.build_pick.connect(func(k): set_build(k))
+	ui.rematch.connect(rematch)
 	multiplayer.peer_disconnected.connect(func(id):
 		if mode == "host": sim.leave(id))
-	multiplayer.connected_to_server.connect(func(): register.rpc_id(1, chosen_role, chosen_name))
+	multiplayer.connected_to_server.connect(func(): register.rpc_id(1, chosen_role, chosen_name, profile.rank(chosen_role)))
 	multiplayer.connection_failed.connect(stop.bind("No se pudo conectar con esa dirección."))
 	multiplayer.server_disconnected.connect(stop.bind("El anfitrión ha cerrado la partida."))
 	crosshair = make_crosshair()
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--latencia="): latency = float(a.substr(11)) / 1000.0
 	ui.sync_settings()
+	ui.refresh_profile()
 	apply_settings(prefs.values)
 	ui.show_menu(true)
 	audio.set_music(2, 0.0)
@@ -146,7 +156,11 @@ func start(which:String, role:int, address:String, player_name:String):
 			return
 		multiplayer.multiplayer_peer = peer
 	mode = which
+	ui.can_rematch = which != "join"
 	last_ev = 0
+	last_mid = 0
+	xp_saved = 0
+	result_saved = false
 	local_pos = Vector2.INF
 	last_fix = 0
 	build_kind = -1
@@ -158,7 +172,7 @@ func start(which:String, role:int, address:String, player_name:String):
 	if mode == "join":
 		ui.big("Conectando…", "Buscando al anfitrión en " + address, Color.WHITE, 30.0)
 		return
-	sim.join(1, chosen_role, chosen_name)
+	sim.join(1, chosen_role, chosen_name, profile.rank(chosen_role))
 	open_journal()
 	state = sim.snapshot()
 	if mode == "host":
@@ -183,8 +197,42 @@ func flush_journal():
 		journal_file.flush()
 	sim.journal.clear()
 
+func rematch():
+	## Same group, fresh neighbourhood. Only the host (or a solo player) can call it.
+	if mode == "" or mode == "join": return
+	var roster := []
+	save_progress(state.get("ph", 0) == P.OVER)
+	for id in sim.players: roster.append([id, sim.players[id].role, sim.players[id].name, sim.players[id].get("rank", 1)])
+	roster.sort_custom(func(a, b): return sim.players[a[0]].slot < sim.players[b[0]].slot)
+	flush_journal()
+	sim = Match.new()
+	for r in roster: sim.join(r[0], r[1], r[2], r[3])
+	open_journal()
+	local_pos = Vector2.INF
+	fireworks = 0.0
+	state = sim.snapshot()
+	ui.big("¡Revancha!", "Mismo barrio, misma pandilla. Que no se apague la verbena.", Color("ffd166"), 4.0)
+
+func save_progress(final:bool):
+	## Adds this match's experience to the profile; called at each dawn, at the end and on leaving.
+	var me := my_state()
+	if me.is_empty(): return
+	var gained:int = me.xp - xp_saved
+	if gained > 0:
+		if profile.add_xp(me.role, gained):
+			ui.say("¡Nuevo rango de %s! %s" % [Data.ROLES[me.role].name, " · ".join(profile.unlocked(me.role))], Color("ffd166"))
+		xp_saved = me.xp
+	if final and not result_saved:
+		result_saved = true
+		profile.matches += 1
+		if state.get("vic", false): profile.wins += 1
+		profile.best_night = maxi(profile.best_night, state.get("w", 1))
+	profile.save_file()
+	ui.refresh_profile()
+
 func stop(reason:String):
 	if mode == "": return
+	save_progress(state.get("ph", 0) == P.OVER)
 	if mode != "join": flush_journal()
 	journal_file = null
 	mode = ""
@@ -217,10 +265,10 @@ func set_paused(v:bool):
 		ui.help_panel.visible = false
 
 @rpc("any_peer", "reliable")
-func register(role:int, player_name:String = ""):
+func register(role:int, player_name:String = "", rank:int = 1):
 	if mode != "host": return
 	var id := multiplayer.get_remote_sender_id()
-	if not sim.join(id, role, player_name): multiplayer.multiplayer_peer.disconnect_peer(id)
+	if not sim.join(id, role, player_name, rank): multiplayer.multiplayer_peer.disconnect_peer(id)
 
 @rpc("any_peer", "call_remote", "unreliable_ordered", 1)
 func controls(pos:Vector2, aim:Vector2, buttons:int):
@@ -552,6 +600,16 @@ func on_state(s:Dictionary):
 	if not s.pl.has(me):
 		if mode == "join" and not first: ui.big("Partida llena", "", Color.WHITE, 2.0)
 		return
+	if s.get("mid", 0) != last_mid:
+		if last_mid != 0:
+			xp_saved = 0
+			result_saved = false
+			last_ev = 0
+			actors.clear_all()
+			ui.over.visible = false
+			local_pos = Vector2.INF
+			fireworks = 0.0
+		last_mid = s.get("mid", 0)
 	if mode == "join":
 		sim.load_structures(s.st)
 		for i in s.si.size(): sim.sites[i].claimed = s.si[i][0]
@@ -665,10 +723,12 @@ func handle_event(type:String, d:Array, me:int):
 			var ev:Dictionary = Data.NIGHT_EVENTS[d[1]]
 			ui.big("NOCHE %d" % d[0], ev.name + " · " + ev.desc, Color("c9b6ff"), 4.5)
 		"dawn":
+			save_progress(false)
 			audio.play("dawn", null, -2)
 			ui.big("¡AMANECE!", "Habéis sobrevivido a la noche %d" % (d[0] - 1), Color("ffd166"), 3.5)
 			ui.show_report(state.get("rep", []))
 		"over":
+			save_progress(true)
 			audio.play("down", null, 0, 0.7)
 		"down":
 			audio.play("down", v3(d[0], d[1], 1), 0)
@@ -710,6 +770,29 @@ func handle_event(type:String, d:Array, me:int):
 			fx.ring(v3(d[0], d[1]), col, 0.3, 2.5, 1.2)
 			fx.ring(v3(d[0], d[1]), col, 2.0, 2.0, 5.0, true)
 			audio.play("click", null, 0, 0.6)
+		"piece":
+			var b:Vector2 = Map.SITES[Data.PIECES[d[0]].site].beacon
+			fx.burst("stars", v3(b.x, b.y + 1.6, 0.1))
+			audio.play("claim", null, -4, 1.2)
+		"piece_take":
+			audio.play("coin", v3(d[0], d[1], 1), -2, 0.7)
+		"piece_drop":
+			audio.play("alarm", v3(d[0], d[1], 1), -4)
+			fx.ring(v3(d[0], d[1]), Color("ffd166"), 0.5, 3.0, 1.0)
+		"install":
+			fx.burst("stars", v3(Map.STAGE.x, Map.STAGE.y, 0.8))
+			fx.burst("confetti", v3(Map.STAGE.x, Map.STAGE.y, 3.0))
+			audio.play("levelup", null, -2)
+			ui.big("PIEZA %d DE 4" % d[0], "Cuando estén las cuatro, encended la verbena en el escenario", Color("ffd166"), 3.5)
+		"finale":
+			audio.play("horn", null, 2, 0.9)
+			audio.play("bell", null, 0)
+			ui.big("¡LA GRAN VERBENA!", "Aguantad %d s hasta la traca final. Vienen por todas las calles." % int(d[0]), Color("ff9ad5"), 5.0)
+		"victory":
+			fireworks = 9.0
+			audio.play("claim", null, 2)
+			audio.play("dawn", null, 0)
+			ui.big("¡LA VERBENA ESTÁ ENCENDIDA!", "Habéis salvado el barrio", Color("ffd166"), 4.5)
 		"assault":
 			audio.play("horn", null, -2, 1.1)
 			ui.big("ASALTO %d DE %d" % [d[0], d[1]], "Vuelven a la carga", Color("ff9a8a"), 3.0)
@@ -754,6 +837,15 @@ func _process(dt:float):
 	var p := my_state()
 	var night := clampf(1.0 - smoothstep(0.22, 0.3, world.tod_now) + smoothstep(0.74, 0.82, world.tod_now), 0.0, 1.0)
 	world.update_time(s.tod, s.ev if s.ph == P.NIGHT else -1, s.wx, cam_focus, dt, age)
+	world.update_finale(s.get("fin", -1.0) > 0 or s.get("vic", false), age, dt)
+	if fireworks > 0:
+		fireworks -= dt
+		if randf() < dt * 6.0:
+			var at := Vector3(randf_range(-9, 9), randf_range(9, 15), randf_range(-8, 6))
+			fx.burst("confetti", at)
+			fx.burst("stars", at)
+			fx.light(at, Color.from_hsv(randf(), 0.6, 1.0), 6.0, 0.4, 18.0)
+			audio.play("pop", at, 0, randf_range(0.5, 0.8))
 	var lp := Vector3(local_pos.x, 0, local_pos.y) if local_pos != Vector2.INF else Vector3.INF
 	actors.update(dt, age, s, lp, local_aim, night, s.ph == P.NIGHT and s.ev == 1)
 	# camera
@@ -845,6 +937,12 @@ func indicators(s:Dictionary, me:int) -> Array:
 		for i in Map.SITES.size():
 			if not s.si[i][0] and (site < 0 or Map.SITES[i].beacon.distance_to(local_pos) < Map.SITES[site].beacon.distance_to(local_pos)): site = i
 		if site >= 0: add.call(v3(Map.SITES[site].beacon.x, Map.SITES[site].beacon.y, 3.5), Color(Data.SITES[site].color), "%s · arriesgado" % Data.SITES[site].name)
+	var pcs:Array = s.get("pc", [])
+	var carrying:bool = not my_state().is_empty() and my_state().get("carry", -1) >= 0
+	for i in pcs.size():
+		if pcs[i][0] == 1 or pcs[i][0] == 3: add.call(v3(pcs[i][1], pcs[i][2], 1.5), Color(Data.PIECES[i].color), "🎆 " + Data.PIECES[i].name)
+	var all_in := pcs.size() > 0 and pcs.all(func(x): return x[0] == 4)
+	if carrying or (all_in and s.ph == P.PREP and s.get("fin", -1.0) < 0): add.call(v3(Map.STAGE.x, Map.STAGE.y, 2.5), Color("ff9ad5"), "Escenario")
 	if s.boss.size() > 0 and actors.horde.has(s.boss[0]): add.call(actors.horde[s.boss[0]].position + Vector3(0, 3, 0), Color("c45ad8"), "Gigantón")
 	return out
 
