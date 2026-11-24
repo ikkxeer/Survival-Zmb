@@ -422,6 +422,10 @@ func act(id:int, action:String, args:Array = []):
 			if args.size() >= 1: up_gun(p, int(args[0]))
 		"ammo":
 			if args.size() >= 1: buy_ammo(p, int(args[0]))
+		"sell_gun":
+			if args.size() >= 1: sell_gun(p, int(args[0]))
+		"sell_item":
+			if args.size() >= 1: sell_item(p, str(args[0]))
 		"buy_medkit":
 			if not near_shop(p.p): return say(p, "La tienda está en la casa")
 			if p.med >= 3: return say(p, "Llevas el máximo de botiquines")
@@ -593,6 +597,40 @@ func buy_gun(p:Dictionary, g:int):
 	p.rl = 0.0
 	emit("buy", [p.p.x, p.p.y])
 	say(p, "%s comprado" % w.name)
+
+func sell_value(p:Dictionary, g:int) -> int:
+	## Half of what was spent on the weapon: purchase plus upgrades.
+	if not p.guns.has(g) or g == 0: return 0
+	var w:Dictionary = Data.WEAPONS[g]
+	var spent:int = w.price
+	for i in int(p.guns[g]) - 1: spent += int(w.up[i])
+	return spent / 2
+
+func sell_gun(p:Dictionary, g:int):
+	if not near_shop(p.p): return say(p, "La tienda está en la casa")
+	if g == 0: return say(p, "La pistola de feria no se vende")
+	if not p.guns.has(g): return
+	var value := sell_value(p, g)
+	p.guns.erase(g)
+	p.mag.erase(g)
+	p.res.erase(g)
+	p.coins += value
+	if p.gun == g:
+		p.gun = 0
+		p.rl = 0.0
+	emit("buy", [p.p.x, p.p.y])
+	say(p, "%s vendido por %d fichas" % [Data.WEAPONS[g].name, value])
+
+func sell_item(p:Dictionary, what:String):
+	if not near_shop(p.p): return say(p, "La tienda está en la casa")
+	if what == "medkit" and p.med > 0:
+		p.med -= 1
+		p.coins += Data.MEDKIT.price / 2
+	elif what == "traca" and p.tr > 0:
+		p.tr -= 1
+		p.coins += Data.GRENADE.price / 2
+	else: return
+	emit("buy", [p.p.x, p.p.y])
 
 func act_switch(p:Dictionary, g:int):
 	p.gun = g
@@ -769,10 +807,13 @@ func hitscan(owner:int, origin:Vector2, dir:Vector2, reach:float, dmg:float, pie
 		if absf(rel.cross(dir)) < e.r + 0.18: hits.append([along, key])
 	hits.sort_custom(func(a, b): return a[0] < b[0])
 	var end := origin + dir * length
+	var struck := 0
 	for i in mini(hits.size(), pierce + 1):
 		damage_enemy(hits[i][1], dmg * (1.0 - 0.15 * i), owner, dir, knock, true)
-		if i == pierce: end = origin + dir * maxf(0.2, hits[i][0])
-	emit("shot", [owner, gun, origin.x, origin.y, end.x, end.y])
+		if i == pierce:
+			end = origin + dir * maxf(0.2, hits[i][0])
+			struck = 1
+	emit("shot", [owner, gun, origin.x, origin.y, end.x, end.y, struck])
 
 func damage_enemy(key:int, dmg:float, owner:int, dir:Vector2 = Vector2.ZERO, knock:float = 0.0, can_crit:bool = false):
 	if not enemies.has(key): return

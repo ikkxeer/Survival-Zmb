@@ -33,6 +33,9 @@ def build(godot, destination):
         dist = ROOT / "distribution"
         for p in [dist / "JUGAR.txt", *sorted((dist / "licencias").glob("*.txt"))]:
             files.append((p, p.relative_to(dist)))
+        # Las fuentes OFL viajan con su licencia.
+        for p in sorted((ROOT / "game" / "fonts").glob("*-OFL.txt")):
+            files.append((p, Path("licencias") / p.name))
         with tempfile.NamedTemporaryFile(dir=destination.parent, delete=False) as tmp:
             archive = Path(tmp.name)
         try:

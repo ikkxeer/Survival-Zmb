@@ -6,7 +6,8 @@ Todo el contenido visual se genera por código al arrancar el juego:
   game/view/kit.gd, game/view/world.gd y game/view/actors.gd.
 - Sombreados de superficie, suelo, agua, cielo, contorno, efectos y pantalla:
   game/shaders/*.gdshader.
-- Efectos de partículas e interfaz: game/view/fx.gd y game/interface.gd.
+- Efectos de partículas e interfaz: game/view/fx.gd, game/interface.gd y
+  game/ui/*.gd.
 No se incluyen texturas, imágenes ni modelos de terceros. Las texturas de la
 rama anterior (asfalto, hierba, adoquines y tejas) ya no forman parte del
 juego.
@@ -16,10 +17,15 @@ armas, brotados, explosiones, interfaz, ambiente y los tres bucles musicales
 (día, noche y combate), compuestos para este proyecto. No se incluyen
 grabaciones ni muestras externas.
 
-Tipografía: la interfaz pide una fuente redondeada instalada en el sistema
-(Nunito, Fredoka, Baloo 2, Varela Round, Quicksand, Comfortaa, Ubuntu o
-Noto Sans) y, si no existe, usa la fuente incluida con el motor. El paquete
-no contiene archivos de fuentes añadidos.
+Tipografía: la interfaz usa dos fuentes incluidas en game/fonts/, ambas bajo
+la SIL Open Font License 1.1 (textos completos en game/fonts/*-OFL.txt):
+- Fredoka (títulos y botones). Copyright 2016 The Fredoka Project Authors.
+  https://github.com/google/fonts/tree/main/ofl/fredoka
+- Nunito (textos). Copyright 2014 The Nunito Project Authors.
+  https://github.com/google/fonts/tree/main/ofl/nunito
+Los iconos de la interfaz (casa, tablón, fichas, botiquín, traca, farolillo,
+sol, luna, brote, corona, campana y corazón) se dibujan por código en
+game/ui/style.gd.
 
 Repositorio y cambios: https://github.com/ikkxeer/Survival-Zmb
 

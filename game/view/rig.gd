@@ -36,6 +36,12 @@ var gun_kind := -1
 var aim_blend := 0.0
 var shake := 0.0
 var bob_scale := 1.0
+var ground_vel := Vector2.ZERO   # smoothed world velocity on the ground plane
+var fire_t := 0.0                # keeps the weapon raised for a moment after shooting
+var hip_y := 0.0
+var gun_home := Vector3.ZERO
+var move_amt := 0.0
+var bar_t := 0.0                 # health bar shows for a moment after a hit
 
 func setup_pivots(shoulder_y:float, shoulder_x:float, hip_y:float, hip_x:float, neck_y:float):
 	add_child(body)
@@ -50,6 +56,13 @@ func setup_pivots(shoulder_y:float, shoulder_x:float, hip_y:float, hip_x:float, 
 		l[0].position = Vector3(l[1] * hip_x, hip_y, 0)
 	body.add_child(gun)
 	gun.position = Vector3(0.2, shoulder_y - 0.12, 0.38)
+	gun_home = gun.position
+	self.hip_y = hip_y
+
+func muzzle_point() -> Vector3:
+	## Tip of the held weapon in world space (where shots visually start).
+	if not is_inside_tree(): return global_position + Vector3(0, 1.1, 0)
+	return gun.global_position + global_basis.z * 0.42
 
 func add_part(parent:Node3D, mesh:Mesh, mat:Material) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
@@ -73,9 +86,13 @@ func face(dir:Vector2, dt:float, rate:float = 14.0):
 	yaw = lerp_angle(yaw, atan2(dir.x, dir.y), 1.0 - exp(-rate * dt))
 	rotation.y = yaw
 
-## Hero / neighbour animation. state: 0 alive, 1 downed, 2 dead.
-func animate_hero(dt:float, t:float, moving:float, aiming:bool, firing:bool, state:int, rolling:bool, reloading:bool, using:bool):
-	phase += dt * (9.0 + 3.0 * moving) * moving
+## Hero / neighbour animation. vel: world ground velocity (m/s). state: 0 alive, 1 downed, 2 dead.
+func animate_hero(dt:float, t:float, vel:Vector2, aiming:bool, firing:bool, state:int, rolling:bool, reloading:bool, using:bool):
+	var speed := vel.length()
+	move_amt = move_toward(move_amt, clampf(speed / 4.5, 0.0, 1.3), dt * 6.0)
+	var moving := minf(move_amt, 1.0)
+	# cadence follows real speed so feet don't skate; a little idle drift keeps it alive
+	phase += dt * speed * 2.7
 	blink -= dt
 	var b := 1.0
 	if blink < 0.12: b = 0.1
@@ -83,18 +100,16 @@ func animate_hero(dt:float, t:float, moving:float, aiming:bool, firing:bool, sta
 	if eyes: eyes.scale.y = b
 	hit_flash = maxf(0.0, hit_flash - dt * 6.0)
 	set_flash(hit_flash)
-	recoil = move_toward(recoil, 0.0, dt * 6.0)
+	recoil = move_toward(recoil, 0.0, dt * 7.0)
 	swing = move_toward(swing, 0.0, dt * 3.5)
-	aim_blend = move_toward(aim_blend, 1.0 if aiming else 0.0, dt * 6.0)
-	var s := sin(phase)
-	var stride := 0.75 * moving
+	aim_blend = move_toward(aim_blend, 1.0 if aiming else 0.0, dt * (9.0 if aiming else 3.0))
 	if state == 1 or state == 2:
 		body.rotation = body.rotation.lerp(Vector3(-1.35, 0, 0.2 * sin(t * 2.0)), 1.0 - exp(-8 * dt))
 		body.position = body.position.lerp(Vector3(0, 0.35, 0), 1.0 - exp(-8 * dt))
-		arm_l.rotation.x = -2.6 + sin(t * 3.0) * 0.4 * moving
-		arm_r.rotation.x = -2.6 - sin(t * 3.0) * 0.4 * moving
-		leg_l.rotation.x = 0.2
-		leg_r.rotation.x = -0.1
+		arm_l.rotation = Vector3(-2.6 + sin(t * 3.0) * 0.4 * moving, 0, 0)
+		arm_r.rotation = Vector3(-2.6 - sin(t * 3.0) * 0.4 * moving, 0, 0)
+		leg_l.rotation = Vector3(0.2, 0, 0)
+		leg_r.rotation = Vector3(-0.1, 0, 0)
 		head.rotation.x = 0.9
 		gun.visible = false
 		if eyes: eyes.scale.y = 0.15
@@ -105,29 +120,43 @@ func animate_hero(dt:float, t:float, moving:float, aiming:bool, firing:bool, sta
 		roll_t += dt
 		body.rotation = Vector3(roll_t * TAU / 0.34, 0, 0)
 		body.position = Vector3(0, 0.45, 0)
+		leg_l.rotation = Vector3(-1.2, 0, 0)
+		leg_r.rotation = Vector3(-1.2, 0, 0)
 		return
 	roll_t = 0.0
-	var bob := absf(s) * 0.09 * moving * bob_scale
-	body.position = Vector3(0, bob - recoil * 0.03, -recoil * 0.06)
-	body.rotation = Vector3(0.12 * moving - recoil * 0.1, 0, sin(phase * 0.5) * 0.03 * moving)
-	leg_l.rotation.x = s * stride
-	leg_r.rotation.x = -s * stride
-	var breathe := sin(t * 2.2) * 0.03
-	head.position.y = head.position.y
+	# movement in the character's own frame: forward/back and sideways
+	var fwd_dir := Vector2(sin(yaw), cos(yaw))
+	var right_dir := Vector2(cos(yaw), -sin(yaw))
+	var dir := vel / maxf(speed, 0.001)
+	var fwd := dir.dot(fwd_dir) * moving
+	var side := dir.dot(right_dir) * moving
+	var s := sin(phase)
+	var c := cos(phase)
+	var stride := 0.3 + 0.55 * moving
+	# legs: swing along the walking direction, lift the leg that is stepping
+	leg_l.rotation = Vector3(s * stride * fwd, 0, s * stride * side * 0.6)
+	leg_r.rotation = Vector3(-s * stride * fwd, 0, -s * stride * side * 0.6)
+	leg_l.position.y = hip_y + maxf(0.0, c) * 0.07 * moving
+	leg_r.position.y = hip_y + maxf(0.0, -c) * 0.07 * moving
+	# body: two bobs per cycle, lean into the motion, hips counter-twist
+	var bob := absf(c) * 0.08 * moving * bob_scale
+	var breathe := sin(t * 2.2) * 0.012 * (1.0 - moving)
+	body.position = Vector3(0, bob + breathe - recoil * 0.03, -recoil * 0.07)
+	body.rotation = Vector3(0.16 * fwd - recoil * 0.12, s * 0.12 * moving, -0.1 * side + sin(phase) * 0.02 * moving)
+	head.rotation.y = -s * 0.1 * moving
 	head.rotation.z = sin(t * 1.3) * 0.04 * (1.0 - moving)
-	var swing_l := -s * stride * 0.9
-	var swing_r := s * stride * 0.9
-	var aim_x := -1.45 + recoil * 0.35
-	arm_r.rotation.x = lerpf(swing_r + breathe, aim_x, aim_blend)
-	arm_l.rotation.x = lerpf(swing_l - breathe, aim_x + 0.15, aim_blend * 0.85)
-	arm_l.rotation.z = lerpf(0.1, 0.55, aim_blend)
-	arm_r.rotation.z = lerpf(-0.1, -0.05, aim_blend)
+	# arms: natural swing when relaxed, shouldered weapon when aiming
+	var swing_l := -s * stride * 0.8 * maxf(absf(fwd), absf(side))
+	var aim_x := -1.45 + recoil * 0.45
+	var low_x := -0.55 + swing_l * 0.3
+	arm_r.rotation = Vector3(lerpf(low_x, aim_x, aim_blend), 0, lerpf(-0.12, -0.05, aim_blend))
+	arm_l.rotation = Vector3(lerpf(swing_l + breathe * 4.0, aim_x + 0.15, aim_blend * 0.9), 0, lerpf(0.1, 0.55, aim_blend))
+	gun.position = gun_home + Vector3(0, lerpf(-0.16, 0.0, aim_blend), lerpf(-0.12, 0.0, aim_blend) - recoil * 0.12)
 	if reloading:
 		gun.rotation = Vector3(0.6 + sin(t * 12.0) * 0.2, 0, 0.3)
 		arm_l.rotation.x = -0.9 + sin(t * 12.0) * 0.3
 	else:
-		gun.rotation = Vector3(-recoil * 0.4, 0, 0)
-	gun.position.z = 0.42 - recoil * 0.1
+		gun.rotation = Vector3(lerpf(0.55, 0.0, aim_blend) - recoil * 0.5, lerpf(-0.35, 0.0, aim_blend), 0)
 	if using:
 		arm_l.rotation.x = -1.1 + sin(t * 14.0) * 0.35
 		arm_r.rotation.x = -1.1 - sin(t * 14.0) * 0.35

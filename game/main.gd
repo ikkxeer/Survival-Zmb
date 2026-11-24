@@ -44,6 +44,8 @@ var age := 0.0
 var last_ev := 0
 var paused := false
 var local_pos := Vector2.INF
+var last_shot_key := ""
+var prev_pos := Vector2.INF   # local_pos one physics tick ago, to draw smoothly between ticks
 var local_aim := Vector2(0, 1)
 var cursor := Vector2.ZERO
 var roll_t := 0.0
@@ -600,6 +602,7 @@ func _physics_process(dt:float):
 	on_state(snap)
 
 func local_move(dt:float, me:Dictionary):
+	prev_pos = local_pos
 	if local_pos == Vector2.INF or me.st == 2:
 		local_pos = me.p
 		last_fix = me.fix
@@ -644,10 +647,14 @@ func predict_fire(dt:float, me:Dictionary, firing:bool):
 	if me.mag.get(g, 0) <= 0 and not (me.role == 2 and me.buff > 0): return
 	pred_cool = w.rate * (0.6 if me.role == 2 and me.buff > 0 else 1.0)
 	var origin := Vector3(local_pos.x, 1.1, local_pos.y) + Vector3(local_aim.x, 0, local_aim.y) * 0.7
-	fx.muzzle(origin, fx.gun_color(g), 1.0)
-	play_gun(g, origin)
 	var r = actors.heroes.get(my_id())
-	if r: r.recoil = 1.0
+	if r:
+		origin = r.muzzle_point()
+		r.recoil = 1.0
+	fx.muzzle(origin, fx.gun_color(g), 1.4 if g in [1, 4, 5] else 0.9, Vector3(local_aim.x, 0, local_aim.y))
+	fx.burst("smoke", origin, Vector3(local_aim.x, 0, local_aim.y))
+	fx.shake([0.06, 0.2, 0.04, 0.07, 0.26, 0.2, 0.0, 0.0][clampi(g, 0, 7)])
+	play_gun(g, origin)
 
 func play_gun(g:int, at:Vector3):
 	var names := ["cork", "shotgun", "smg", "rifle", "sniper", "launch", "flame", "turret"]
@@ -699,10 +706,19 @@ func handle_event(type:String, d:Array, me:int):
 			if owner == -2: h = 6.4
 			var a := v3(d[2], d[3], h)
 			var b := v3(d[4], d[5], 1.0)
+			# pellets of one blast arrive together: one flash, one sound, one kick
+			var key := "%d:%d" % [owner, Engine.get_process_frames()]
+			var first := key != last_shot_key
+			last_shot_key = key
+			if owner > 0 and actors.heroes.has(owner):
+				var r = actors.heroes[owner]
+				var muzzle_at:Vector3 = r.muzzle_point()
+				if muzzle_at.distance_to(a) < 2.5: a = muzzle_at
+				b.y = 0.95 if d.size() > 6 and d[6] == 1 else a.y * 0.85
+				if first: r.recoil = 1.0
 			var mine := owner == me and mode == "join"
-			if g != 5: fx.shot(owner, g, a, b, owner == me)
-			if not mine: play_gun(7 if owner <= -100 else (0 if owner == -2 else g), a)
-			if actors.heroes.has(owner): actors.heroes[owner].recoil = 1.0
+			if g != 5: fx.shot(owner, g, a, b, owner == me, d[6] if d.size() > 6 else -1, first and not mine)
+			if not mine and first: play_gun(7 if owner <= -100 else (0 if owner == -2 else g), a)
 		"flame":
 			var at := v3(d[1], d[2], 1.1)
 			fx.burst("flame", at, Vector3(d[3], 0, d[4]))
@@ -920,12 +936,13 @@ func _process(dt:float):
 			fx.burst("stars", at)
 			fx.light(at, Color.from_hsv(randf(), 0.6, 1.0), 6.0, 0.4, 18.0)
 			audio.play("pop", at, 0, randf_range(0.5, 0.8))
-	var lp := Vector3(local_pos.x, 0, local_pos.y) if local_pos != Vector2.INF else Vector3.INF
+	var drawn := smooth_pos()
+	var lp := Vector3(drawn.x, 0, drawn.y) if drawn != Vector2.INF else Vector3.INF
 	actors.update(dt, age, s, lp, local_aim, night, s.ph == P.NIGHT and s.ev == 1)
 	# camera
 	if not p.is_empty() and local_pos != Vector2.INF:
 		var lead := (cursor - local_pos).limit_length(7.0) * 0.28 * camera.zoom_t
-		var target := Vector3(local_pos.x + lead.x, 0, local_pos.y + lead.y)
+		var target := Vector3(drawn.x + lead.x, 0, drawn.y + lead.y)
 		cam_focus = cam_focus.lerp(target, 1.0 - exp(-6.0 * dt))
 	var shake := Vector3.ZERO
 	if ui.settings.shake and fx.trauma > 0:
@@ -973,6 +990,16 @@ func _process(dt:float):
 		elif not sim.in_territory(c):
 			hint = "Fuera de tu territorio: construye cerca de la casa o de una propiedad conquistada"
 		local.build_hint = hint + "\nClic: colocar · 1–8 o rueda: elegir · Clic derecho / B: salir"
+	var ui_k := 1.0 / maxf(0.1, get_tree().root.content_scale_factor)
+	if lp != Vector3.INF and not camera.is_position_behind(lp + Vector3(0, 2.4, 0)):
+		local.head = camera.unproject_position(lp + Vector3(0, 2.4, 0)) * ui_k
+	var sectors := []
+	for d in [Vector3(0, 0, -1), Vector3(1, 0, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0)]:
+		var wp:Vector3 = Vector3(Map.BASE_CENTER.x, 1.5, Map.BASE_CENTER.y) + d * 7.0
+		var sp := camera.unproject_position(wp) * ui_k
+		if camera.is_position_behind(wp): sp = Vector2(sp.x, 99999.0)
+		sectors.append(sp)
+	local.sectors = sectors
 	ui.mm_data = {"yaw": camera.yaw, "me": local_pos if local_pos != Vector2.INF else Vector2.ZERO, "indicators": indicators(s, me)}
 	ui.render(s, me, local, dt)
 	# a new breach or blows on the house: audible alarm above the music
@@ -982,6 +1009,12 @@ func _process(dt:float):
 		if br[i + 1] > 0 or br[i + 2] > 0: urgent += str(i)
 	if urgent != "" and urgent != last_alert and s.ph == P.NIGHT: audio.alert()
 	last_alert = urgent
+
+func smooth_pos() -> Vector2:
+	## The local hero moves at the physics rate; drawing it between the last two
+	## ticks removes the stutter (and the flickering walk cycle) at any frame rate.
+	if local_pos == Vector2.INF or prev_pos == Vector2.INF or prev_pos.distance_to(local_pos) > 1.5: return local_pos
+	return prev_pos.lerp(local_pos, Engine.get_physics_interpolation_fraction())
 
 func client_cost(p:Dictionary, kind:int) -> int:
 	var cost:int = Data.STRUCTURES[kind].cost

@@ -12,10 +12,9 @@ signal rematch
 const Data = preload("res://game/data.gd")
 const Map = preload("res://game/map.gd")
 const P := Data.Phase
+const St = preload("res://game/ui/style.gd")
+const HUD = preload("res://game/ui/hud.gd")
 
-const NAVY := Color("1d2b40")
-const CREAM := Color("fff4dc")
-const YELLOW := Color("ffd166")
 const CORAL := Color("ff6b6b")
 const MINT := Color("06d6a0")
 const SKY := Color("4cc9f0")
@@ -33,7 +32,7 @@ var address := LineEdit.new()
 var status := Label.new()
 var settings_panel := PanelContainer.new()
 var help_panel := PanelContainer.new()
-var settings := {"quality":2, "fullscreen":false, "volume":0.8, "music":0.6, "sfx":1.0, "shake":true, "flashes":true, "numbers":true, "sensitivity":1.0, "ui_scale":1.0}
+var settings := {"quality":2, "fullscreen":false, "volume":0.8, "music":0.6, "sfx":1.0, "shake":true, "flashes":true, "numbers":false, "sensitivity":1.0, "ui_scale":1.0}
 var prefs
 var profile
 var rank_labels := []
@@ -46,50 +45,21 @@ var bind_buttons := {}
 var waiting_bind := ""
 var help_text:Label
 var orbit_reticle := Label.new()
-var alert_box := PanelContainer.new()
-var alert_label := Label.new()
 
 var hud := Control.new()
-var banner := Label.new()
-var banner_sub := Label.new()
-var clock_bar := ProgressBar.new()
-var boss_box := VBoxContainer.new()
-var boss_bar := ProgressBar.new()
-var base_bar := ProgressBar.new()
-var base_label := Label.new()
-var res_label := Label.new()
-var goal_label := Label.new()
-var job_label := Label.new()
+var canvas = HUD.new()
 var board := PanelContainer.new()
 var board_list := VBoxContainer.new()
-var team_box := VBoxContainer.new()
-var me_name := Label.new()
-var hp_bar := ProgressBar.new()
-var xp_bar := ProgressBar.new()
-var ab_bar := ProgressBar.new()
-var ab_label := Label.new()
-var items_label := Label.new()
-var gun_label := Label.new()
-var ammo_label := Label.new()
-var reload_bar := ProgressBar.new()
-var slots_box := HBoxContainer.new()
-var prompt := Label.new()
-var hold_bar := ProgressBar.new()
-var notice := Label.new()
-var feed := VBoxContainer.new()
-var announce := Label.new()
-var announce_sub := Label.new()
-var announce_t := 0.0
-var report_box := PanelContainer.new()
-var report_label := Label.new()
-var report_t := 0.0
 var build_bar := PanelContainer.new()
 var build_cards := []
 var build_hint := Label.new()
 var shop := PanelContainer.new()
 var shop_list := VBoxContainer.new()
 var shop_tab := 0
+var shop_tabs := []
 var shop_coins := Label.new()
+var shop_sig := ""
+var board_sig := ""
 var map_panel := PanelContainer.new()
 var map_info := Label.new()
 var minimap:Control
@@ -101,17 +71,9 @@ var over_text := Label.new()
 var rematch_button:Button
 var can_rematch := true
 var over_wait := 0.0
-var overlay:Control
-var help_hint := Label.new()
-var prompt_box:VBoxContainer
-var guide_box := PanelContainer.new()
-var base_panel:PanelContainer
-var guide_label := Label.new()
-var ready_label := Label.new()
 var last_state := {}
 var my_id := 0
 var build_kind := -1
-var feed_items := []
 var mm_data := {}
 
 func _ready():
@@ -131,67 +93,98 @@ func _ready():
 
 # ================================================================== theme
 func box(c:Color, radius:int = 14, margin:int = 12, border:Color = Color(0, 0, 0, 0), bw:int = 0) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = c
-	s.set_corner_radius_all(radius)
+	var s := St.card(c, radius, border, bw, 4 if bw > 0 else 0)
 	s.content_margin_left = margin
 	s.content_margin_right = margin
 	s.content_margin_top = margin * 0.7
 	s.content_margin_bottom = margin * 0.7
-	if bw > 0:
-		s.border_color = border
-		s.set_border_width_all(bw)
-	s.shadow_color = Color(0, 0, 0, 0.25)
-	s.shadow_size = 4
-	s.shadow_offset = Vector2(0, 3)
 	return s
+
+func paper_box(c:Color = St.PAPER, radius:int = 22, margin:int = 18, border:Color = St.INK) -> StyleBoxFlat:
+	## Cream paper card with a plum ink outline and a solid drop shadow.
+	var s := St.card(c, radius, border, 3, 6)
+	s.content_margin_left = margin
+	s.content_margin_right = margin
+	s.content_margin_top = margin * 0.8
+	s.content_margin_bottom = margin * 0.8
+	return s
+
+func title(parent:Control, text:String, color:Color = St.INK, size:int = 32) -> Label:
+	## Rounded title font with a coloured underline ribbon drawn below.
+	var l := label(parent, text, size, color)
+	l.add_theme_font_override("font", St.font("title", 600))
+	return l
 
 func build_theme():
 	theme_res.default_font_size = 18
-	var font := SystemFont.new()
-	font.font_names = PackedStringArray(["Nunito", "Fredoka", "Baloo 2", "Varela Round", "Quicksand", "Comfortaa", "Ubuntu", "Noto Sans", "sans-serif"])
-	font.font_weight = 700
-	theme_res.default_font = font
-	theme_res.set_stylebox("panel", "PanelContainer", box(Color(NAVY, 0.92), 18, 16))
-	theme_res.set_stylebox("normal", "Button", box(Color("2e4566"), 12, 12, Color("4a6a94"), 2))
-	theme_res.set_stylebox("hover", "Button", box(Color("3d5a85"), 12, 12, YELLOW, 2))
-	theme_res.set_stylebox("pressed", "Button", box(Color("ffd166"), 12, 12, Color("fff4dc"), 2))
-	theme_res.set_stylebox("disabled", "Button", box(Color("2a3344"), 12, 12, Color("3a4458"), 2))
+	theme_res.default_font = St.font("body", 750)
+	var btn := func(fill:Color, border:Color = St.INK, shadow:int = 4) -> StyleBoxFlat:
+		var b := St.card(fill, 14, border, 3, shadow)
+		b.content_margin_left = 14
+		b.content_margin_right = 14
+		b.content_margin_top = 6
+		b.content_margin_bottom = 6
+		return b
+	theme_res.set_stylebox("panel", "PanelContainer", paper_box())
+	theme_res.set_stylebox("normal", "Button", btn.call(St.CARD))
+	theme_res.set_stylebox("hover", "Button", btn.call(St.SUN))
+	theme_res.set_stylebox("pressed", "Button", btn.call(St.CORAL, St.INK, 1))
+	theme_res.set_stylebox("hover_pressed", "Button", btn.call(St.CORAL.lightened(0.1), St.INK, 1))
+	theme_res.set_stylebox("disabled", "Button", btn.call(St.PAPER_DARK, Color(St.INK, 0.35), 0))
 	theme_res.set_stylebox("focus", "Button", StyleBoxEmpty.new())
-	theme_res.set_color("font_color", "Button", CREAM)
-	theme_res.set_color("font_hover_color", "Button", Color.WHITE)
-	theme_res.set_color("font_pressed_color", "Button", NAVY)
-	theme_res.set_color("font_disabled_color", "Button", Color("7f8aa0"))
-	theme_res.set_stylebox("normal", "LineEdit", box(Color("14202f"), 10, 10, Color("4a6a94"), 2))
-	theme_res.set_stylebox("focus", "LineEdit", box(Color("14202f"), 10, 10, YELLOW, 2))
-	theme_res.set_color("font_color", "LineEdit", CREAM)
-	theme_res.set_color("font_placeholder_color", "LineEdit", Color("7f8aa0"))
-	theme_res.set_color("font_color", "Label", CREAM)
-	theme_res.set_color("font_outline_color", "Label", Color(0.08, 0.06, 0.12, 1))
+	theme_res.set_font("font", "Button", St.font("title", 550))
+	theme_res.set_color("font_color", "Button", St.INK)
+	theme_res.set_color("font_hover_color", "Button", St.INK)
+	theme_res.set_color("font_pressed_color", "Button", Color.WHITE)
+	theme_res.set_color("font_hover_pressed_color", "Button", Color.WHITE)
+	theme_res.set_color("font_focus_color", "Button", St.INK)
+	theme_res.set_color("font_disabled_color", "Button", Color(St.INK, 0.4))
+	theme_res.set_stylebox("normal", "LineEdit", box(Color.WHITE, 12, 12, St.INK, 3))
+	theme_res.set_stylebox("focus", "LineEdit", box(Color.WHITE, 12, 12, St.CORAL, 3))
+	theme_res.set_color("font_color", "LineEdit", St.INK)
+	theme_res.set_color("caret_color", "LineEdit", St.CORAL)
+	theme_res.set_color("font_placeholder_color", "LineEdit", Color(St.INK, 0.4))
+	theme_res.set_color("font_color", "Label", St.INK)
+	theme_res.set_color("font_outline_color", "Label", St.INK)
 	theme_res.set_constant("outline_size", "Label", 0)
-	theme_res.set_stylebox("background", "ProgressBar", box(Color(0.05, 0.06, 0.1, 0.75), 8, 0))
-	theme_res.set_stylebox("fill", "ProgressBar", box(MINT, 8, 0))
-	theme_res.set_constant("outline_size", "ProgressBar", 0)
-	theme_res.set_stylebox("normal", "OptionButton", box(Color("2e4566"), 10, 10, Color("4a6a94"), 2))
-	theme_res.set_stylebox("hover", "OptionButton", box(Color("3d5a85"), 10, 10, YELLOW, 2))
-	theme_res.set_stylebox("pressed", "OptionButton", box(Color("3d5a85"), 10, 10, YELLOW, 2))
-	theme_res.set_color("font_color", "OptionButton", CREAM)
-	theme_res.set_color("font_color", "CheckButton", CREAM)
-	theme_res.set_color("font_hover_color", "CheckButton", Color.WHITE)
-	theme_res.set_stylebox("slider", "HSlider", box(Color("14202f"), 6, 0))
-	theme_res.set_stylebox("grabber_area", "HSlider", box(YELLOW, 6, 0))
-	theme_res.set_stylebox("grabber_area_highlight", "HSlider", box(YELLOW, 6, 0))
-	theme_res.set_stylebox("panel", "PopupMenu", box(NAVY, 10, 8))
-	theme_res.set_color("font_color", "PopupMenu", CREAM)
+	theme_res.set_stylebox("background", "ProgressBar", box(Color(St.INK, 0.15), 8, 0))
+	theme_res.set_stylebox("fill", "ProgressBar", box(St.MINT, 8, 0))
+	theme_res.set_stylebox("normal", "OptionButton", btn.call(St.CARD))
+	theme_res.set_stylebox("hover", "OptionButton", btn.call(St.SUN))
+	theme_res.set_stylebox("pressed", "OptionButton", btn.call(St.SUN, St.INK, 1))
+	theme_res.set_stylebox("focus", "OptionButton", StyleBoxEmpty.new())
+	theme_res.set_color("font_color", "OptionButton", St.INK)
+	theme_res.set_color("font_hover_color", "OptionButton", St.INK)
+	theme_res.set_color("font_pressed_color", "OptionButton", St.INK)
+	theme_res.set_color("font_focus_color", "OptionButton", St.INK)
+	theme_res.set_color("font_color", "CheckButton", St.INK)
+	theme_res.set_color("font_hover_color", "CheckButton", St.INK)
+	theme_res.set_color("font_pressed_color", "CheckButton", St.INK)
+	theme_res.set_color("font_hover_pressed_color", "CheckButton", St.INK)
+	theme_res.set_color("font_focus_color", "CheckButton", St.INK)
+	theme_res.set_stylebox("focus", "CheckButton", StyleBoxEmpty.new())
+	theme_res.set_stylebox("slider", "HSlider", box(Color(St.INK, 0.18), 6, 0))
+	theme_res.set_stylebox("grabber_area", "HSlider", box(St.CORAL, 6, 0))
+	theme_res.set_stylebox("grabber_area_highlight", "HSlider", box(St.CORAL, 6, 0))
+	theme_res.set_stylebox("panel", "PopupMenu", paper_box(St.CARD, 14, 8))
+	theme_res.set_color("font_color", "PopupMenu", St.INK)
+	theme_res.set_color("font_hover_color", "PopupMenu", St.INK)
+	theme_res.set_stylebox("hover", "PopupMenu", box(St.SUN, 8, 4))
+	theme_res.set_stylebox("panel", "TooltipPanel", paper_box(St.CARD, 12, 10))
+	theme_res.set_color("font_color", "TooltipLabel", St.INK)
+	theme_res.set_stylebox("scroll", "VScrollBar", box(Color(St.INK, 0.1), 6, 0))
+	theme_res.set_stylebox("grabber", "VScrollBar", box(St.WOOD, 6, 0))
+	theme_res.set_stylebox("grabber_highlight", "VScrollBar", box(St.CORAL, 6, 0))
+	theme_res.set_stylebox("grabber_pressed", "VScrollBar", box(St.CORAL, 6, 0))
 
-func label(parent:Control, text:String, size:int = 18, color:Color = CREAM, outline:int = 0) -> Label:
+func label(parent:Control, text:String, size:int = 18, color:Color = St.INK, outline:int = 0) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
 	if outline > 0:
 		l.add_theme_constant_override("outline_size", outline)
-		l.add_theme_color_override("font_outline_color", Color(0.08, 0.06, 0.12, 0.95))
+		l.add_theme_color_override("font_outline_color", St.INK)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(l)
 	return l
@@ -228,9 +221,9 @@ func hbox(parent:Control, sep:int = 8) -> HBoxContainer:
 	parent.add_child(h)
 	return h
 
-func panel(parent:Control, c:Color = Color(NAVY, 0.88), radius:int = 16, margin:int = 14) -> PanelContainer:
+func panel(parent:Control, c:Color = St.CARD, radius:int = 16, margin:int = 14) -> PanelContainer:
 	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", box(c, radius, margin))
+	p.add_theme_stylebox_override("panel", box(c, radius, margin, St.INK, 2))
 	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(p)
 	return p
@@ -260,22 +253,25 @@ func build_menu():
 	deco.draw.connect(func(): draw_bunting(deco))
 	menu.add_child(deco)
 	var title_box := vbox(menu, 0)
-	title_box.position = Vector2(64, 44)
-	label(title_box, "COOPERATIVO · 1–4 VECINOS", 18, YELLOW, 6)
-	var t := label(title_box, "La última verbena", 68, CREAM, 18)
-	t.add_theme_color_override("font_outline_color", Color("2a1f3d"))
-	label(title_box, "Las guirnaldas siguen encendidas. Al anochecer llegan los brotados.", 20, Color("e8ecff"), 8)
+	title_box.position = Vector2(64, 58)
+	var tag := label(title_box, "COOPERATIVO · 1–4 VECINOS", 18, St.SUN, 8)
+	tag.add_theme_font_override("font", St.font("title", 600))
+	var t := title(title_box, "La última verbena", St.PAPER, 76)
+	t.add_theme_constant_override("outline_size", 22)
+	t.add_theme_color_override("font_outline_color", St.INK)
+	label(title_box, "Las guirnaldas siguen encendidas. Al anochecer llegan los brotados.", 20, St.PAPER, 9)
 	menu.add_child(menu_panel)
-	menu_panel.add_theme_stylebox_override("panel", box(Color(NAVY, 0.93), 22, 22))
-	menu_panel.position = Vector2(64, 176)
+	menu_panel.add_theme_stylebox_override("panel", paper_box(St.PAPER, 26, 22))
+	menu_panel.position = Vector2(64, 200)
 	menu_panel.custom_minimum_size = Vector2(600, 0)
 	var col := vbox(menu_panel, 10)
-	label(col, "¿Cómo te llamas?", 16, YELLOW)
-	col.add_child(name_edit)
+	var nrow := hbox(col, 10)
+	label(nrow, "¿Cómo te llamas?", 16, St.INK_SOFT)
+	nrow.add_child(name_edit)
+	name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_edit.placeholder_text = "Tu nombre en el barrio"
 	name_edit.max_length = 14
 	name_edit.custom_minimum_size.y = 40
-	label(col, "Elige tu oficio", 16, YELLOW)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 10)
@@ -283,14 +279,14 @@ func build_menu():
 	col.add_child(grid)
 	for i in 4:
 		var card := Button.new()
-		card.custom_minimum_size = Vector2(275, 110)
+		card.custom_minimum_size = Vector2(275, 128)
 		card.toggle_mode = true
 		card.button_pressed = i == 0
 		var rc := Color(Data.ROLES[i].color)
-		card.add_theme_stylebox_override("normal", box(Color("24364f"), 14, 12, Color(rc, 0.4), 2))
-		card.add_theme_stylebox_override("hover", box(Color("2c4260"), 14, 12, rc, 2))
-		card.add_theme_stylebox_override("pressed", box(Color(rc.darkened(0.55), 0.95), 14, 12, rc, 4))
-		card.add_theme_stylebox_override("hover_pressed", box(Color(rc.darkened(0.5), 0.95), 14, 12, rc, 4))
+		card.add_theme_stylebox_override("normal", box(St.CARD, 16, 12, Color(St.INK, 0.35), 2))
+		card.add_theme_stylebox_override("hover", box(rc.lightened(0.75), 16, 12, St.INK, 3))
+		card.add_theme_stylebox_override("pressed", box(rc.lightened(0.55), 16, 12, St.INK, 4))
+		card.add_theme_stylebox_override("hover_pressed", box(rc.lightened(0.5), 16, 12, St.INK, 4))
 		card.pressed.connect(pick_role.bind(i))
 		grid.add_child(card)
 		var inner := vbox(card, 2)
@@ -298,19 +294,19 @@ func build_menu():
 		inner.offset_left = 14
 		inner.offset_top = 8
 		inner.offset_right = -10
-		label(inner, Data.ROLES[i].name, 22, rc.lightened(0.2), 4)
+		title(inner, Data.ROLES[i].name, rc.darkened(0.35), 24)
 		var top := hbox(inner, 8)
 		var title_label := inner.get_child(0)
 		inner.remove_child(title_label)
 		top.add_child(title_label)
-		rank_labels.append(label(top, "", 13, Color("9ff6c8")))
-		label(inner, "Q · " + Data.ROLES[i].ability, 14, YELLOW)
-		var d := label(inner, Data.ROLES[i].desc, 12, Color("cfd8ee"))
+		rank_labels.append(label(top, "", 13, St.MINT.darkened(0.35)))
+		label(inner, "Q · " + Data.ROLES[i].ability, 14, St.INK)
+		var d := label(inner, Data.ROLES[i].desc, 12, St.INK_SOFT)
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		d.custom_minimum_size.x = 245
 		role_cards.append(card)
 	var vrow := hbox(col, 10)
-	label(vrow, "Reglas de la partida", 16, YELLOW)
+	label(vrow, "Reglas de la partida", 16, St.INK_SOFT)
 	var vopt := OptionButton.new()
 	for v in Data.VARIANTS: vopt.add_item(v.name)
 	vopt.item_selected.connect(func(i):
@@ -320,15 +316,15 @@ func build_menu():
 	vopt.tooltip_text = "Variantes opcionales que cambian rutas y construcción"
 	vopt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vrow.add_child(vopt)
-	variant_desc = label(col, "", 13, Color("cfd8ee"))
+	variant_desc = label(col, "", 13, St.INK_SOFT)
 	variant_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	variant_desc.custom_minimum_size.x = 540
 	variant_desc.visible = false
-	record_label = label(col, "", 14, Color("cfd8ee"))
+	record_label = label(col, "", 14, St.INK_SOFT)
 	record_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	record_label.custom_minimum_size.x = 540
 	continue_button = button(col, "", func(): emit_launch("continue"), 46)
-	continue_button.add_theme_color_override("font_color", YELLOW)
+	continue_button.add_theme_stylebox_override("normal", box(St.SUN, 14, 12, St.INK, 3))
 	continue_button.visible = false
 	var row := hbox(col, 10)
 	var solo := button(row, "▶  Jugar en solitario", func(): emit_launch("solo"), 52)
@@ -348,14 +344,14 @@ func build_menu():
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(status)
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	status.add_theme_color_override("font_color", YELLOW)
+	status.add_theme_color_override("font_color", St.CORAL.darkened(0.2))
 	status.custom_minimum_size.x = 540
-	var tip := label(menu, "Ratón y teclado · F1 ayuda en partida", 15, Color(1, 1, 1, 0.7), 6)
+	var tip := label(menu, "Ratón y teclado · F1 ayuda en partida", 15, St.PAPER, 6)
 	anchor(tip, 1.0, 1.0, Vector2(-24, -16))
 
 func draw_bunting(c:Control):
 	var w := c.size.x
-	var colors := [CORAL, YELLOW, MINT, SKY, PINK, Color("c59dff")]
+	var colors:Array = St.FESTIVE
 	for row in 2:
 		var y0 := 8.0 + row * 26
 		var sag := 22.0 + row * 8
@@ -406,11 +402,11 @@ func toggle_panel(p:Control):
 func build_settings():
 	root.add_child(settings_panel)
 	settings_panel.visible = false
-	settings_panel.add_theme_stylebox_override("panel", box(Color(NAVY, 0.96), 20, 22))
+	settings_panel.add_theme_stylebox_override("panel", paper_box(St.PAPER, 24, 24))
 	settings_panel.custom_minimum_size = Vector2(620, 0)
 	anchor(settings_panel, 0.5, 0.5, Vector2.ZERO)
 	var col := vbox(settings_panel, 10)
-	label(col, "Ajustes", 30, YELLOW, 6)
+	title(col, "Ajustes", St.INK, 34)
 	var scroll := ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(0, 560)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -485,7 +481,7 @@ func capture_key(code:int) -> bool:
 	if waiting_bind == "": return false
 	if code != KEY_ESCAPE:
 		var swapped:String = prefs.rebind(waiting_bind, code)
-		if swapped != "": say("«%s» pasa a %s" % [swapped, prefs.key_name(swapped)], YELLOW)
+		if swapped != "": say("«%s» pasa a %s" % [swapped, prefs.key_name(swapped)], St.SUN)
 	waiting_bind = ""
 	refresh_binds()
 	settings_changed.emit(settings)
@@ -507,11 +503,11 @@ func set_setting(key:String, value):
 func build_help():
 	root.add_child(help_panel)
 	help_panel.visible = false
-	help_panel.add_theme_stylebox_override("panel", box(Color(NAVY, 0.96), 20, 22))
+	help_panel.add_theme_stylebox_override("panel", paper_box(St.PAPER, 24, 24))
 	anchor(help_panel, 0.5, 0.5, Vector2(0, 0))
 	help_panel.custom_minimum_size = Vector2(860, 0)
 	var col := vbox(help_panel, 10)
-	label(col, "Cómo se juega", 30, YELLOW, 6)
+	title(col, "Cómo se juega", St.INK, 34)
 	help_text = label(col, "", 16)
 	help_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	help_text.custom_minimum_size.x = 810
@@ -534,239 +530,56 @@ Barricada y alambrada se saltan; bobina, torreta y foco necesitan corriente dura
 Si una defensa cae, el aviso de brecha indica el acceso hasta que construyáis otra en ese lado.""" % [
 		k("up"), k("left"), k("down"), k("right"), k("roll"), k("sprint"), k("melee"), k("reload"), k("use"), k("ability"),
 		k("grenade"), k("medkit"), k("shop"), k("build"), k("grenade"), k("demolish"), k("claim"), k("map"), k("ping"), k("ready")]
-	help_hint.text = "F1 ayuda · %s plano · %s apoyo · Esc pausa" % [k("map"), k("ping")]
 
 func build_hud():
 	root.add_child(hud)
 	hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay = Control.new()
-	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	overlay.draw.connect(draw_overlay)
-	hud.add_child(overlay)
-	# top centre banner
-	var top := vbox(hud, 4)
-	anchor(top, 0.5, 0.0, Vector2(0, 14))
-	top.custom_minimum_size = Vector2(520, 0)
-	var bp := panel(top, Color(NAVY, 0.88), 16, 12)
-	var bc := vbox(bp, 4)
-	bc.add_child(banner)
-	banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	banner.add_theme_font_size_override("font_size", 24)
-	banner.add_theme_color_override("font_color", YELLOW)
-	bc.add_child(clock_bar)
-	clock_bar.show_percentage = false
-	clock_bar.custom_minimum_size.y = 10
-	clock_bar.add_theme_stylebox_override("fill", box(YELLOW, 6, 0))
-	bc.add_child(banner_sub)
-	banner_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	banner_sub.add_theme_font_size_override("font_size", 15)
-	banner_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	banner_sub.add_theme_color_override("font_color", Color("cfd8ee"))
-	top.add_child(boss_box)
-	var bl := label(boss_box, "GIGANTÓN", 16, Color("ff9ad5"), 6)
-	bl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	boss_box.add_child(boss_bar)
-	boss_bar.show_percentage = false
-	boss_bar.custom_minimum_size.y = 16
-	boss_bar.add_theme_stylebox_override("fill", box(Color("c45ad8"), 8, 0))
-	boss_box.visible = false
-	top.add_child(ready_label)
-	ready_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	ready_label.add_theme_font_size_override("font_size", 15)
-	ready_label.add_theme_constant_override("outline_size", 6)
+	hud.add_child(canvas)
 	hud.add_child(orbit_reticle)
 	orbit_reticle.text = "+"
 	orbit_reticle.add_theme_font_size_override("font_size", 34)
 	orbit_reticle.add_theme_constant_override("outline_size", 8)
-	orbit_reticle.add_theme_color_override("font_outline_color", Color(0.08, 0.06, 0.12, 0.95))
+	orbit_reticle.add_theme_color_override("font_outline_color", St.INK)
 	orbit_reticle.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	anchor(orbit_reticle, 0.5, 0.5, Vector2.ZERO)
 	orbit_reticle.visible = false
-	# top left: the house and shared stock
-	var tl := panel(hud, Color(NAVY, 0.88), 16, 12)
-	base_panel = tl
-	tl.position = Vector2(16, 14)
-	tl.custom_minimum_size = Vector2(300, 0)
-	var tlc := vbox(tl, 6)
-	tlc.add_child(base_label)
-	base_label.add_theme_font_size_override("font_size", 17)
-	tlc.add_child(base_bar)
-	base_bar.show_percentage = false
-	base_bar.custom_minimum_size.y = 16
-	base_bar.add_theme_stylebox_override("fill", box(Color("ffb35c"), 8, 0))
-	tlc.add_child(res_label)
-	res_label.add_theme_font_size_override("font_size", 15)
-	tlc.add_child(goal_label)
-	goal_label.add_theme_font_size_override("font_size", 15)
-	goal_label.add_theme_color_override("font_color", Color("ffc4e1"))
-	for l in [res_label, goal_label, job_label]:
-		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		l.custom_minimum_size.x = 300
-	tl.custom_minimum_size.x = 330
-	tlc.add_child(job_label)
-	job_label.add_theme_font_size_override("font_size", 15)
-	job_label.add_theme_color_override("font_color", Color("9ff6c8"))
-	hud.add_child(alert_box)
-	alert_box.add_theme_stylebox_override("panel", box(Color("5a1f2e"), 12, 10, CORAL, 2))
-	alert_box.position = Vector2(16, 176)
-	alert_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	alert_box.add_child(alert_label)
-	alert_label.add_theme_font_size_override("font_size", 17)
-	alert_label.add_theme_color_override("font_color", Color("ffd0c8"))
-	alert_box.visible = false
-	# team list
-	hud.add_child(team_box)
-	team_box.position = Vector2(16, 224)
-	team_box.add_theme_constant_override("separation", 6)
-	team_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hud.add_child(guide_box)
-	guide_box.add_theme_stylebox_override("panel", box(Color(Color("24364f"), 0.9), 14, 12, YELLOW, 2))
-	guide_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	guide_box.custom_minimum_size = Vector2(330, 0)
-	guide_box.add_child(guide_label)
-	guide_label.add_theme_font_size_override("font_size", 15)
-	guide_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	guide_label.custom_minimum_size.x = 306
-	guide_box.visible = false
-	# message feed
-	hud.add_child(feed)
-	anchor(feed, 0.0, 1.0, Vector2(18, -205))
-	feed.custom_minimum_size = Vector2(520, 120)
-	feed.alignment = BoxContainer.ALIGNMENT_END
-	feed.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# bottom left: me
-	var me := panel(hud, Color(NAVY, 0.9), 16, 14)
-	anchor(me, 0.0, 1.0, Vector2(16, -16))
-	me.custom_minimum_size = Vector2(330, 0)
-	var mc := vbox(me, 5)
-	mc.add_child(me_name)
-	me_name.add_theme_font_size_override("font_size", 19)
-	hp_bar.show_percentage = false
-	mc.add_child(hp_bar)
-	hp_bar.custom_minimum_size.y = 18
-	hp_bar.add_theme_stylebox_override("fill", box(MINT, 8, 0))
-	mc.add_child(xp_bar)
-	xp_bar.show_percentage = false
-	xp_bar.custom_minimum_size.y = 6
-	xp_bar.add_theme_stylebox_override("fill", box(YELLOW, 4, 0))
-	var abr := hbox(mc, 8)
-	abr.add_child(ab_label)
-	ab_label.add_theme_font_size_override("font_size", 15)
-	ab_label.custom_minimum_size.x = 170
-	abr.add_child(ab_bar)
-	ab_bar.show_percentage = false
-	ab_bar.custom_minimum_size = Vector2(120, 12)
-	ab_bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	ab_bar.add_theme_stylebox_override("fill", box(SKY, 6, 0))
-	mc.add_child(items_label)
-	items_label.add_theme_font_size_override("font_size", 16)
-	# bottom right: weapon
-	var wp := panel(hud, Color(NAVY, 0.9), 16, 14)
-	anchor(wp, 1.0, 1.0, Vector2(-16, -16))
-	wp.custom_minimum_size = Vector2(360, 0)
-	var wc := vbox(wp, 4)
-	var wr := hbox(wc, 8)
-	wr.add_child(gun_label)
-	gun_label.add_theme_font_size_override("font_size", 19)
-	gun_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	wr.add_child(ammo_label)
-	ammo_label.add_theme_font_size_override("font_size", 26)
-	ammo_label.add_theme_color_override("font_color", YELLOW)
-	wc.add_child(reload_bar)
-	reload_bar.show_percentage = false
-	reload_bar.custom_minimum_size.y = 6
-	reload_bar.add_theme_stylebox_override("fill", box(YELLOW, 4, 0))
-	wc.add_child(slots_box)
-	slots_box.add_theme_constant_override("separation", 4)
-	for i in Data.WEAPONS.size():
-		var s := Label.new()
-		s.custom_minimum_size = Vector2(44, 30)
-		s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		s.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		s.add_theme_font_size_override("font_size", 14)
-		slots_box.add_child(s)
-	# prompt
-	var pc := vbox(hud, 4)
-	prompt_box = pc
-	anchor(pc, 0.5, 1.0, Vector2(0, -24))
-	pc.custom_minimum_size = Vector2(600, 0)
-	pc.add_child(notice)
-	notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	notice.add_theme_font_size_override("font_size", 20)
-	notice.add_theme_color_override("font_color", YELLOW)
-	notice.add_theme_constant_override("outline_size", 8)
-	notice.add_theme_color_override("font_outline_color", Color(0.08, 0.06, 0.12, 0.95))
-	pc.add_child(prompt)
-	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	prompt.add_theme_font_size_override("font_size", 19)
-	prompt.add_theme_constant_override("outline_size", 8)
-	prompt.add_theme_color_override("font_outline_color", Color(0.08, 0.06, 0.12, 0.95))
-	pc.add_child(hold_bar)
-	hold_bar.show_percentage = false
-	hold_bar.custom_minimum_size = Vector2(260, 10)
-	hold_bar.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	hold_bar.add_theme_stylebox_override("fill", box(MINT, 6, 0))
-	# big announcement
-	var ac := vbox(hud, 0)
-	anchor(ac, 0.5, 0.5, Vector2(0, 0))
-	ac.custom_minimum_size = Vector2(900, 0)
-	ac.add_child(announce)
-	announce.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	announce.add_theme_font_size_override("font_size", 64)
-	announce.add_theme_constant_override("outline_size", 18)
-	announce.add_theme_color_override("font_outline_color", Color(0.1, 0.06, 0.16, 1))
-	ac.add_child(announce_sub)
-	announce_sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	announce_sub.add_theme_font_size_override("font_size", 24)
-	announce_sub.add_theme_constant_override("outline_size", 10)
-	announce_sub.add_theme_color_override("font_outline_color", Color(0.1, 0.06, 0.16, 1))
-	announce_sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	# dawn report
-	hud.add_child(report_box)
-	report_box.add_theme_stylebox_override("panel", box(Color(Color("3d2f5a"), 0.92), 16, 16))
-	anchor(report_box, 0.5, 0.0, Vector2(0, 170))
-	report_box.custom_minimum_size = Vector2(440, 0)
-	report_box.add_child(report_label)
-	report_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	report_box.visible = false
-	report_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# minimap
-	var mmp := panel(hud, Color(NAVY, 0.88), 16, 8)
-	anchor(mmp, 1.0, 0.0, Vector2(-16, 14))
+	# small map in a paper frame with bunting
+	var mmp := PanelContainer.new()
+	mmp.add_theme_stylebox_override("panel", paper_box(St.CARD, 22, 8))
+	mmp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(mmp)
+	anchor(mmp, 1.0, 0.0, Vector2(-24, 22))
 	minimap = Control.new()
-	minimap.custom_minimum_size = Vector2(250, 222)
+	minimap.custom_minimum_size = Vector2(196, 176)
 	minimap.clip_contents = true
 	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	minimap.draw.connect(func(): draw_map(minimap, false))
 	mmp.add_child(minimap)
-	hud.add_child(help_hint)
-	anchor(help_hint, 1.0, 0.0, Vector2(-20, 262))
-	help_hint.text = "F1 ayuda · Tab mapa · Esc pausa"
-	help_hint.add_theme_font_size_override("font_size", 14)
-	help_hint.add_theme_constant_override("outline_size", 6)
-	help_hint.add_theme_color_override("font_outline_color", Color(0.08, 0.06, 0.12, 0.95))
+	var deco := Control.new()
+	deco.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	deco.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	deco.draw.connect(func(): St.bunting(deco, Vector2(10, -2), Vector2(deco.size.x - 10, -2), 8, 6, 12, 2))
+	mmp.add_child(deco)
 	build_buildbar()
 	build_shop()
 	build_map()
 	hud.add_child(board)
-	board.add_theme_stylebox_override("panel", box(Color(Color("3b2a1f"), 0.96), 20, 18, Color("c98a55"), 3))
-	board.custom_minimum_size = Vector2(640, 0)
+	board.add_theme_stylebox_override("panel", paper_box(Color("f3d9b0"), 22, 22, Color("8b5e3c")))
+	board.custom_minimum_size = Vector2(660, 0)
 	anchor(board, 0.5, 0.5, Vector2.ZERO)
 	var bcol := vbox(board, 10)
-	label(bcol, "Tablón de encargos", 30, YELLOW, 6)
-	label(bcol, "Uno corto cerca de la plaza y otro ambicioso lejos. Caducan al anochecer.", 15, Color("e9d6b8"))
+	title(bcol, "Tablón de encargos", Color("8b5e3c"))
+	label(bcol, "Uno corto cerca de la plaza y otro ambicioso lejos. Caducan al anochecer.", 15, St.INK_SOFT)
 	bcol.add_child(board_list)
 	board_list.add_theme_constant_override("separation", 10)
-	var close := button(bcol, "Cerrar", func(): board.visible = false, 36)
+	var close := button(bcol, "Cerrar", func(): board.visible = false, 40)
 	close.focus_mode = Control.FOCUS_NONE
 	board.visible = false
 
 func build_buildbar():
 	hud.add_child(build_bar)
-	build_bar.add_theme_stylebox_override("panel", box(Color(NAVY, 0.93), 18, 12))
+	build_bar.add_theme_stylebox_override("panel", paper_box(St.PAPER, 22, 12))
 	anchor(build_bar, 0.5, 1.0, Vector2(0, -192))
 	build_bar.custom_minimum_size = Vector2(940, 0)
 	var col := vbox(build_bar, 8)
@@ -782,10 +595,10 @@ func build_buildbar():
 		inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		inner.offset_top = 5
 		inner.offset_left = 6
-		var k := label(inner, "%d · %s" % [i + 1, Data.STRUCTURES[i].name], 14, CREAM)
+		var k := label(inner, "%d · %s" % [i + 1, Data.STRUCTURES[i].name], 14, St.INK)
 		k.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		k.custom_minimum_size.x = 96
-		var cost := label(inner, "", 14, YELLOW)
+		var cost := label(inner, "", 14, St.INK)
 		build_cards.append([b, cost])
 	col.add_child(build_hint)
 	build_hint.add_theme_font_size_override("font_size", 15)
@@ -795,64 +608,105 @@ func build_buildbar():
 
 func build_shop():
 	hud.add_child(shop)
-	shop.add_theme_stylebox_override("panel", box(Color(NAVY, 0.96), 20, 18))
+	shop.add_theme_stylebox_override("panel", paper_box(St.PAPER, 26, 22))
 	anchor(shop, 0.5, 0.5, Vector2(0, 0))
-	shop.custom_minimum_size = Vector2(760, 600)
-	var col := vbox(shop, 10)
+	shop.custom_minimum_size = Vector2(800, 620)
+	var col := vbox(shop, 12)
 	var head := hbox(col, 10)
-	var t := label(head, "Tienda de la verbena", 30, YELLOW, 6)
+	var t := title(head, "Puesto de la verbena", St.INK, 34)
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(shop_coins)
-	shop_coins.add_theme_font_size_override("font_size", 20)
+	var chip := panel(head, St.SUN, 16, 14)
+	chip.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	chip.add_child(shop_coins)
+	shop_coins.add_theme_font_size_override("font_size", 19)
+	shop_coins.add_theme_font_override("font", St.font("title", 600))
+	shop_coins.add_theme_color_override("font_color", St.INK)
 	var tabs := hbox(col, 8)
-	for i in 3:
-		var b := button(tabs, ["Armas", "Equipo", "Barrio"][i], func():
-			shop_tab = i
-			refresh_shop(), 38)
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	shop_tabs.clear()
+	for i in 4:
+		var b := Button.new()
+		b.text = ["Armas", "Equipo", "Barrio", "Vender"][i]
+		b.toggle_mode = true
+		b.button_pressed = i == 0
+		b.custom_minimum_size.y = 42
 		b.focus_mode = Control.FOCUS_NONE
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_stylebox_override("pressed", box(St.CORAL, 14, 12, St.INK, 3))
+		b.pressed.connect(func():
+			shop_tab = i
+			for j in shop_tabs.size(): shop_tabs[j].button_pressed = j == i
+			action.emit("ui_click", [])
+			refresh_shop(true))
+		tabs.add_child(b)
+		shop_tabs.append(b)
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 440)
+	scroll.custom_minimum_size = Vector2(0, 450)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	col.add_child(scroll)
 	scroll.add_child(shop_list)
 	shop_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	shop_list.add_theme_constant_override("separation", 8)
-	var foot := label(col, "T o Esc para cerrar · Las fichas son tuyas; los materiales son del equipo", 14, Color("aab4cc"))
+	shop_list.add_theme_constant_override("separation", 10)
+	var foot := label(col, "T o Esc para cerrar · Las fichas son tuyas; los materiales son del equipo", 14, St.INK_SOFT)
 	foot.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	shop.visible = false
 
-func shop_row(title:String, desc:String, btn_text:String, enabled:bool, cb:Callable, accent:Color = YELLOW):
-	var p := panel(shop_list, Color("24364f"), 12, 12)
+func shop_row(name:String, desc:String, btn_text:String, enabled:bool, cb:Callable, accent:Color = St.SUN):
+	## One stall card: a coloured stripe, the item, a short description and its button.
+	var p := PanelContainer.new()
+	var sb := box(St.CARD, 16, 14, St.INK, 2)
+	sb.border_width_left = 12
+	sb.border_color = St.INK
+	sb.content_margin_left = 20
+	p.add_theme_stylebox_override("panel", sb)
 	p.mouse_filter = Control.MOUSE_FILTER_PASS
+	shop_list.add_child(p)
+	var stripe := Control.new()
+	stripe.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stripe.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	stripe.draw.connect(func():
+		stripe.draw_style_box(St.card(accent, 10, Color(0, 0, 0, 0), 0, 0), Rect2(Vector2(-16, -8), Vector2(10, stripe.size.y + 16))))
+	p.add_child(stripe)
 	var r := hbox(p, 12)
 	var info := vbox(r, 2)
 	info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label(info, title, 18, accent)
-	var d := label(info, desc, 14, Color("cfd8ee"))
+	title(info, name, St.INK, 20)
+	var d := label(info, desc, 14, St.INK_SOFT)
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	d.custom_minimum_size.x = 470
-	var b := button(r, btn_text, cb, 40)
-	b.custom_minimum_size.x = 170
+	var b := button(r, btn_text, cb, 44)
+	b.custom_minimum_size.x = 180
 	b.disabled = not enabled
 	b.focus_mode = Control.FOCUS_NONE
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	if enabled: b.add_theme_stylebox_override("normal", box(accent.lightened(0.45), 14, 12, St.INK, 3))
 
-func refresh_shop():
-	for c in shop_list.get_children(): c.queue_free()
+func shop_signature(s:Dictionary, p:Dictionary) -> String:
+	var claimed := []
+	for si in s.si: claimed.append(si[0])
+	return var_to_str([shop_tab, p.coins, s.mat, p.guns, p.gun, p.med, p.tr, p.res, s.clvl, claimed, s.pl.size()])
+
+func refresh_shop(force:bool = false):
+	## Rebuilt only when something it shows changes, so a click never lands on a
+	## button that was replaced between pressing and releasing the mouse.
 	var s := last_state
 	if s.is_empty() or not s.pl.has(my_id): return
 	var p:Dictionary = s.pl[my_id]
-	shop_coins.text = "Fichas: %d · Materiales: %d" % [p.coins, s.mat]
+	var sig := shop_signature(s, p)
+	if sig == shop_sig and not force: return
+	shop_sig = sig
+	for c in shop_list.get_children():
+		shop_list.remove_child(c)
+		c.queue_free()
+	shop_coins.text = "%d fichas · %d materiales" % [p.coins, s.mat]
 	match shop_tab:
 		0:
 			for g in Data.WEAPONS.size():
 				var w:Dictionary = Data.WEAPONS[g]
 				var owned:bool = p.guns.has(g)
 				var locked:bool = w.req >= 0 and not s.si[w.req][0]
-				var stats := "Daño %d · Cadencia %.1f/s · Cargador %d · Alcance %d m" % [w.dmg * w.pellets, 1.0 / w.rate, w.mag, w.range]
+				var stats := "Daño %d · %.1f disparos/s · cargador %d · %d m" % [w.dmg * w.pellets, 1.0 / w.rate, w.mag, w.range]
 				if not owned:
-					var why := "" if not locked else "  (necesita %s)" % Data.SITES[w.req].name
+					var why := "" if not locked else " · necesita %s" % Data.SITES[w.req].name
 					shop_row(w.name + why, w.desc + "\n" + stats, "Comprar · %d" % w.price, not locked and p.coins >= w.price, func(): action.emit("buy_gun", [g]), Color(w.color))
 				else:
 					var lvl:int = p.guns[g]
@@ -860,28 +714,49 @@ func refresh_shop():
 						var cost:int = w.up[lvl - 1]
 						shop_row("%s · nivel %d" % [w.name, lvl], "Mejora a nivel %d: +25%% de daño.\n%s" % [lvl + 1, stats], "Mejorar · %d" % cost, p.coins >= cost, func(): action.emit("up_gun", [g]), Color(w.color))
 					else:
-						shop_row("%s · nivel máximo" % w.name, stats, "Equipar", true, func(): action.emit("switch", [g]), Color(w.color))
+						shop_row("%s · nivel máximo" % w.name, stats, "En uso" if p.gun == g else "Equipar", p.gun != g, func(): action.emit("switch", [g]), Color(w.color))
 					if w.reserve > 0:
-						shop_row("Munición: " + w.name, "Rellena la reserva (%d)." % p.res[g], "Rellenar · %d" % w.ammo_price, p.coins >= w.ammo_price, func(): action.emit("ammo", [g]), Color("aab4cc"))
+						shop_row("Munición: " + w.name, "Rellena la reserva (ahora %d)." % p.res[g], "Rellenar · %d" % w.ammo_price, p.coins >= w.ammo_price, func(): action.emit("ammo", [g]), St.WOOD)
 		1:
-			shop_row("Botiquín (%d/3)" % p.med, "H para curarte 55 de salud. Si caes, te levanta.", "Comprar · %d" % Data.MEDKIT.price, p.coins >= Data.MEDKIT.price and p.med < 3, func(): action.emit("buy_medkit", []), MINT)
-			shop_row("Lote para el equipo", "Deja en el porche munición, un botiquín, una traca y 40 de salud para un compañero. Quien se queda en casa también ayuda. Cuesta %d materiales comunes." % 4, "Preparar · 4 mat.", s.mat >= 4 and s.pl.size() > 1, func(): action.emit("bundle", []), SKY)
-			shop_row("Traca (%d/6)" % p.tr, "G para lanzarla: explota en área. También se fabrican en el banco de taller.", "Comprar · %d" % Data.GRENADE.price, p.coins >= Data.GRENADE.price and p.tr < 6, func(): action.emit("buy_traca", []), CORAL)
+			shop_row("Botiquín · %d/3" % p.med, "%s para curarte 55 de salud. Si caes, te levanta." % k("medkit"), "Comprar · %d" % Data.MEDKIT.price, p.coins >= Data.MEDKIT.price and p.med < 3, func(): action.emit("buy_medkit", []), St.MINT)
+			shop_row("Traca · %d/6" % p.tr, "%s para lanzarla: explota en área. También se fabrican en el banco de taller." % k("grenade"), "Comprar · %d" % Data.GRENADE.price, p.coins >= Data.GRENADE.price and p.tr < 6, func(): action.emit("buy_traca", []), St.CORAL)
+			shop_row("Lote para el equipo", "Deja en el porche munición, un botiquín, una traca y 40 de salud para un compañero. Cuesta 4 materiales comunes.", "Preparar · 4 mat.", s.mat >= 4 and s.pl.size() > 1, func(): action.emit("bundle", []), St.SKY)
 		2:
 			var lvl:int = s.clvl
 			if lvl < 3:
 				var m:int = Data.CORE_UPGRADE.mat[lvl]
 				var c:int = Data.CORE_UPGRADE.coins[lvl]
-				shop_row("Casa reforzada · nivel %d" % (lvl + 1), "Tapiar ventanas y apuntalar: +50 de resistencia máxima y reparación inmediata. Mejora colectiva.", "%d mat. + %d fichas" % [m, c], s.mat >= m and p.coins >= c, func(): action.emit("core_up", []), Color("ffb35c"))
+				shop_row("Casa reforzada · nivel %d" % (lvl + 1), "Tapiar ventanas y apuntalar: +50 de resistencia máxima y reparación inmediata. Mejora colectiva.", "%d mat. + %d fichas" % [m, c], s.mat >= m and p.coins >= c, func(): action.emit("core_up", []), St.WOOD)
 			else:
-				shop_row("Casa reforzada al máximo", "La casa no puede reforzarse más.", "—", false, func(): pass)
+				shop_row("Casa reforzada al máximo", "La casa no puede reforzarse más.", "—", false, func(): pass, St.WOOD)
 			for i in Data.SITES.size():
 				var claimed:bool = s.si[i][0]
-				shop_row(Data.SITES[i].name + (" · del barrio" if claimed else ""), Data.SITES[i].bonus, "Conquistada" if claimed else "Ve a su estandarte (C)", false, func(): pass, Color(Data.SITES[i].color))
+				shop_row(Data.SITES[i].name + (" · del barrio" if claimed else ""), Data.SITES[i].bonus, "Conquistada" if claimed else "Ve a su estandarte", false, func(): pass, Color(Data.SITES[i].color))
+		3:
+			var any := false
+			for g in Data.WEAPONS.size():
+				if g == 0 or not p.guns.has(g): continue
+				any = true
+				var w:Dictionary = Data.WEAPONS[g]
+				var value := sell_value(p, g)
+				shop_row("%s · nivel %d" % [w.name, p.guns[g]], "Te devuelven la mitad de lo invertido en el arma y sus mejoras.", "Vender · +%d" % value, true, func(): action.emit("sell_gun", [g]), Color(w.color))
+			if p.med > 0: shop_row("Botiquín · tienes %d" % p.med, "Véndelo si andas corto de fichas.", "Vender · +%d" % (Data.MEDKIT.price / 2), true, func(): action.emit("sell_item", ["medkit"]), St.MINT)
+			if p.tr > 0: shop_row("Traca · tienes %d" % p.tr, "Véndela si andas corto de fichas.", "Vender · +%d" % (Data.GRENADE.price / 2), true, func(): action.emit("sell_item", ["traca"]), St.CORAL)
+			if not any and p.med == 0 and p.tr == 0:
+				var l := label(shop_list, "No tienes nada que vender todavía. La pistola de feria se queda contigo.", 16, St.INK_SOFT)
+				l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+func sell_value(p:Dictionary, g:int) -> int:
+	## Mirrors Match.sell_value so the button shows the exact refund.
+	if not p.guns.has(g) or g == 0: return 0
+	var w:Dictionary = Data.WEAPONS[g]
+	var spent:int = w.price
+	for i in int(p.guns[g]) - 1: spent += int(w.up[i])
+	return spent / 2
 
 func build_map():
 	hud.add_child(map_panel)
-	map_panel.add_theme_stylebox_override("panel", box(Color(NAVY, 0.95), 20, 16))
+	map_panel.add_theme_stylebox_override("panel", paper_box(St.PAPER, 24, 16))
 	anchor(map_panel, 0.5, 0.5, Vector2(0, 0))
 	var row := hbox(map_panel, 18)
 	bigmap = Control.new()
@@ -891,7 +766,7 @@ func build_map():
 	bigmap.draw.connect(func(): draw_map(bigmap, true))
 	row.add_child(bigmap)
 	var col := vbox(row, 8)
-	label(col, "El barrio", 28, YELLOW, 6)
+	title(col, "El barrio", St.INK, 30)
 	col.add_child(map_info)
 	map_info.custom_minimum_size.x = 300
 	map_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -900,11 +775,11 @@ func build_map():
 
 func build_pause():
 	root.add_child(pause)
-	pause.add_theme_stylebox_override("panel", box(Color(NAVY, 0.96), 22, 26))
+	pause.add_theme_stylebox_override("panel", paper_box(St.PAPER, 26, 26))
 	anchor(pause, 0.5, 0.5, Vector2(0, 0))
 	pause.custom_minimum_size = Vector2(400, 0)
 	var col := vbox(pause, 12)
-	var t := label(col, "Pausa", 34, YELLOW, 6)
+	var t := title(col, "Pausa", St.INK, 38)
 	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button(col, "Reanudar", func(): resume.emit())
 	button(col, "Ajustes", func(): toggle_panel(settings_panel))
@@ -914,14 +789,14 @@ func build_pause():
 
 func build_over():
 	root.add_child(over)
-	over.add_theme_stylebox_override("panel", box(Color(Color("2a1f3d"), 0.96), 24, 28))
+	over.add_theme_stylebox_override("panel", paper_box(St.PAPER, 28, 28))
 	anchor(over, 0.5, 0.5, Vector2(0, 0))
 	over.custom_minimum_size = Vector2(600, 0)
 	var col := vbox(over, 12)
 	col.add_child(over_title)
 	over_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	over_title.add_theme_font_size_override("font_size", 40)
-	over_title.add_theme_color_override("font_color", PINK)
+	over_title.add_theme_font_override("font", St.font("title", 650))
 	col.add_child(over_text)
 	over_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	over_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -940,28 +815,18 @@ func show_menu(v:bool):
 		shop.visible = false
 		map_panel.visible = false
 
-func say(text:String, c:Color = CREAM):
-	var l := label(feed, text, 16, c, 7)
-	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size.x = 520
-	feed_items.append([l, 7.0])
-	while feed_items.size() > 6:
-		feed_items.pop_front()[0].queue_free()
+func say(text:String, c:Color = St.SUN):
+	canvas.toast(text, c)
 
-func big(title:String, sub:String, c:Color = YELLOW, time:float = 3.5):
-	announce.text = title
-	announce.add_theme_color_override("font_color", c)
-	announce_sub.text = sub
-	announce_t = time
+func big(title_text:String, sub:String, c:Color = St.SUN, time:float = 3.5):
+	canvas.announce(title_text, sub, c, time)
 
 func show_report(lines:Array):
-	report_label.text = "☀  AMANECER  ☀\n" + "\n".join(lines)
-	report_box.visible = true
-	report_t = 7.0
+	canvas.report(lines)
 
 func toggle_shop(open:bool):
 	shop.visible = open
-	if open: refresh_shop()
+	if open: refresh_shop(true)
 
 func fmt_time(t:float) -> String:
 	var s := ceili(maxf(0.0, t))
@@ -972,195 +837,34 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 	my_id = id
 	if not s.pl.has(id): return
 	var p:Dictionary = s.pl[id]
-	# banner
-	var ph:int = s.ph
-	var ev:Dictionary = Data.NIGHT_EVENTS[s.ev]
-	var fronts := []
-	for f in s.fr: fronts.append(Map.FRONT_NAMES[f])
-	var front_text:String = " y ".join(fronts) if fronts.size() <= 2 else ", ".join(fronts.slice(0, fronts.size() - 1)) + " y " + fronts[-1]
-	match ph:
-		P.PREP:
-			banner.text = "DÍA %d · PREPARACIÓN · %s" % [s.w, fmt_time(s.c)]
-			clock_bar.max_value = s.cl
-			clock_bar.value = s.c
-			banner_sub.text = "Esta noche: %s · Llegarán por el %s" % [ev.name, front_text] + ("" if s.get("var", 0) == 0 else " · Reglas: " + Data.VARIANTS[s.var].name)
-		P.NIGHT:
-			var asl:Array = s.get("as", [1, 1])
-			if s.get("fin", -1.0) > 0:
-				banner.text = "LA GRAN VERBENA · %d s · %d brotados" % [ceili(s.fin), s.rem]
-				clock_bar.max_value = Data.FINALE_TIME
-				clock_bar.value = s.fin
-				banner_sub.text = "Defended la casa por todas las calles hasta que suene la traca final"
-			elif s.get("rs", 0.0) > 0:
-				banner.text = "NOCHE %d · RESPIRO %d s" % [s.w, ceili(s.rs)]
-				clock_bar.max_value = 15.0
-				clock_bar.value = s.rs
-				banner_sub.text = "Después, asalto %d de %d. Reparad, reanimad o id a por la caja del globo" % [asl[0] + 1, asl[1]]
-			else:
-				banner.text = "NOCHE %d · ASALTO %d/%d · %d brotados" % [s.w, asl[0], asl[1], s.rem]
-				clock_bar.max_value = maxf(1, s.tot)
-				clock_bar.value = s.rem
-				banner_sub.text = "%s: %s Frentes: %s" % [ev.name, ev.desc, front_text]
-		P.DAWN:
-			banner.text = "AMANECER · %s" % fmt_time(s.c)
-			clock_bar.max_value = s.cl
-			clock_bar.value = s.c
-			banner_sub.text = "Recuperad fuerzas: la tienda y las reparaciones esperan"
-		P.OVER:
-			banner.text = "¡VICTORIA!" if s.get("vic", false) else "FIN DE LA VERBENA"
-			banner_sub.text = ""
-	banner.add_theme_color_override("font_color", Color("b9a6ff") if ph == P.NIGHT else YELLOW)
-	boss_box.visible = s.boss.size() > 0
-	if boss_box.visible: boss_bar.value = s.boss[1] * 100.0
-	var readies := 0
-	var alive := 0
-	for q in s.pl.values():
-		if q.st == 0:
-			alive += 1
-			if q.ready: readies += 1
-	ready_label.visible = ph == P.PREP
-	ready_label.text = ("✔ Listo · " if p.ready else "N: listo para la noche · ") + "%d/%d preparados" % [readies, alive]
-	ready_label.add_theme_color_override("font_color", MINT if p.ready else Color("cfd8ee"))
-	# house & stock
-	base_label.text = "🏠 Casa de la verbena  %d/%d" % [ceili(s.core), int(s.cmax)]
-	base_bar.max_value = s.cmax
-	base_bar.value = s.core
-	var claimed := 0
-	for si in s.si: if si[0]: claimed += 1
-	res_label.text = "🪵 Materiales %d   🏳 Territorio %d/6   👥 Comunidad %d" % [s.mat, claimed, s.cm.size()]
-	goal_label.text = goal_text(s)
-	job_label.text = jobs_text(s, p)
-	job_label.visible = job_label.text != ""
-	if board.visible and Engine.get_process_frames() % 15 == 0: refresh_board()
-	var warn := alert_text(s)
-	alert_box.visible = warn != "" and s.ph != P.OVER
-	alert_label.text = warn
-	if warn != "": alert_box.modulate.a = 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.012)
-	# team
-	var ids:Array = s.pl.keys()
-	ids.sort()
-	while team_box.get_child_count() > ids.size() - 1:
-		var c := team_box.get_child(team_box.get_child_count() - 1)
-		team_box.remove_child(c)
-		c.queue_free()
-	var row := 0
-	for other in ids:
-		if other == id: continue
-		var q:Dictionary = s.pl[other]
-		var card:PanelContainer
-		if row < team_box.get_child_count():
-			card = team_box.get_child(row)
-		else:
-			card = panel(team_box, Color(NAVY, 0.82), 12, 10)
-			card.custom_minimum_size = Vector2(240, 0)
-			var v := vbox(card, 3)
-			label(v, "", 15)
-			bar(v, MINT, 10)
-		var v:VBoxContainer = card.get_child(0)
-		var l:Label = v.get_child(0)
-		var b:ProgressBar = v.get_child(1)
-		var state_txt := ""
-		if q.st == 1: state_txt = "  ⚠ CAÍDO %ds" % ceili(q.bleed)
-		if q.st == 2: state_txt = "  ✝ vuelve al amanecer"
-		l.text = "%s · %s Nv%d%s" % [q.name, Data.ROLES[q.role].name, q.lvl, state_txt]
-		l.add_theme_color_override("font_color", Color(SLOT_COLORS[q.slot % 4]) if q.st == 0 else CORAL)
-		b.max_value = q.hpmax
-		b.value = q.hp
-		row += 1
-	# stack the left column under the house panel, whatever its height
-	var y := base_panel.position.y + base_panel.size.y + 8
-	alert_box.position.y = y
-	if alert_box.visible: y += alert_box.size.y + 8
-	team_box.position.y = y
-	guide_box.position = Vector2(16, team_box.position.y + team_box.size.y + 8)
-	var steps := first_day_steps(s, p)
-	guide_box.visible = steps != ""
-	guide_label.text = steps
-	# me
-	me_name.text = "%s · %s · Nivel %d" % [p.name, Data.ROLES[p.role].name, p.lvl]
-	me_name.add_theme_color_override("font_color", Color(Data.ROLES[p.role].color).lightened(0.25))
-	hp_bar.max_value = p.hpmax
-	hp_bar.value = p.hp
-	(hp_bar.get_theme_stylebox("fill") as StyleBoxFlat).bg_color = MINT if p.hp > p.hpmax * 0.35 else CORAL
-	var lvl:int = p.lvl
-	var lo:int = Data.XP_LEVELS[lvl - 1]
-	var hi:int = Data.XP_LEVELS[mini(lvl, Data.XP_LEVELS.size() - 1)]
-	xp_bar.max_value = maxf(1, hi - lo)
-	xp_bar.value = p.xp - lo if lvl < Data.XP_LEVELS.size() else xp_bar.max_value
-	var cd:float = Data.ROLES[p.role].cd * (1.0 - 0.06 * (p.lvl - 1))
-	ab_label.text = "Q · %s%s" % [Data.ROLES[p.role].ability, "" if p.ab <= 0 else " %ds" % ceili(p.ab)]
-	ab_label.add_theme_color_override("font_color", SKY if p.ab <= 0 else Color("8090a8"))
-	ab_bar.max_value = cd
-	ab_bar.value = cd - p.ab
-	items_label.text = "🪙 %d fichas   ✚ %d botiquín (H)   🧨 %d tracas (G)" % [p.coins, p.med, p.tr]
-	# weapon
-	var g:int = p.gun
-	var w:Dictionary = Data.WEAPONS[g]
-	gun_label.text = "%s  Nv%d" % [w.name, p.guns.get(g, 1)]
-	gun_label.add_theme_color_override("font_color", Color(w.color).lightened(0.2))
-	var res:int = p.res.get(g, -1)
-	ammo_label.text = "%d / %s" % [p.mag.get(g, 0), "∞" if res < 0 else str(res)]
-	ammo_label.add_theme_color_override("font_color", CORAL if p.mag.get(g, 0) == 0 else YELLOW)
-	reload_bar.visible = p.rl > 0
-	reload_bar.max_value = maxf(0.01, p.rlmax)
-	reload_bar.value = p.rlmax - p.rl
-	for i in slots_box.get_child_count():
-		var sl:Label = slots_box.get_child(i)
-		var owned:bool = p.guns.has(i)
-		sl.text = str(i + 1)
-		var st := box(Color(Data.WEAPONS[i].color).darkened(0.35) if i == g else (Color("2e4566") if owned else Color(0.1, 0.12, 0.18, 0.6)), 8, 4, YELLOW if i == g else Color(0, 0, 0, 0), 2 if i == g else 0)
-		sl.add_theme_stylebox_override("normal", st)
-		sl.add_theme_color_override("font_color", CREAM if owned else Color("55607a"))
-	# prompt
-	notice.text = p.notice
-	var pr:String = local.get("prompt", "")
-	prompt.text = pr if pr != "" else p.prompt
-	if p.hold != "" and p.hm > 0:
-		hold_bar.visible = true
-		hold_bar.max_value = p.hm
-		hold_bar.value = p.ht
-	else:
-		hold_bar.visible = false
+	local["notes"] = notes_for(s, p)
+	if prefs != null:
+		for a in prefs.ACTIONS: canvas.keys[a[0]] = prefs.key_name(a[0])
+	canvas.indicators = mm_data.get("indicators", [])
+	canvas.feed(s, id, local, dt)
 	# build bar
 	build_bar.visible = local.get("build", -1) >= 0
-	prompt_box.offset_top = -330.0 if build_bar.visible else -24.0
-	prompt_box.offset_bottom = prompt_box.offset_top
 	if build_bar.visible:
 		for i in build_cards.size():
 			var b:Button = build_cards[i][0]
 			b.button_pressed = i == local.build
 			var cost:int = local.costs[i]
 			var lab:Label = build_cards[i][1]
-			lab.text = "%d mat." % cost
-			lab.add_theme_color_override("font_color", YELLOW if s.mat >= cost else CORAL)
+			lab.text = "%d" % cost
+			lab.add_theme_color_override("font_color", St.INK if s.mat >= cost else St.CORAL)
 		build_hint.text = local.get("build_hint", "")
-	# timers
-	announce_t -= dt
-	var a := clampf(announce_t, 0.0, 1.0)
-	announce.modulate.a = a
-	announce_sub.modulate.a = a
-	announce.scale = Vector2.ONE
-	report_t -= dt
-	report_box.visible = report_t > 0
-	report_box.modulate.a = clampf(report_t, 0.0, 1.0)
-	for i in range(feed_items.size() - 1, -1, -1):
-		feed_items[i][1] -= dt
-		feed_items[i][0].modulate.a = clampf(feed_items[i][1], 0.0, 1.0)
-		if feed_items[i][1] <= 0:
-			feed_items[i][0].queue_free()
-			feed_items.remove_at(i)
-	if shop.visible and Engine.get_process_frames() % 10 == 0: refresh_shop()
+	if board.visible and Engine.get_process_frames() % 15 == 0: refresh_board(false)
+	if shop.visible: refresh_shop()
 	if map_panel.visible:
 		map_info.text = map_text(s)
 		bigmap.queue_redraw()
 	minimap.queue_redraw()
-	overlay.queue_redraw()
 	over_wait = over_wait + dt if s.ph == P.OVER else 0.0
 	if s.ph == P.OVER and not over.visible and over_wait > (5.0 if s.get("vic", false) else 1.5):
 		over.visible = true
 		var won:bool = s.get("vic", false)
 		over_title.text = "¡La verbena está encendida!" if won else "Se acabó la verbena"
-		over_title.add_theme_color_override("font_color", YELLOW if won else PINK)
+		over_title.add_theme_color_override("font_color", St.SUN.darkened(0.25) if won else St.CORAL)
 		rematch_button.visible = can_rematch
 		rematch_button.text = "Revancha con el mismo grupo" if can_rematch else "Esperando al anfitrión…"
 		var lines := []
@@ -1171,6 +875,23 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 		if not won: lines.append("Piezas de la verbena instaladas: %d de 4" % installed)
 		for q in s.pl.values(): lines.append("%s (%s, nivel %d): %d derribos · %d lotes recogidos por otros" % [q.name, Data.ROLES[q.role].name, q.lvl, q.kills, q.get("helped", 0)])
 		over_text.text = "\n".join(lines)
+
+func notes_for(s:Dictionary, p:Dictionary) -> Array:
+	## The paper note: the first-day checklist and the jobs you have taken.
+	var lines:Array = first_day_steps(s, p)
+	var jobs := []
+	for j in s.get("jobs", []):
+		if j[5] != 1: continue
+		var d := roundi(p.p.distance_to(Vector2(j[3], j[4])))
+		var where:String = j[11]
+		match j[1]:
+			"relevo": jobs.append("▢ Relevo en %s%s" % [where, "" if j[12] else " (sin localizar)"])
+			"defensa": jobs.append("▢ Aguanta en %s · %d/%d s" % [where, int(j[8]), int(Data.JOB_DEFENSE_TIME)])
+			"transporte": jobs.append("▢ %s · %d m" % ["Lleva la caja al porche" if j[9] == my_id else "Trae la caja de " + where, d])
+			_: jobs.append("▢ Busca en %s · %d m" % [where, d])
+	if jobs.is_empty(): return lines
+	if lines.is_empty(): return ["Encargos"] + jobs
+	return lines + jobs
 
 func jobs_text(s:Dictionary, p:Dictionary) -> String:
 	var lines := []
@@ -1192,40 +913,47 @@ func toggle_board():
 	board.visible = not board.visible
 	if board.visible: refresh_board()
 
-func refresh_board():
-	for c in board_list.get_children(): c.queue_free()
+func refresh_board(force:bool = true):
 	var s := last_state
 	if s.is_empty() or not s.pl.has(my_id): return
 	var p:Dictionary = s.pl[my_id]
+	var jobs_sig := []
+	for j in s.get("jobs", []): jobs_sig.append([j[0], j[5], j[12], roundi(p.p.distance_to(Vector2(j[3], j[4])) / 10.0)])
+	var sig := var_to_str([jobs_sig, s.get("cm", []), s.get("cp", []), s.si])
+	if sig == board_sig and not force: return
+	board_sig = sig
+	for c in board_list.get_children():
+		board_list.remove_child(c)
+		c.queue_free()
 	for j in s.get("jobs", []):
-		var card := panel(board_list, Color("4a3628"), 14, 12)
+		var card := panel(board_list, St.CARD, 14, 12)
 		card.mouse_filter = Control.MOUSE_FILTER_PASS
 		var r := hbox(card, 12)
 		var info := vbox(r, 2)
 		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var title := "%s %s · %s" % ["Encargo corto:" if j[2] == "corto" else "Encargo ambicioso:", Data.JOBS[j[1]].name.to_lower(), j[11]]
-		label(info, title, 19, YELLOW if j[2] == "corto" else Color("ff9a8a"))
+		label(info, title, 19, St.INK if j[2] == "corto" else St.CORAL.darkened(0.3))
 		var d := roundi(p.p.distance_to(Vector2(j[3], j[4])))
 		if not j[12]: d = roundi(p.p.distance_to(Vector2(j[3], j[4])) / 10.0) * 10
 		var how:String = Data.JOBS[j[1]].desc + (" durante %d s" % int(Data.JOB_DEFENSE_TIME) if j[1] == "defensa" else "")
-		var l := label(info, "%s. A %d m · riesgo %s · recompensa +%d materiales y +%d fichas para todos" % [how, d, j[10], j[6], j[7]], 14, Color("f0e2cc"))
+		var l := label(info, "%s. A %d m · riesgo %s · recompensa +%d materiales y +%d fichas para todos" % [how, d, j[10], j[6], j[7]], 14, St.INK_SOFT)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size.x = 420
 		var id:int = j[0]
 		match int(j[5]):
 			0: button(r, "Aceptar", func(): action.emit("job_accept", [id]), 40).custom_minimum_size.x = 120
 			1: button(r, "Abandonar", func(): action.emit("job_abandon", [id]), 40).custom_minimum_size.x = 120
-			2: label(r, "✔ Cumplido", 16, MINT)
-			3: label(r, "✘ Fallido", 16, CORAL)
+			2: label(r, "✔ Cumplido", 16, St.MINT.darkened(0.3))
+			3: label(r, "✘ Fallido", 16, St.CORAL.darkened(0.2))
 	var cm:Array = s.get("cm", [])
 	if cm.is_empty(): return
-	label(board_list, "Comunidad: ¿dónde trabaja cada vecino?", 19, YELLOW)
+	title(board_list, "Comunidad: ¿dónde trabaja cada vecino?", Color("8b5e3c"), 20)
 	var cp:Array = s.get("cp", [])
 	for m in cm.size():
 		var row := hbox(board_list, 10)
 		var kind:int = cm[m]
 		var where:int = cp[m] if m < cp.size() else -1
-		var l2 := label(row, "%s · en casa: %s" % [Data.SURVIVORS[kind].name, Data.SURVIVORS[kind].desc.to_lower()], 14, Color("f0e2cc"))
+		var l2 := label(row, "%s · en casa: %s" % [Data.SURVIVORS[kind].name, Data.SURVIVORS[kind].desc.to_lower()], 14, St.INK_SOFT)
 		l2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l2.custom_minimum_size.x = 380
 		l2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1253,9 +981,9 @@ func goal_text(s:Dictionary) -> String:
 	if done == pcs.size(): return "🎆 Verbena lista: encendedla en el escenario (E)"
 	return "🎆 Verbena %d/%d · piezas en %s" % [done, pcs.size(), ", ".join(missing)]
 
-func first_day_steps(s:Dictionary, p:Dictionary) -> String:
+func first_day_steps(s:Dictionary, p:Dictionary) -> Array:
 	## Checklist for the first afternoon so new players always know a next step.
-	if s.w != 1 or s.ph != P.PREP: return ""
+	if s.w != 1 or s.ph != P.PREP: return []
 	var looted := false
 	for v in s.lo: if not v: looted = true
 	var front:int = s.fr[0] if s.fr.size() > 0 else 2
@@ -1268,12 +996,12 @@ func first_day_steps(s:Dictionary, p:Dictionary) -> String:
 		if sec == front: built = true
 	var risky:bool = s.cm.size() > 0 or s.sv.any(func(v): return v[4] == 1)
 	for si in s.si: if si[0]: risky = true
-	var lines := ["PRIMER DÍA"]
-	lines.append(("✔ " if looted else "▢ ") + "Rebusca en un punto con ✦ cerca de la plaza (mantén %s)" % k("use"))
-	lines.append(("✔ " if built else "▢ ") + "Construye una defensa en el lado %s, por donde llegarán (%s)" % [Map.FRONT_NAMES[front], k("build")])
-	lines.append(("✔ " if risky else "▢ ") + "Más arriesgado: libera al vecino atrapado (!) o conquista una propiedad (%s)" % k("claim"))
-	lines.append(("✔ " if p.ready else "▢ ") + "Toca la campana de la plaza o pulsa %s cuando estéis listos" % k("ready"))
-	return "\n".join(lines)
+	var lines := ["Primer día"]
+	lines.append(("✔ " if looted else "▢ ") + "Rebusca donde brilla ✦")
+	lines.append(("✔ " if built else "▢ ") + "Construye al %s (%s)" % [Map.FRONT_NAMES[front], k("build")])
+	lines.append(("✔ " if risky else "▢ ") + "Rescata o conquista (%s)" % k("claim"))
+	lines.append(("✔ " if p.ready else "▢ ") + "Toca la campana (%s)" % k("ready"))
+	return lines
 
 func alert_text(s:Dictionary) -> String:
 	## Most urgent warning first: the house, then open breaches, then defences under attack.
@@ -1383,7 +1111,7 @@ func draw_map(c:Control, big:bool):
 	for i in range(0, en.size(), 8):
 		var kind := int(en[i + 1])
 		c.draw_circle(world_to_map(c, Vector2(en[i + 2], en[i + 3]), big), (5.0 if kind == 7 else 2.2) * (1.4 if big else 1.0), Color("ff4d6d") if int(en[i + 6]) & 4 == 0 else Color("b07a8a"))
-	for sv in s.sv: c.draw_string(ThemeDB.fallback_font, world_to_map(c, Vector2(sv[1], sv[2]), big) - Vector2(3, -6), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, YELLOW)
+	for sv in s.sv: c.draw_string(ThemeDB.fallback_font, world_to_map(c, Vector2(sv[1], sv[2]), big) - Vector2(3, -6), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, St.SUN)
 	for d in s.dr: c.draw_circle(world_to_map(c, Vector2(d[1], d[2]), big), 5.0, Color("4cc9f0"))
 	var stage_pos := world_to_map(c, Map.STAGE, big)
 	c.draw_rect(Rect2(stage_pos - Vector2(9, 4), Vector2(18, 8)), Color("e8665a"))
@@ -1428,25 +1156,3 @@ func draw_map(c:Control, big:bool):
 			var view := Vector2(-sin(mm_data.get("yaw", 0.0)), -cos(mm_data.get("yaw", 0.0)))
 			c.draw_line(pos, pos + view * 22.0, Color(1, 1, 1, 0.5), 1.5)
 	c.draw_rect(Rect2(Vector2.ZERO, c.size), Color(1, 1, 1, 0.25), false, 2.0)
-
-func draw_overlay():
-	var vp := overlay.size
-	for m in mm_data.get("indicators", []):
-		var sp:Vector2 = m[0]
-		var col:Color = m[1]
-		var text:String = m[2]
-		var onscreen:bool = m[3]
-		if onscreen:
-			overlay.draw_circle(sp + Vector2(0, -6), 7.0, Color(0.1, 0.08, 0.14, 0.8))
-			overlay.draw_circle(sp + Vector2(0, -6), 5.0, col)
-			if text != "":
-				var w := ThemeDB.fallback_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
-				overlay.draw_rect(Rect2(sp + Vector2(-w * 0.5 - 6, 6), Vector2(w + 12, 20)), Color(0.1, 0.08, 0.14, 0.8))
-				overlay.draw_string(ThemeDB.fallback_font, sp + Vector2(-w * 0.5, 21), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, col.lightened(0.3))
-			continue
-		var center := vp * 0.5
-		var dir := (sp - center).normalized()
-		var edge := center + dir * minf(absf((vp.x * 0.5 - 50) / maxf(0.001, absf(dir.x))), absf((vp.y * 0.5 - 50) / maxf(0.001, absf(dir.y))))
-		var perp := Vector2(-dir.y, dir.x)
-		overlay.draw_colored_polygon(PackedVector2Array([edge + dir * 18, edge - dir * 6 + perp * 12, edge - dir * 6 - perp * 12]), col)
-		overlay.draw_string(ThemeDB.fallback_font, edge - dir * 34 - Vector2(80, -6), text, HORIZONTAL_ALIGNMENT_CENTER, 160, 14, Color.WHITE)

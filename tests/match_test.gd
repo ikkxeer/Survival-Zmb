@@ -91,6 +91,14 @@ func _initialize():
 	p.coins = 30
 	g.act(1, "buy_gun", [4])
 	check(p.guns.has(4), "La Comisaría desbloquea el rifle de tómbola")
+	var before_sell:int = p.coins
+	g.act(1, "sell_gun", [4])
+	check(not p.guns.has(4) and p.coins == before_sell + 13 and p.guns.has(p.gun), "Vender un arma devuelve la mitad y cambia a otra")
+	g.act(1, "sell_gun", [0])
+	check(p.guns.has(0), "La pistola de feria no se vende")
+	p.tr = 2
+	g.act(1, "sell_item", ["traca"])
+	check(p.tr == 1 and p.coins == before_sell + 15, "Vender una traca")
 	# --- downed and revived
 	var mate:Dictionary = g.players[2]
 	mate.p = p.p + Vector2(1, 0)

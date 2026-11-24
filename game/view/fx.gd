@@ -25,7 +25,7 @@ var live := []   # [node, age, life, kind, data]
 func _ready():
 	var unit := BoxMesh.new()
 	unit.size = Vector3(1, 1, 1)
-	for i in 48:
+	for i in 96:
 		var mi := MeshInstance3D.new()
 		mi.mesh = unit
 		mi.material_override = mat_fx(Color("ffe08a"), 3.0)
@@ -34,8 +34,10 @@ func _ready():
 		add_child(mi)
 		tracers.append(mi)
 	var star := Kit.new()
-	for i in 4: star.box(Kit.rot(0, 0, 0, i * PI * 0.25), Vector3(0.08, 0.08, 0.6), Color.WHITE, 0.0)
-	star.sphere(Kit.at(0, 0, 0), Vector3(0.18, 0.18, 0.18), Color.WHITE, 8, 5)
+	# muzzle flash: a bright core, a forward spike and four petals around the barrel
+	star.sphere(Kit.at(0, 0, 0.05), Vector3(0.14, 0.14, 0.2), Color.WHITE, 8, 5)
+	star.box(Kit.at(0, 0, 0.28), Vector3(0.07, 0.07, 0.5), Color.WHITE, 0.0)
+	for i in 4: star.box(Kit.rot(0, 0, 0.08, 0.0, 0.0, i * PI * 0.5 + PI * 0.25), Vector3(0.05, 0.34, 0.05), Color(1, 0.85, 0.6), 0.0)
 	var star_mesh := star.commit()
 	for i in 12:
 		var mi := MeshInstance3D.new()
@@ -214,6 +216,98 @@ func _ready():
 		p.local_coords = false
 		p.mesh = small_box(Vector3(0.16, 0.16, 0.16), Color.WHITE, true)
 	)
+	make_pool("smoke", 10, func(p:CPUParticles3D):
+		p.amount = 5
+		p.lifetime = 0.55
+		p.explosiveness = 0.9
+		p.spread = 25.0
+		p.direction = Vector3(0, 0.3, 1)
+		p.initial_velocity_min = 0.8
+		p.initial_velocity_max = 2.0
+		p.gravity = Vector3(0, 1.2, 0)
+		p.damping_min = 3.0
+		p.damping_max = 5.0
+		var c := Curve.new()
+		c.add_point(Vector2(0, 0.3))
+		c.add_point(Vector2(0.35, 1.0))
+		c.add_point(Vector2(1, 0.0))
+		p.scale_amount_curve = c
+		p.scale_amount_min = 0.15
+		p.scale_amount_max = 0.3
+		var sm := SphereMesh.new()
+		sm.radius = 0.3
+		sm.height = 0.6
+		sm.radial_segments = 8
+		sm.rings = 4
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color(0.92, 0.9, 0.95, 0.35)
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		sm.material = m
+		p.mesh = sm
+	)
+	make_pool("casing", 12, func(p:CPUParticles3D):
+		p.amount = 1
+		p.lifetime = 0.7
+		p.explosiveness = 1.0
+		p.spread = 20.0
+		p.direction = Vector3(1, 1.2, -0.3)
+		p.initial_velocity_min = 2.5
+		p.initial_velocity_max = 3.5
+		p.gravity = Vector3(0, -16, 0)
+		p.angular_velocity_min = -900
+		p.angular_velocity_max = 900
+		p.local_coords = false
+		var b := BoxMesh.new()
+		b.size = Vector3(0.035, 0.035, 0.09)
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color("e7b84a")
+		m.metallic = 0.6
+		m.roughness = 0.3
+		b.material = m
+		p.mesh = b
+	)
+	make_pool("dust", 10, func(p:CPUParticles3D):
+		p.amount = 6
+		p.lifetime = 0.5
+		p.explosiveness = 1.0
+		p.spread = 50.0
+		p.direction = Vector3(0, 1, 0)
+		p.initial_velocity_min = 1.0
+		p.initial_velocity_max = 2.4
+		p.gravity = Vector3(0, -2, 0)
+		p.damping_min = 3.0
+		p.damping_max = 4.0
+		var c := Curve.new()
+		c.add_point(Vector2(0, 0.4))
+		c.add_point(Vector2(0.3, 1.0))
+		c.add_point(Vector2(1, 0.0))
+		p.scale_amount_curve = c
+		p.scale_amount_min = 0.3
+		p.scale_amount_max = 0.55
+		var sm := SphereMesh.new()
+		sm.radius = 0.25
+		sm.height = 0.5
+		sm.radial_segments = 6
+		sm.rings = 3
+		var m := StandardMaterial3D.new()
+		m.albedo_color = Color("d8c7a6")
+		sm.material = m
+		p.mesh = sm
+	)
+	make_pool("hit", 12, func(p:CPUParticles3D):
+		p.amount = 8
+		p.lifetime = 0.4
+		p.explosiveness = 1.0
+		p.spread = 45.0
+		p.direction = Vector3(0, 0.4, 1)
+		p.initial_velocity_min = 2.0
+		p.initial_velocity_max = 4.5
+		p.gravity = Vector3(0, -10, 0)
+		p.scale_amount_min = 0.6
+		p.scale_amount_max = 1.2
+		p.mesh = small_box(Vector3(0.09, 0.09, 0.09), Color("9be36a"), false)
+	)
 	make_pool("stars", 4, func(p:CPUParticles3D):
 		p.amount = 24
 		p.lifetime = 1.2
@@ -286,6 +380,7 @@ func light(at:Vector3, c:Color, energy:float, life:float = 0.08, rng:float = 6.0
 	l.set_meta("life", life)
 
 func tracer(a:Vector3, b:Vector3, c:Color, width:float = 0.06, life:float = 0.08):
+	## Static beam (turret zaps, special shots).
 	var mi:MeshInstance3D = tracers.pop_front()
 	tracers.append(mi)
 	var d := a.distance_to(b)
@@ -295,16 +390,39 @@ func tracer(a:Vector3, b:Vector3, c:Color, width:float = 0.06, life:float = 0.08
 	(mi.material_override as ShaderMaterial).set_shader_parameter("color", c)
 	live.append([mi, 0.0, life, "tracer", null])
 
-func muzzle(at:Vector3, c:Color, size:float = 1.0):
+func bullet(a:Vector3, b:Vector3, c:Color, width:float, speed:float, streak:float):
+	## A short glowing streak that travels from the muzzle to the impact point,
+	## leaving a faint fading line behind: reads as a real round, not a laser.
+	var d := a.distance_to(b)
+	if d < 0.05: return
+	var mi:MeshInstance3D = tracers.pop_front()
+	tracers.append(mi)
+	mi.visible = true
+	(mi.material_override as ShaderMaterial).set_shader_parameter("color", c)
+	mi.set_instance_shader_parameter("fade", 1.0)
+	live.append([mi, 0.0, d / speed + 0.02, "bullet", [a, b, d, width, streak]])
+
+func muzzle(at:Vector3, c:Color, size:float = 1.0, dir:Vector3 = Vector3.ZERO):
 	var mi:MeshInstance3D = flashes.pop_front()
 	flashes.append(mi)
 	mi.visible = true
 	mi.global_position = at
-	mi.rotation = Vector3(randf() * TAU, randf() * TAU, 0)
-	mi.scale = Vector3.ONE * size
-	(mi.material_override as ShaderMaterial).set_shader_parameter("color", c)
-	live.append([mi, 0.0, 0.06, "flash", size])
-	light(at, c, 2.5 * size, 0.06)
+	if dir.length_squared() > 0.01:
+		mi.global_basis = Basis.looking_at(-dir.normalized(), Vector3.UP).rotated(dir.normalized(), randf() * TAU)
+		mi.scale = Vector3(size, size, size * randf_range(0.9, 1.4))
+	else:
+		mi.rotation = Vector3(randf() * TAU, randf() * TAU, 0)
+		mi.scale = Vector3.ONE * size
+	(mi.material_override as ShaderMaterial).set_shader_parameter("color", c.lerp(Color("fff3c4"), 0.5))
+	live.append([mi, 0.0, 0.05, "flash", size])
+	light(at, Color("ffd9a0"), 3.0 * size, 0.06)
+
+func impact(at:Vector3, dir:Vector3, on_enemy:bool):
+	if on_enemy:
+		burst("hit", at + Vector3(0, 0.9, 0), dir)
+	else:
+		burst("dust", Vector3(at.x, 0.1, at.z))
+		burst("sparks", at, -dir)
 
 func number(at:Vector3, text:String, c:Color, big:bool):
 	if not show_numbers: return
@@ -360,18 +478,24 @@ func gun_color(g:int) -> Color:
 	if g == 7: return Color("8ff6ff")
 	return Color(Data.WEAPONS[clampi(g, 0, Data.WEAPONS.size() - 1)].color).lightened(0.3)
 
-func shot(owner:int, g:int, a:Vector3, b:Vector3, local:bool):
+func shot(owner:int, g:int, a:Vector3, b:Vector3, local:bool, hit:int = -1, first:bool = true):
 	var c := gun_color(g)
-	var w := 0.05
-	if g == 4: w = 0.09
-	if g == 1: w = 0.04
-	if g != 5: tracer(a, b, c, w, 0.12 if g == 4 else 0.07)
-	if local or owner != -999:
-		var dir := (b - a).normalized()
-		if g == 1 or not local or randf() < 0.8: muzzle(a + dir * 0.15, c, 1.3 if g in [1, 4, 5] else 0.8)
-	if g != 5 and a.distance_to(b) > 0.5: burst("sparks", b, -(b - a))
-	if local:
-		shake([0.05, 0.16, 0.035, 0.06, 0.22, 0.18, 0.0, 0.0][clampi(g, 0, 7)])
+	var dir := (b - a).normalized()
+	if g == 7:
+		tracer(a, b, c, 0.05, 0.07)
+	elif g != 5:
+		# width, speed (m/s) and streak length per weapon: pistol, shotgun, smg, rifle, sniper
+		var spec:Array = [[0.06, 60.0, 1.8], [0.05, 55.0, 1.1], [0.05, 70.0, 1.5], [0.065, 80.0, 2.4], [0.09, 120.0, 4.5], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]][clampi(g, 0, 6)]
+		bullet(a, b, c, spec[0], spec[1], spec[2])
+	if first and owner != -999:
+		muzzle(a + dir * 0.08, c, 1.4 if g in [1, 4, 5] else 0.9, dir)
+		burst("smoke", a + dir * 0.2, dir)
+		if g in [0, 2, 3, 4] and owner > 0: burst("casing", a - dir * 0.25 + Vector3(0, 0.05, 0), dir.cross(Vector3.UP) * -1.0)
+	if g != 5 and a.distance_to(b) > 0.5:
+		var delay := a.distance_to(b) / 90.0
+		live.append([null, 0.0, delay, "impact", [b, dir, hit == 1]])
+	if local and first:
+		shake([0.06, 0.2, 0.04, 0.07, 0.26, 0.2, 0.0, 0.0][clampi(g, 0, 7)])
 
 func explosion(at:Vector3, radius:float):
 	burst("puff", at + Vector3(0, 0.3, 0))
@@ -421,11 +545,23 @@ func _process(dt:float):
 		var f:float = e[1] / e[2]
 		var node:Node3D = e[0]
 		if f >= 1.0:
-			if e[3] in ["blast", "bolt"]: node.queue_free()
+			if e[3] == "impact":
+				impact(e[4][0], e[4][1], e[4][2])
+			elif e[3] in ["blast", "bolt"]: node.queue_free()
 			else: node.visible = false
 			live.remove_at(i)
 			continue
 		match e[3]:
+			"bullet":
+				var d:Array = e[4]
+				var a:Vector3 = d[0]
+				var b:Vector3 = d[1]
+				var dist:float = d[2]
+				var head_d := minf(dist, dist * f * 1.05)
+				var tail_d := maxf(0.0, head_d - float(d[4]))
+				var len := maxf(0.05, head_d - tail_d)
+				var dir := (b - a) / dist
+				node.global_transform = Transform3D(Basis.looking_at(dir, Vector3.UP).scaled(Vector3(d[3], d[3], len)), a + dir * (tail_d + len * 0.5))
 			"tracer", "flash", "bolt":
 				(node as GeometryInstance3D).set_instance_shader_parameter("fade", 1.0 - f)
 			"ring":
