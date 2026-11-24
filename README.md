@@ -62,6 +62,10 @@ La noche llega en dos o tres **asaltos**. Entre uno y otro hay 15 segundos de **
 
 **Amanecer (recuperación).** Llegan las recompensas de las propiedades y de la comunidad. Los caídos vuelven y el botín se repone. Es el momento de comprar, mejorar y reparar antes del siguiente día.
 
+**Tablón de encargos y comunidad.** Junto a la tienda, el tablón ofrece cada día un encargo corto y otro ambicioso (búsqueda, transporte o defensa) con su lugar, riesgo y recompensa. Desde el tablón también se decide dónde trabaja cada vecino rescatado: en casa con su habilidad o en una propiedad, cuya bonificación sube un 50 %.
+
+**Reglas opcionales.** Antes de empezar se puede elegir «Barrio a oscuras» (apagón cada noche, un globo diario y más fichas) o «Estampida» (un frente más, el doble de corredores y días cortos con más materiales).
+
 **La meta: encender la verbena.** Cuatro propiedades guardan una pieza del escenario: cuadro eléctrico, guirnalda maestra, altavoces y bidón de gasoil. Al conquistarlas, hay que llevar cada pieza al escenario de la plaza; quien carga va más despacio y la suelta si cae. Con las cuatro instaladas se enciende la verbena y empieza la noche final: 120 segundos de ataque por todas las calles. Si la casa aguanta, ganáis. Después, el anfitrión puede ofrecer una revancha con el mismo grupo.
 
 La partida acaba si cae la casa o si todo el equipo queda fuera de combate. Un jugador caído aguanta 30 segundos. Un compañero puede reanimarlo manteniendo E, y él mismo puede levantarse con un botiquín.
@@ -202,6 +206,7 @@ godot --headless -s tests/network_test.gd -- --host
 - `goal_test.gd` comprueba las piezas, la carga, la caída con pieza, la instalación, la noche final, la victoria, la derrota y la revancha.
 - `profile_test.gd` comprueba los rangos, las ventajas, el guardado versionado y la recuperación de un archivo a medias.
 - `jobs_test.gd` comprueba el tablón de encargos y la generación de 60 días sin destinos inaccesibles ni repeticiones.
+- `decisions_test.gd` comprueba los destinos de los vecinos rescatados y las reglas opcionales.
 - `checkpoint_test.gd` comprueba el guardado al amanecer, la reconexión en otro orden y la recuperación de un archivo a medias.
 - `join_test.gd` (un anfitrión con `--host` y cinco clientes, uno con `--version=0.1.0`) comprueba los mensajes de partida llena y versión distinta.
 - `settings_test.gd` comprueba que ajustes y teclas se conservan al reiniciar, que una tecla ocupada se intercambia y que la ayuda muestra las teclas elegidas.

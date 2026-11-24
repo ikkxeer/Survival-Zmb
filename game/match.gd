@@ -36,6 +36,8 @@ var loot := []
 var projectiles := []
 var survivors := []
 var community := []
+var posts := []           # where each community member works: -1 at home, else a site index
+var variant := 0          # optional rule set chosen before the match (Data.VARIANTS)
 var drops := []
 var strikes := []
 var events := []
@@ -209,7 +211,7 @@ func to_save() -> Dictionary:
 		var x:Dictionary = structures[cell]
 		st[cell] = {"k":x.k, "lvl":x.lvl, "hp":x.hp, "max":x.max, "owner":x.owner}
 	return {"wave":wave, "core":core, "core_max":core_max, "core_level":core_level, "materials":materials,
-		"players":pl, "structures":st, "sites":sites.duplicate(true), "loot":loot.duplicate(), "community":community.duplicate(),
+		"players":pl, "structures":st, "sites":sites.duplicate(true), "loot":loot.duplicate(), "community":community.duplicate(), "posts":posts.duplicate(), "variant":variant,
 		"pieces":pieces.map(func(pc): return {"state":3 if pc.state == 2 else pc.state, "p":pc.p}), "stats":stats.duplicate(),
 		"night_event":night_event, "weather":weather, "fronts":fronts.duplicate()}
 
@@ -230,6 +232,8 @@ func from_save(d:Dictionary):
 		if sites[i].claimed: nav.active["site%d" % i] = true
 	loot = d.loot.duplicate()
 	community = d.community.duplicate()
+	posts = d.get("posts", community.map(func(_k): return -1)).duplicate()
+	variant = d.get("variant", 0)
 	for i in mini(pieces.size(), d.pieces.size()):
 		pieces[i].state = d.pieces[i].state
 		pieces[i].p = d.pieces[i].p
@@ -247,6 +251,34 @@ func from_save(d:Dictionary):
 	phase_len = 14.0
 	report = ["Partida recuperada: amanecer de la noche %d" % (wave - 1)]
 	make_jobs()
+
+func home_count(kind:int) -> int:
+	var n := 0
+	for i in community.size():
+		if community[i] == kind and posts[i] < 0: n += 1
+	return n
+
+func site_helpers(site:int) -> int:
+	return posts.count(site)
+
+func site_boost(site:int, amount:int) -> int:
+	## Neighbours working at a property raise its dawn bonus by half each.
+	return int(round(amount * (1.0 + 0.5 * site_helpers(site))))
+
+func assign(p:Dictionary, member:int, site:int):
+	if member < 0 or member >= community.size(): return
+	if p.p.distance_to(Map.BOARD) > 3.0: return say(p, "Organiza a la comunidad desde el tablón")
+	if site >= 0 and not sites[site].claimed: return say(p, "Solo en propiedades del barrio")
+	posts[member] = site
+	var who:String = Data.SURVIVORS[community[member]].name
+	if site >= 0:
+		sites[site].max = 200.0 + 100.0 * site_helpers(site)
+		sites[site].hp = minf(sites[site].max, sites[site].hp + 100.0)
+		announce("El %s se va a %s: su bonificación sube un 50%%" % [who.to_lower(), Data.SITES[site].name])
+	else:
+		announce("El %s vuelve a la casa" % who.to_lower())
+	emit("assign", [member, site])
+	log_line({"evento":"destino_vecino", "vecino":who, "destino":Data.SITES[site].name if site >= 0 else "casa"})
 
 func apply_rank(p:Dictionary, rank:int):
 	## Perks earned between matches (see profile.gd): rank 2 per role, rank 3 more health.
@@ -404,6 +436,8 @@ func act(id:int, action:String, args:Array = []):
 			emit("buy", [id])
 		"core_up": core_upgrade(p)
 		"bundle": prepare_bundle(id, p)
+		"assign":
+			if args.size() >= 2: assign(p, int(args[0]), int(args[1]))
 		"job_accept":
 			if args.size() > 0: job_accept(p, int(args[0]))
 		"job_abandon":
@@ -762,6 +796,7 @@ func kill_enemy(key:int, owner:int):
 	emit("kill", [e.p.x, e.p.y, e.k, owner])
 	var coins:int = def.coins
 	if night_event == 5 and phase == P.NIGHT: coins = ceili(coins * 1.5)
+	if variant == 1: coins = ceili(coins * 1.25)
 	var credit := owner
 	if owner <= 0 and owner != -9 and structures.has(-owner - 100): credit = structures[-owner - 100].owner
 	if players.has(credit):
@@ -838,6 +873,9 @@ func damage_site(i:int, dmg:float):
 		sites[i].claimed = false
 		sites[i].hp = 0.0
 		nav.active.erase("site%d" % i)
+		for m in posts.size():
+			if posts[m] == i: posts[m] = -1
+		sites[i].max = 200.0
 		emit("lost", [i])
 		announce("¡Hemos perdido %s!" % Data.SITES[i].name)
 
@@ -888,13 +926,18 @@ func plan_day():
 	all.shuffle()
 	fronts = all.slice(0, n)
 	if wave == 1: fronts = [2]
+	if variant == 2:
+		for f in all:
+			if not f in fronts and fronts.size() < 4:
+				fronts.append(f)
+				break
 	weather = 0 if rng.randf() < 0.55 else (1 if rng.randf() < 0.6 else 2)
 	if wave == 1: weather = 0
 	night_event = pick_event()
 	make_jobs()
 	day_plan = {
 		"survivor": rng.randf_range(0.25, 0.6) if (wave >= 2 and rng.randf() < 0.6) or wave == 1 else -1.0,
-		"drop": rng.randf_range(0.3, 0.75) if rng.randf() < 0.55 and wave > 1 else -1.0,
+		"drop": rng.randf_range(0.3, 0.75) if (rng.randf() < 0.55 and wave > 1) or variant == 1 else -1.0,
 		"horde": rng.randf_range(0.2, 0.7) if wave >= 3 and rng.randf() < 0.35 else -1.0,
 	}
 
@@ -979,9 +1022,18 @@ func tick_jobs(dt:float):
 							e.victim = -1
 				if j.progress >= Data.JOB_DEFENSE_TIME: finish_job(j, true)
 
+func set_variant(v:int):
+	variant = clampi(v, 0, Data.VARIANTS.size() - 1)
+	plan_day()
+	if variant == 2:
+		phase_len = 60.0
+		clock = phase_len
+	log_line({"evento":"variante", "reglas":Data.VARIANTS[variant].name})
+
 func pick_event() -> int:
+	if wave % 5 == 0 and wave > 0: return 6
+	if variant == 1: return 1
 	if wave == 1: return 0
-	if wave % 5 == 0: return 6
 	var options := [0, 0]
 	for i in range(1, 6):
 		if Data.NIGHT_EVENTS[i].from <= wave: options.append(i)
@@ -1006,6 +1058,7 @@ func start_night():
 		weights[5] = 1.6
 	if wave >= 5: weights[6] = 1.6
 	if night_event == 2 and weights.has(1): weights[1] *= 4.0
+	if variant == 2: weights[1] = weights.get(1, 3.0) * 2.0
 	if night_event == 3: weights[4] = weights.get(4, 1.0) * 3.0 + 2.0
 	var total := 0.0
 	for k in weights: total += weights[k]
@@ -1090,20 +1143,20 @@ func start_dawn():
 	phase_len = 14.0
 	wave += 1
 	report = []
-	var gain_mat := 5
+	var gain_mat := 5 + (4 if variant == 2 else 0)
 	var gain_coin := 5 + wave
 	if has_site(3):
-		gain_mat += 8
-		report.append("Almacén: +8 materiales")
-	if has_site(4): gain_mat += 3
-	var carp := community.count(0)
+		gain_mat += site_boost(3, 8)
+		report.append("Almacén: +%d materiales" % site_boost(3, 8))
+	if has_site(4): gain_mat += site_boost(4, 3)
+	var carp := home_count(0)
 	if carp > 0:
 		gain_mat += 3 * carp
 		report.append("Carpinteros: +%d materiales" % (3 * carp))
 	materials += gain_mat
 	if has_site(0):
-		core = minf(core_max, core + 40)
-		report.append("Taller: casa reparada")
+		core = minf(core_max, core + site_boost(0, 40))
+		report.append("Taller: casa reparada (+%d)" % site_boost(0, 40))
 	for p in players.values():
 		if p.st == 2:
 			p.st = 0
@@ -1111,14 +1164,16 @@ func start_dawn():
 			p.p = Map.PLAYER_SPAWN
 			p.coins = int(p.coins * 0.7)
 		elif p.st == 1: revive(p, 40.0)
-		p.coins += gain_coin + (6 if has_site(2) else 0)
-		p.hp = minf(p.hpmax, p.hp + (p.hpmax * 0.5 if has_site(1) else 20.0))
-		if has_site(1): p.med = mini(3, p.med + 1)
+		p.coins += gain_coin + (site_boost(2, 6) if has_site(2) else 0)
+		p.hp = minf(p.hpmax, p.hp + (p.hpmax * minf(1.0, 0.5 * (1.0 + 0.5 * site_helpers(1))) if has_site(1) else 20.0))
+		if has_site(1): p.med = mini(3, p.med + 1 + (1 if site_helpers(1) > 0 else 0))
 		if has_site(5):
 			p.tr = mini(6, p.tr + 1)
 			for g in p.guns: if p.res[g] >= 0: p.res[g] = max_reserve(p, g)
 		give_xp(p, 10)
-	if has_site(2): report.append("Economato: +6 fichas")
+	if has_site(2): report.append("Economato: +%d fichas" % site_boost(2, 6))
+	for i in community.size():
+		if posts[i] >= 0: report.append("%s en %s: bonificación +50%%" % [Data.SURVIVORS[community[i]].name, Data.SITES[posts[i]].name])
 	if has_site(1): report.append("Dispensario: curas y botiquines")
 	if has_site(5): report.append("Comisaría: munición y tracas")
 	report.push_front("+%d materiales · +%d fichas" % [gain_mat, gain_coin])
@@ -1146,7 +1201,7 @@ func start_dawn():
 
 func start_prep():
 	phase = P.PREP
-	phase_len = 65.0
+	phase_len = 45.0 if variant == 2 else 65.0
 	clock = phase_len
 	straggler_timer = 18.0
 
@@ -1283,8 +1338,8 @@ func tick_players(dt:float):
 		if p.heal > 0:
 			p.heal -= dt
 			p.hp = minf(p.hpmax, p.hp + Data.MEDKIT.heal / 2.0 * dt)
-		if community.has(1) and p.p.distance_to(Map.BASE_CENTER) < 9.0:
-			p.hp = minf(p.hpmax, p.hp + 2.0 * community.count(1) * dt)
+		if home_count(1) > 0 and p.p.distance_to(Map.BASE_CENTER) < 9.0:
+			p.hp = minf(p.hpmax, p.hp + 2.0 * home_count(1) * dt)
 		if p.rl > 0:
 			p.rl -= dt
 			if p.rl <= 0: finish_reload(p)
@@ -1590,16 +1645,17 @@ func tick_world(dt:float):
 		if next < 0 or nav.distance_at("base", 0, s.p) <= 15:
 			survivors.remove_at(i)
 			community.append(s.kind)
+			posts.append(-1)
 			stats.rescued += 1
 			emit("joined", [s.kind])
 			announce("Un %s se une a la comunidad: %s" % [Data.SURVIVORS[s.kind].name.to_lower(), Data.SURVIVORS[s.kind].desc])
 			continue
 		var dir:Vector2 = (nav.center(next) - s.p).normalized()
 		s.p = nav.move(s.p, dir * 2.8 * dt, 0.3, 0)
-	if community.has(2) and phase == P.NIGHT:
+	if home_count(2) > 0 and phase == P.NIGHT:
 		vigia_timer -= dt
 		if vigia_timer <= 0:
-			vigia_timer = 1.0 / community.count(2)
+			vigia_timer = 1.0 / home_count(2)
 			var best := -1
 			var bd := 12.0
 			for key in enemies:
@@ -2044,7 +2100,7 @@ func snapshot() -> Dictionary:
 		if enemies[key].k == Data.BOSS: boss = [key, enemies[key].hp / enemies[key].max]
 	return {"ph":phase, "w":wave, "c":clock, "cl":phase_len, "tod":time_of_day(), "core":core, "cmax":core_max, "clvl":core_level,
 		"mat":materials, "ev":night_event, "wx":weather, "fr":fronts, "rem":remaining(), "rs":respite, "as":[assault_index, assault_count], "bu":bundles.map(func(b): return [b.id, b.p.x, b.p.y, b.owner]), "tot":night_total,
-		"pl":pl, "en":en, "st":st, "si":si, "lo":loot.duplicate(), "pr":pr, "sv":sv, "dr":dr, "cm":community.duplicate(),
+		"pl":pl, "en":en, "st":st, "si":si, "lo":loot.duplicate(), "pr":pr, "sv":sv, "dr":dr, "cm":community.duplicate(), "cp":posts.duplicate(), "var":variant,
 		"fx":events.duplicate(), "rep":report, "boss":boss, "sk":sk, "stats":stats, "time":time, "cc":claim_cost(), "br":br, "pc":pieces.map(func(pc): return [pc.state, pc.p.x, pc.p.y, pc.carrier]), "fin":finale_t if finale else -1.0, "vic":victory, "mid":match_id, "jobs":jobs.map(func(j): return [j.id, j.kind, j.size, j.p.x, j.p.y, j.state, j.mat, j.coins, j.progress, j.carrier, j.risk, j.area]), "sh":site_hit.duplicate()}
 
 func load_structures(st:PackedInt32Array):

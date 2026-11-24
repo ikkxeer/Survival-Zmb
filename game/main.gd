@@ -191,6 +191,8 @@ func start(which:String, role:int, address:String, player_name:String):
 	if not resume.is_empty():
 		sim.from_save(resume)
 		saved_wave = sim.wave
+	elif ui.variant != 0:
+		sim.set_variant(ui.variant)
 	sim.join(1, chosen_role, chosen_name, profile.rank(chosen_role))
 	open_journal()
 	state = sim.snapshot()
@@ -225,6 +227,8 @@ func rematch():
 	roster.sort_custom(func(a, b): return sim.players[a[0]].slot < sim.players[b[0]].slot)
 	flush_journal()
 	sim = Match.new()
+	var keep_variant:int = state.get("var", 0)
+	if keep_variant != 0: sim.set_variant(keep_variant)
 	for r in roster: sim.join(r[0], r[1], r[2], r[3])
 	open_journal()
 	local_pos = Vector2.INF
@@ -846,6 +850,9 @@ func handle_event(type:String, d:Array, me:int):
 			audio.play("claim", null, 2)
 			audio.play("dawn", null, 0)
 			ui.big("¡LA VERBENA ESTÁ ENCENDIDA!", "Habéis salvado el barrio", Color("ffd166"), 4.5)
+		"assign":
+			audio.play("coin", null, -6, 0.9)
+			ui.refresh_board()
 		"job":
 			if d[1] == 2:
 				audio.play("claim", null, -4, 1.3)

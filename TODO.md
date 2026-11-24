@@ -86,12 +86,17 @@ Primero probar este ritmo durante tres noches con los cuatro puestos actuales. P
   - Desde el primer día el HUD y el plano indican las piezas que faltan y dónde están. Verificado en `tests/goal_test.gd`. Falta ensayarlo con un grupo.
 - [ ] **Abrir rutas con consecuencias.** Crear un atajo del taller a la plaza que también pueda aprovechar la horda. Comparar dos partidas con la misma oleada y registrar cuándo interesa abrirlo y cuándo conviene mantenerlo cerrado.
 - [ ] **Dar una función jugable a cada interior.** Empezar con el dispensario: una pista visible desde fuera, dos salidas y un botiquín que hay que transportar. Probar que la cámara permite ver al portador y a sus perseguidores en las puertas.
-- [ ] **Encadenar decisiones entre días.** Un vecino rescatado puede atender el dispensario o reforzar el taller. Hacer visible el efecto de su destino la noche siguiente y verificar que ambos destinos aportan ventajas distintas.
+- [x] **Encadenar decisiones entre días.** Desde el tablón cada vecino rescatado se queda en casa con su habilidad (materiales, curas en la plaza o disparos desde el tejado) o se envía a una propiedad conquistada. Allí sube un 50 % su bonificación del amanecer y refuerza su estandarte con 100 de resistencia.
+  - El vecino se ve trabajando en el lugar elegido y el informe del amanecer lo nombra. Si se pierde la propiedad, vuelve a casa.
+  - Verificado en `tests/decisions_test.gd`.
 - [x] **Variar los encargos con reglas sencillas.** El generador alterna búsqueda, transporte y defensa con destinos alcanzables según la navegación, recompensas útiles y sin repetir tipo y lugar del día anterior. `jobs_test` genera diez partidas de seis días (60 días) y no encuentra destinos inaccesibles, recompensas inútiles ni encargos idénticos consecutivos.
 - [x] **Diseñar una recuperación tras una mala noche.** Si el amanecer llega con menos de 8 materiales, un globo deja reservas (14–18 materiales) junto a la plaza: es una salida corta. Si el equipo va bien, no hay ayuda extra, así que ahorrar sigue teniendo sentido. Verificado en `match_test`.
 - [ ] **Crear combinaciones entre roles.** Probar al explorador localizando un relevo de energía y al ingeniero instalándolo mientras otro cubre el regreso. El mismo objetivo debe poder completarse solo, en varias visitas.
 - [ ] **Diversificar las compras.** Comparar una inversión personal, una defensa automática y la conquista de un puesto con el mismo presupuesto inicial. Si una opción domina las tres primeras noches en todas las pruebas, revisar coste, utilidad o momento de acceso.
-- [ ] **Dar motivos para probar otra estrategia.** Ofrecer al final una variante voluntaria, como un barrio con apagones y más rutas de suministro. Mostrar sus reglas antes de empezar y comprobar que cambia al menos una decisión de ruta o de construcción.
+- [x] **Dar motivos para probar otra estrategia.** El menú ofrece reglas opcionales con su descripción antes de empezar:
+  - «Barrio a oscuras»: apagón cada noche salvo las de gigantes, un globo de suministros cada día y más fichas, lo que obliga a construir generadores o conquistar la Gasolinera y a salir a por los globos.
+  - «Estampida»: un frente más, el doble de corredores, días de 45 s y materiales extra al amanecer, lo que obliga a construir rápido y en varios lados.
+  - Las reglas se conservan en la revancha y en el punto de control. Verificado en `tests/decisions_test.gd`. Falta comprobar con jugadores qué decisión cambia.
 
 ## P2 · Conseguir una identidad visual y sonora reconocible
 

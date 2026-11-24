@@ -39,6 +39,8 @@ var profile
 var rank_labels := []
 var record_label:Label
 var continue_button:Button
+var variant := 0
+var variant_desc:Label
 var settings_list := VBoxContainer.new()
 var bind_buttons := {}
 var waiting_bind := ""
@@ -265,7 +267,7 @@ func build_menu():
 	label(title_box, "Las guirnaldas siguen encendidas. Al anochecer llegan los brotados.", 20, Color("e8ecff"), 8)
 	menu.add_child(menu_panel)
 	menu_panel.add_theme_stylebox_override("panel", box(Color(NAVY, 0.93), 22, 22))
-	menu_panel.position = Vector2(64, 200)
+	menu_panel.position = Vector2(64, 176)
 	menu_panel.custom_minimum_size = Vector2(600, 0)
 	var col := vbox(menu_panel, 10)
 	label(col, "¿Cómo te llamas?", 16, YELLOW)
@@ -281,7 +283,7 @@ func build_menu():
 	col.add_child(grid)
 	for i in 4:
 		var card := Button.new()
-		card.custom_minimum_size = Vector2(275, 112)
+		card.custom_minimum_size = Vector2(275, 110)
 		card.toggle_mode = true
 		card.button_pressed = i == 0
 		var rc := Color(Data.ROLES[i].color)
@@ -297,14 +299,34 @@ func build_menu():
 		inner.offset_top = 8
 		inner.offset_right = -10
 		label(inner, Data.ROLES[i].name, 22, rc.lightened(0.2), 4)
-		var top := hbox(inner, 6)
-		label(top, "Q · " + Data.ROLES[i].ability, 14, YELLOW)
+		var top := hbox(inner, 8)
+		var title_label := inner.get_child(0)
+		inner.remove_child(title_label)
+		top.add_child(title_label)
 		rank_labels.append(label(top, "", 13, Color("9ff6c8")))
-		var d := label(inner, Data.ROLES[i].desc, 13, Color("cfd8ee"))
+		label(inner, "Q · " + Data.ROLES[i].ability, 14, YELLOW)
+		var d := label(inner, Data.ROLES[i].desc, 12, Color("cfd8ee"))
 		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		d.custom_minimum_size.x = 245
 		role_cards.append(card)
+	var vrow := hbox(col, 10)
+	label(vrow, "Reglas de la partida", 16, YELLOW)
+	var vopt := OptionButton.new()
+	for v in Data.VARIANTS: vopt.add_item(v.name)
+	vopt.item_selected.connect(func(i):
+		variant = i
+		variant_desc.text = Data.VARIANTS[i].desc if i > 0 else ""
+		variant_desc.visible = i > 0)
+	vopt.tooltip_text = "Variantes opcionales que cambian rutas y construcción"
+	vopt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vrow.add_child(vopt)
+	variant_desc = label(col, "", 13, Color("cfd8ee"))
+	variant_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	variant_desc.custom_minimum_size.x = 540
+	variant_desc.visible = false
 	record_label = label(col, "", 14, Color("cfd8ee"))
+	record_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	record_label.custom_minimum_size.x = 540
 	continue_button = button(col, "", func(): emit_launch("continue"), 46)
 	continue_button.add_theme_color_override("font_color", YELLOW)
 	continue_button.visible = false
@@ -329,7 +351,7 @@ func build_menu():
 	status.add_theme_color_override("font_color", YELLOW)
 	status.custom_minimum_size.x = 540
 	var tip := label(menu, "Ratón y teclado · F1 ayuda en partida", 15, Color(1, 1, 1, 0.7), 6)
-	anchor(tip, 0.0, 1.0, Vector2(64, -16))
+	anchor(tip, 1.0, 1.0, Vector2(-24, -16))
 
 func draw_bunting(c:Control):
 	var w := c.size.x
@@ -355,12 +377,13 @@ func refresh_profile():
 	for i in rank_labels.size():
 		var r:int = profile.rank(i)
 		var goal:int = profile.next_goal(i)
-		rank_labels[i].text = "· Rango %d%s" % [r, "" if goal < 0 else " (%d/%d)" % [profile.role_xp[i], goal]]
+		rank_labels[i].text = "Rango %d%s" % [r, "" if goal < 0 else " · %d/%d" % [profile.role_xp[i], goal]]
 		role_cards[i].tooltip_text = "Ventajas: " + (", ".join(profile.unlocked(i)) if profile.unlocked(i).size() else "aún ninguna") + "\nRango 2: %s · Rango 3: %s" % [profile.UNLOCKS[i][0], profile.UNLOCKS[i][1]]
 	var saved:Dictionary = preload("res://game/checkpoint.gd").peek()
 	continue_button.visible = not saved.is_empty()
 	if continue_button.visible:
-		continue_button.text = "⟳  Continuar partida: amanecer de la noche %d · %s (%s)" % [saved.wave - 1, ", ".join(saved.players), "en red" if saved.mode == "host" else "solitario"]
+		var names:Array = saved.players.slice(0, 3)
+		continue_button.text = "⟳  Continuar: noche %d · %s%s" % [saved.wave - 1, ", ".join(names), " (en red)" if saved.mode == "host" else ""]
 	if prefs != null and name_edit.text == "": name_edit.text = prefs.values.get("name", "")
 	record_label.text = "Partidas %d · Victorias %d · Mejor noche %d · Rango %d de %s: %s" % [profile.matches, profile.wins, profile.best_night, profile.rank(role), Data.ROLES[role].name, ", ".join(profile.unlocked(role)) if profile.unlocked(role).size() else "sube de rango jugando con este oficio"]
 
@@ -574,7 +597,7 @@ func build_hud():
 	base_bar.custom_minimum_size.y = 16
 	base_bar.add_theme_stylebox_override("fill", box(Color("ffb35c"), 8, 0))
 	tlc.add_child(res_label)
-	res_label.add_theme_font_size_override("font_size", 16)
+	res_label.add_theme_font_size_override("font_size", 15)
 	tlc.add_child(goal_label)
 	goal_label.add_theme_font_size_override("font_size", 15)
 	goal_label.add_theme_color_override("font_color", Color("ffc4e1"))
@@ -960,7 +983,7 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 			banner.text = "DÍA %d · PREPARACIÓN · %s" % [s.w, fmt_time(s.c)]
 			clock_bar.max_value = s.cl
 			clock_bar.value = s.c
-			banner_sub.text = "Esta noche: %s · Llegarán por el %s" % [ev.name, front_text]
+			banner_sub.text = "Esta noche: %s · Llegarán por el %s" % [ev.name, front_text] + ("" if s.get("var", 0) == 0 else " · Reglas: " + Data.VARIANTS[s.var].name)
 		P.NIGHT:
 			var asl:Array = s.get("as", [1, 1])
 			if s.get("fin", -1.0) > 0:
@@ -1188,6 +1211,28 @@ func refresh_board():
 			1: button(r, "Abandonar", func(): action.emit("job_abandon", [id]), 40).custom_minimum_size.x = 120
 			2: label(r, "✔ Cumplido", 16, MINT)
 			3: label(r, "✘ Fallido", 16, CORAL)
+	var cm:Array = s.get("cm", [])
+	if cm.is_empty(): return
+	label(board_list, "Comunidad: ¿dónde trabaja cada vecino?", 19, YELLOW)
+	var cp:Array = s.get("cp", [])
+	for m in cm.size():
+		var row := hbox(board_list, 10)
+		var kind:int = cm[m]
+		var where:int = cp[m] if m < cp.size() else -1
+		var l2 := label(row, "%s · en casa: %s" % [Data.SURVIVORS[kind].name, Data.SURVIVORS[kind].desc.to_lower()], 14, Color("f0e2cc"))
+		l2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l2.custom_minimum_size.x = 380
+		l2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var opt := OptionButton.new()
+		opt.add_item("En casa", -1)
+		for i in Data.SITES.size():
+			if s.si[i][0]: opt.add_item("En %s (+50 %%)" % Data.SITES[i].name, i)
+		for idx in opt.item_count:
+			if opt.get_item_id(idx) == where: opt.select(idx)
+		var member := m
+		opt.item_selected.connect(func(idx): action.emit("assign", [member, opt.get_item_id(idx)]))
+		opt.focus_mode = Control.FOCUS_NONE
+		row.add_child(opt)
 
 func goal_text(s:Dictionary) -> String:
 	var pcs:Array = s.get("pc", [])

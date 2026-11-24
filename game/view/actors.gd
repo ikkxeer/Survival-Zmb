@@ -1049,6 +1049,20 @@ func apply(s:Dictionary, me:int):
 		r.rotation.y = randf() * TAU if s.cm[idx] != 2 else 0.0
 		community.append(r)
 	while community.size() > s.cm.size(): community.pop_back().queue_free()
+	var cp:Array = s.get("cp", [])
+	for idx in community.size():
+		var post:int = cp[idx] if idx < cp.size() else -1
+		var r:Rig = community[idx]
+		if r.get_meta("post", -2) == post: continue
+		r.set_meta("post", post)
+		if post >= 0:
+			var b:Vector2 = Map.SITES[post].beacon
+			var f:Vector2 = Map.SITES[post].face
+			r.position = Vector3(b.x - f.x * 1.5 + f.y * (idx % 2 - 0.5) * 2.0, 0, b.y - f.y * 1.5 + f.x * (idx % 2 - 0.5) * 2.0)
+			r.rotation.y = atan2(f.x, f.y)
+		else:
+			var spots := [Vector3(0, 6.15, -0.5), Vector3(-4.0, 0, 3.4), Vector3(3.2, 0, 2.6), Vector3(0.5, 6.15, -0.1), Vector3(-3.0, 0, -4.2), Vector3(4.2, 0, -3.8)]
+			r.position = (spots[0] if idx % 2 == 0 else spots[3]) if s.cm[idx] == 2 else spots[1 + idx % 5]
 	# balloons
 	var dr_seen := {}
 	for d in s.dr:

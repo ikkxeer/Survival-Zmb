@@ -8,7 +8,7 @@ const PHASE_NAMES = ["Preparación", "Noche", "Amanecer", "Fin"]
 # ---------------------------------------------------------------- roles
 const ROLES = [
 	{"name":"Ingeniera", "color":"f2a93b", "ability":"Remiendo exprés", "cd":28.0,
-		"desc":"Construye un 25% más barato, repara el doble y sus defensas aguantan más. Q repara todo a su alrededor.",
+		"desc":"Construye un 25% más barato, repara el doble y sus defensas aguantan más. Q repara lo cercano.",
 		"speed":1.0, "damage":1.0},
 	{"name":"Médico", "color":"6cc6b0", "ability":"Ola de tila", "cd":32.0,
 		"desc":"Cura sin gastar materiales y reanima el doble de rápido. Q cura y levanta a quien esté cerca.",
@@ -120,6 +120,12 @@ const JOBS = {
 	"defensa": {"name":"Defensa", "verb":"Aguanta", "desc":"Quédate en la zona marcada mientras llegan brotados"},
 }
 const JOB_DEFENSE_TIME := 25.0
+# Optional rule sets, chosen before the match, that change routes and construction.
+const VARIANTS = [
+	{"name":"Clásica", "desc":"Las reglas de siempre."},
+	{"name":"Barrio a oscuras", "desc":"Todas las noches hay apagón, salvo las de gigantes: las defensas eléctricas necesitan generador o la Gasolinera. Cada día cae un globo de suministros y los brotados sueltan un 25 % más de fichas."},
+	{"name":"Estampida", "desc":"Un frente más cada noche y el doble de corredores desde la primera. El día dura 45 s, pero cada amanecer trae 4 materiales extra: hay que construir rápido y en varios lados."},
+]
 const CORE_UPGRADE = {"mat":[10,14,18], "coins":[8,12,16], "hp":50.0}
 
 # ---------------------------------------------------------------- loot nodes
