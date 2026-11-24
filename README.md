@@ -2,6 +2,8 @@
 
 Supervivencia cooperativa en 3D para PC. Las guirnaldas siguen encendidas y los vecinos se han atrincherado en la casa de fiestas. Al anochecer llegan los brotados. El equipo decide si gasta sus últimos materiales en una bobina para la próxima oleada o en recuperar el taller de la calle.
 
+![Una ingeniera defiende la casa de fiestas durante la primera noche](media/primera-noche.jpg)
+
 ## Jugar
 
 Abre `project.godot` con Godot 4.7.2 y pulsa **F6** en `game/main.tscn`, o **F5** desde el proyecto. También puedes ejecutar `godot --path .` desde esta carpeta. Selecciona tu rol y pulsa **Jugar en solitario**.

@@ -14,6 +14,7 @@ var pads := []
 var loot := []
 var signs := []
 var effects := []
+var dusk := ColorRect.new()
 var lights_out := 0.0
 var net_clock := 0.0
 var age := 0.0
@@ -60,6 +61,13 @@ func _ready():
 		var signpost = art.label3(art,Match.SITES[i],Vector3(cp.x,1.9,cp.y-0.9),0.006)
 		signpost.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		signs.append(signpost)
+	var atmosphere := CanvasLayer.new()
+	atmosphere.layer = 0
+	add_child(atmosphere)
+	atmosphere.add_child(dusk)
+	dusk.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dusk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dusk.color = Color.TRANSPARENT
 	add_child(ui)
 	ui.launch.connect(start)
 	ui.leave.connect(stop.bind(""))
@@ -214,6 +222,7 @@ func _process(dt):
 	age += dt
 	lights_out = move_toward(lights_out,1.0 if state.get("phase","") == "Noche" else 0.0,dt*0.4)
 	art.lighting(lights_out,age)
+	dusk.color = Color(0.045,0.075,0.22,lights_out*0.36)
 	for i in range(effects.size()-1,-1,-1):
 		effects[i][1] -= dt
 		if effects[i][1] <= 0:

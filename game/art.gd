@@ -130,6 +130,7 @@ func build_world():
 			var y := 3.22-0.52*sin(j*PI/14)
 			box(self,x,y,z,0.04,0.04,0.74,"5a6564")
 			var flag = box(self,x,y-0.16,z,0.05,0.32,0.31,["f4b856","dc796c","80bdba"][j%3])
+			flag.rotation.y = 0.67
 			pennants.append(flag)
 	for at in [Vector3(-2.7,1.8,2.8),Vector3(2.7,1.8,2.8)]:
 		box(self,at.x,0.9,at.z,0.13,1.8,0.13,"69594d")
