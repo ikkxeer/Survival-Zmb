@@ -26,11 +26,16 @@ Hay 55 segundos antes del primer asalto. Visita las cajas de los cuatro puestos 
 | Reforzar una defensa construida | R |
 | Conquistar un puesto de día por 8 materiales | C |
 | Equipar o comprar lanzacorchos, trabuco o carabina en casa | 1 / 2 / 3 |
+| Abrir o cerrar el plano del barrio | M |
+| Señalar un destino para todo el equipo | Clic izquierdo en el plano |
+| Pedir apoyo en tu posición, incluso si has caído | G |
 | Mostrar u ocultar ayuda | F1 |
 
 La ingeniera construye más barato y repara mejor. El médico recupera más salud y puede atender a compañeros en pie. El soldado hace más daño. La exploradora corre más y recoge más materiales. Todos pueden construir y reanimar. Los materiales son comunes. Cada jugador conserva sus fichas y armas hasta que termina la partida.
 
 Al amanecer el taller repara la casa, el dispensario cura al equipo, el economato entrega fichas y el almacén aporta materiales si el equipo ha conquistado esos puestos. Cada propiedad añade dos enemigos por noche. Las siguientes oleadas introducen corredores, grandullones, estampidas y apagones. Perder la casa o caer todo el equipo termina la partida.
+
+Las señales duran ocho segundos. Al cerrar el plano, verás el rol del compañero que ha señalado y la distancia hasta el punto. [Ver el plano en una partida](media/plano-cooperativo.jpg)
 
 ## Motor y arquitectura
 
@@ -44,10 +49,12 @@ Godot 4 combina iluminación dinámica, animación procedural y un renderizador 
 
 ## Desarrollo por fases
 
+[Lista de mejoras priorizadas y criterios de prueba](TODO.md)
+
 1. **Versión vertical actual.** Casa defendible, cuatro puestos conquistables, partidas de 1 a 4, cuatro roles, tres armas, dos defensas mejorables, tres enemigos y ciclo repetible de preparación, combate y recuperación.
 2. **Ampliación del barrio.** Interiores y rutas alternativas, más estructuras y armas, munición e inventario, objetivos de rescate y jefes.
 3. **Producción.** Personajes y animaciones de autor, audio por arma, mapa territorial, progresión persistente, ajustes gráficos, pruebas en redes domésticas y perfiles de rendimiento en PC.
 
 ## Verificación
 
-Ejecuta `godot --headless -s tests/match_test.gd` para comprobar las reglas y `godot --headless -s tests/street_camera_test.gd` para verificar giro, zoom, obstrucciones y proyección del puntero. Para verificar la replicación, ejecuta `godot --headless -s tests/network_test.gd -- --host` en una terminal y tres instancias de `godot --headless -s tests/network_test.gd` en terminales independientes dentro de los siguientes 15 segundos. Los procesos comprueban el estado de una defensa comprada por un cliente.
+Ejecuta `godot --headless -s tests/match_test.gd` para comprobar las reglas y `godot --headless -s tests/street_camera_test.gd` para verificar giro, zoom, obstrucciones y proyección del puntero. Para verificar la replicación, ejecuta `godot --headless -s tests/network_test.gd -- --host` en una terminal y tres instancias de `godot --headless -s tests/network_test.gd` en terminales independientes dentro de los siguientes 15 segundos. Los cuatro procesos comprueban las señales del equipo y el estado de una defensa comprada por un cliente. Para probar el plano y la caducidad de las señales por separado, ejecuta `godot --headless -s tests/tactical_map_test.gd`.

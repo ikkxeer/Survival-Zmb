@@ -32,6 +32,16 @@ func join(id:int, role:int):
 	if players.has(id) or players.size() >= 4 or phase == "Fin": return
 	players[id] = {"p":Vector2(players.size()-1,3.5),"hp":100.0,"role":clampi(role,0,3),"coins":4,"gun":0,"owned":[0],"aim":Vector2.DOWN,"cool":0.0,"move":Vector2.ZERO,"fire":false,"notice":"","message_time":0.0}
 
+const PING_DURATION := 8.0
+const PING_INTERVAL := 1.5
+
+func mark(id:int,point:Vector2):
+	if phase == "Fin" or not players.has(id) or not point.is_finite(): return
+	var player = players[id]
+	if player.get("ping_left",0.0) > PING_DURATION-PING_INTERVAL: return
+	player.ping = player.p if player.hp <= 0 else point.clamp(Vector2(-15,-13),Vector2(15,13))
+	player.ping_left = PING_DURATION
+
 func drive(id:int, move:Vector2, aim:Vector2, fire:bool):
 	if not players.has(id) or not move.is_finite() or not aim.is_finite(): return
 	var p = players[id]
@@ -151,6 +161,11 @@ func tick(dt:float):
 	var alive := false
 	for id in players:
 		var p = players[id]
+		if p.has("ping"):
+			p.ping_left -= dt
+			if p.ping_left <= 0:
+				p.erase("ping")
+				p.erase("ping_left")
 		p.message_time = maxf(0,p.message_time-dt)
 		if p.hp <= 0: continue
 		alive = true
