@@ -121,5 +121,5 @@ func render(s:Dictionary,id:int):
 	guide.text = "%s   ·   %s   ·   F1 controles" % [ctl.ROLES[p.role],tool]
 	if help:
 		guide.text += "   ·   C conquistar (8 materiales)   ·   R reforzar (4)"
-		guide.text += "\nWASD moverse   ·   Ratón apuntar y disparar   ·   E recoger, reparar o reanimar"
+		guide.text += "\nWASD moverse   ·   Izq. disparar   ·   Arrastra con der. para girar   ·   Rueda zoom   ·   E recoger, reparar o reanimar"
 		guide.text += "\nEn plataforma: B barricada (%d) / T bobina (%d)   ·   En casa: 1 lanzacorchos / 2 trabuco (9 fichas) / 3 carabina (14)" % [2 if p.role == 0 else 3,6 if p.role == 0 else 7]
