@@ -156,6 +156,28 @@ func _initialize():
 	check(g.bundles.is_empty() and q.med == 1 and p.helped == 1, "Un compañero recoge el lote y cuenta como ayuda")
 	g.drive(2, q.p, Vector2.DOWN, 0)
 	check(g.journal.any(func(e): return e.evento == "lote"), "El registro de la sesión anota el lote")
+	# --- being hit interrupts a held action
+	var mate2:Dictionary = g.players[3]
+	mate2.st = 1
+	mate2.hp = 0.0
+	mate2.p = p.p + Vector2(1, 0)
+	g.drive(1, p.p, Vector2.DOWN, 2)
+	for i in 30: g.tick(1.0 / 30.0)
+	var progress:float = p.ht
+	g.hurt_player(p, 5.0)
+	check(progress > 0.5 and p.ht == 0.0, "Recibir un golpe interrumpe la reanimación")
+	g.drive(1, p.p, Vector2.DOWN, 0)
+	g.revive(mate2, 50.0)
+	# --- recovery after a bad night
+	g.materials = 2
+	var drops_before := g.drops.size()
+	g.start_dawn()
+	check(g.drops.size() == drops_before + 1 and g.drops[-1].rich, "Tras una mala noche llega un globo con reservas")
+	g.drops.clear()
+	g.materials = 30
+	g.start_dawn()
+	check(g.drops.is_empty(), "Si el equipo va bien no hay reservas extra")
+	g.start_prep()
 	# --- zombies damage what blocks them
 	clear_enemies(g)
 	var ring := []

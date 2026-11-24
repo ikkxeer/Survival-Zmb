@@ -14,6 +14,14 @@ const PLAYER_SPAWN := Vector2(0, 4.5)
 const SHOP_RADIUS := 7.5
 const BELL := Vector2(-4.8, 3.4)                # plaza bell: ring it to bring the night forward
 const PORCH := Vector2(1.8, 3.4)                 # where supply bundles are left
+const BOARD := Vector2(7.2, 3.4)                # noticeboard with the day's jobs
+const LANDMARKS = [
+	["la plaza", Vector2(0, 0)], ["el parque", Vector2(0, -22)], ["el aparcamiento", Vector2(0, 17)],
+	["el Taller", Vector2(26, -1)], ["el Dispensario", Vector2(26, -23)], ["el Economato", Vector2(0, 25)],
+	["el Almacén", Vector2(-26, 24)], ["la Gasolinera", Vector2(-25, -1)], ["la Comisaría", Vector2(-26, -23)],
+	["las casas del sureste", Vector2(25, 23)], ["la calle norte", Vector2(0, -12)], ["la calle sur", Vector2(0, 12)],
+	["la calle oeste", Vector2(-14, 0)], ["la calle este", Vector2(14, 0)],
+]
 const STAGE := Vector2(-8.2, -1.0)               # festival stage (west of the plaza, facing the house)
 
 # Roads: purely visual, everything is walkable.
@@ -92,6 +100,16 @@ const DROP_SPOTS = [
 	Vector2(0,-16.5), Vector2(-24.5,13.5), Vector2(24.5,13.5), Vector2(-8.5,-27.5), Vector2(29.5,9.5),
 	Vector2(-28.5,-8.5), Vector2(12.5,27.5), Vector2(-12.5,27.5), Vector2(31.5,-29.5), Vector2(-31.5,-29.5),
 ]
+
+static func landmark(p:Vector2) -> String:
+	var best:String = LANDMARKS[0][0]
+	var bd := INF
+	for l in LANDMARKS:
+		var d:float = p.distance_to(l[1])
+		if d < bd:
+			bd = d
+			best = l[0]
+	return best
 
 static func solids() -> Array:
 	var list := [BASE]

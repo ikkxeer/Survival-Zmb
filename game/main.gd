@@ -72,6 +72,7 @@ var lag_out := []
 var journal_file:FileAccess
 var fireworks := 0.0
 var last_mid := 0
+var last_alert := ""
 var last_phase := -1
 var crosshair:ImageTexture
 
@@ -406,6 +407,9 @@ func key(code:int):
 	if code == KEY_ESCAPE:
 		if shop_open: return toggle_shop()
 		if map_open: return toggle_map()
+		if ui.board.visible:
+			ui.board.visible = false
+			return
 		if build_kind >= 0: return set_build(-1)
 		if ui.settings_panel.visible or ui.help_panel.visible:
 			ui.settings_panel.visible = false
@@ -426,6 +430,9 @@ func key(code:int):
 	if me.is_empty(): return
 	if act == "ping":
 		send_action("ping", [me.p])
+		return
+	if act == "use" and me.p.distance_to(Map.BOARD) < 2.2 and state.ph != P.NIGHT:
+		ui.toggle_board()
 		return
 	if build_kind >= 0 and code >= KEY_1 and code <= KEY_8:
 		set_build(code - KEY_1)
@@ -515,7 +522,7 @@ func _physics_process(dt:float):
 	if not me.is_empty():
 		local_move(dt, me)
 		var mouse := get_viewport().get_mouse_position()
-		var over_ui := ui.shop.visible or ui.map_panel.visible or paused or ui.build_bar.get_global_rect().has_point(mouse) and build_kind >= 0
+		var over_ui := ui.shop.visible or ui.map_panel.visible or ui.board.visible or paused or ui.build_bar.get_global_rect().has_point(mouse) and build_kind >= 0
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and build_kind < 0 and not over_ui and not map_click: buttons |= 1
 		if prefs.pressed("use") and not shop_open: buttons |= 2
 		if roll_t > 0: buttons |= 4
@@ -793,6 +800,13 @@ func handle_event(type:String, d:Array, me:int):
 			audio.play("claim", null, 2)
 			audio.play("dawn", null, 0)
 			ui.big("¡LA VERBENA ESTÁ ENCENDIDA!", "Habéis salvado el barrio", Color("ffd166"), 4.5)
+		"job":
+			if d[1] == 2:
+				audio.play("claim", null, -4, 1.3)
+				fx.burst("confetti", v3(local_pos.x, local_pos.y, 2.5))
+			elif d[1] == 3: audio.play("down", null, -8, 1.2)
+			else: audio.play("coin", null, -6, 1.1)
+			ui.refresh_board()
 		"assault":
 			audio.play("horn", null, -2, 1.1)
 			ui.big("ASALTO %d DE %d" % [d[0], d[1]], "Vuelven a la carga", Color("ff9a8a"), 3.0)
@@ -864,7 +878,7 @@ func _process(dt:float):
 	# audio
 	var combat := 0.0
 	if s.ph == P.NIGHT: combat = clampf(float(s.en.size() / 8) / 25.0, 0.0, 1.0)
-	audio.set_music(1 if s.ph == P.NIGHT else 0, combat)
+	audio.set_music(1 if s.ph == P.NIGHT else (3 if s.ph == P.DAWN or s.get("vic", false) else 0), combat)
 	audio.set_ambience(1.0 - night, world.cur_wet, true)
 	groan_t -= dt
 	if groan_t <= 0 and actors.horde.size() > 0:
@@ -901,6 +915,13 @@ func _process(dt:float):
 		local.build_hint = hint + "\nClic: colocar · 1–8 o rueda: elegir · Clic derecho / B: salir"
 	ui.mm_data = {"yaw": camera.yaw, "me": local_pos if local_pos != Vector2.INF else Vector2.ZERO, "indicators": indicators(s, me)}
 	ui.render(s, me, local, dt)
+	# a new breach or blows on the house: audible alarm above the music
+	var urgent := ""
+	var br:Array = s.get("br", [])
+	for i in range(0, br.size(), 3):
+		if br[i + 1] > 0 or br[i + 2] > 0: urgent += str(i)
+	if urgent != "" and urgent != last_alert and s.ph == P.NIGHT: audio.alert()
+	last_alert = urgent
 
 func client_cost(p:Dictionary, kind:int) -> int:
 	var cost:int = Data.STRUCTURES[kind].cost
@@ -937,6 +958,11 @@ func indicators(s:Dictionary, me:int) -> Array:
 		for i in Map.SITES.size():
 			if not s.si[i][0] and (site < 0 or Map.SITES[i].beacon.distance_to(local_pos) < Map.SITES[site].beacon.distance_to(local_pos)): site = i
 		if site >= 0: add.call(v3(Map.SITES[site].beacon.x, Map.SITES[site].beacon.y, 3.5), Color(Data.SITES[site].color), "%s · arriesgado" % Data.SITES[site].name)
+	for j in s.get("jobs", []):
+		if j[5] != 1: continue
+		var jd := roundi(Vector2(j[3], j[4]).distance_to(local_pos)) if local_pos != Vector2.INF else 0
+		if j[1] == "transporte" and j[9] == me: add.call(v3(Map.PORCH.x, Map.PORCH.y, 1.5), Color("9ff6c8"), "Porche")
+		elif j[1] != "transporte" or j[9] < 0: add.call(v3(j[3], j[4], 1.6), Color("9ff6c8"), "📋 %s · %d m" % [Data.JOBS[j[1]].name, jd])
 	var pcs:Array = s.get("pc", [])
 	var carrying:bool = not my_state().is_empty() and my_state().get("carry", -1) >= 0
 	for i in pcs.size():

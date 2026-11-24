@@ -33,6 +33,7 @@ var beacons := []
 var drops := {}
 var bundles := {}
 var piece_nodes := []
+var job_nodes := {}
 const STAGE_SLOTS = [Vector2(-8.0, 1.1), Vector2(-8.0, -0.3), Vector2(-8.0, -1.7), Vector2(-8.0, -3.1)]
 var people := {}
 var community := []
@@ -853,6 +854,28 @@ func build_static():
 
 func set_beacon(i:int, claimed:bool, frac:float):
 	var n:Node3D = beacons[i]
+	# the neighbourhood comes back to life where the team has taken over
+	if n.has_node("Story"): n.get_node("Story").queue_free()
+	if claimed:
+		var story := Node3D.new()
+		story.name = "Story"
+		n.add_child(story)
+		var face:Vector2 = Map.SITES[i].face
+		for j in 2:
+			var r := make_person((i + j) % 3)
+			r.position = Vector3(face.x * 2.2 + (j - 0.5) * 1.6 * face.y, 0, face.y * 2.2 + (j - 0.5) * 1.6 * face.x)
+			r.rotation.y = atan2(-face.x, -face.y)
+			story.add_child(r)
+		var bunting := MeshInstance3D.new()
+		bunting.mesh = cached("site_bunting", func(k:Kit):
+			for q in 9:
+				var x := -2.0 + q * 0.5
+				k.box(Kit.rot(x, 3.2 - 0.25 * sin(q * PI / 8.0), 0, PI * 0.25), Vector3(0.22, 0.3, 0.02), C(["ff6b6b", "ffd166", "06d6a0", "4cc9f0", "f78fb3"][q % 5]), 0.0)
+			k.box(Kit.at(0, 3.35, 0), Vector3(4.4, 0.02, 0.02), C("3b3b48"), 0.0))
+		bunting.material_override = sway
+		bunting.rotation.y = atan2(face.y, face.x)
+		bunting.position = Vector3(face.x * 1.2, 0, face.y * 1.2)
+		story.add_child(bunting)
 	(n.get_node("Pole") as MeshInstance3D).mesh = beacon_mesh(i, claimed)
 	(n.get_node("Flag") as MeshInstance3D).mesh = banner_mesh(i, claimed)
 	(n.get_node("Flag") as MeshInstance3D).rotation.z = 0.0 if claimed else -0.5
@@ -873,6 +896,8 @@ func clear_all():
 	projectiles.clear()
 	for i in beacons.size(): set_beacon(i, false, 0.0)
 	for n in loot_nodes: n.visible = true
+	for id in job_nodes: job_nodes[id].queue_free()
+	job_nodes.clear()
 	for n in piece_nodes:
 		n.visible = false
 		if n.has_meta("info"): n.remove_meta("info")
@@ -1044,6 +1069,38 @@ func apply(s:Dictionary, me:int):
 	var pcs:Array = s.get("pc", [])
 	for i in mini(pcs.size(), piece_nodes.size()):
 		piece_nodes[i].set_meta("info", pcs[i])
+	# jobs: search markers, crates to carry, zones to hold
+	var job_seen := {}
+	for j in s.get("jobs", []):
+		if j[5] != 1: continue
+		job_seen[j[0]] = true
+		if not job_nodes.has(j[0]):
+			var n := Node3D.new()
+			var mi := MeshInstance3D.new()
+			mi.name = "Mesh"
+			mi.material_override = toon_char if j[1] == "transporte" else glow_mat
+			mi.mesh = cached("job_" + j[1], func(k:Kit):
+				match j[1]:
+					"transporte":
+						k.box(Kit.at(0, 0.35, 0), Vector3(0.8, 0.7, 0.7), C("d49a5c"), 0.06, 0.25)
+						k.box(Kit.at(0, 0.71, 0), Vector3(0.82, 0.06, 0.72), C("8b5e3c"), 0.02)
+						k.box(Kit.at(0, 0.35, 0.36), Vector3(0.3, 0.3, 0.02), C("4cc9f0"), 0.0)
+					"busqueda":
+						k.box(Kit.rot(0, 1.4, 0, PI * 0.25, PI * 0.25), Vector3(0.3, 0.3, 0.3), Kit.glow(C("9ff6c8")), 0.08)
+						k.cylinder(Kit.at(0, 0.6, 0), 0.03, 0.03, 1.2, Kit.glow(C("9ff6c8")), 6)
+					"defensa":
+						for q in 12:
+							var a := TAU * q / 12.0
+							k.cylinder(Kit.at(cos(a) * 4.0, 0.4, sin(a) * 4.0), 0.08, 0.08, 0.8, Kit.glow(C("ffb35c")), 6)
+			)
+			n.add_child(mi)
+			add_child(n)
+			job_nodes[j[0]] = n
+		job_nodes[j[0]].set_meta("info", j)
+	for id in job_nodes.keys():
+		if not job_seen.has(id):
+			job_nodes[id].queue_free()
+			job_nodes.erase(id)
 	# supply bundles left on the porch
 	var bu_seen := {}
 	for b in s.get("bu", []):
@@ -1164,6 +1221,9 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 	for i in beacons.size():
 		var n:Node3D = beacons[i]
 		var claimed:bool = n.get_meta("claimed", false)
+		if n.has_node("Story"):
+			for r in n.get_node("Story").get_children():
+				if r is Rig: (r as Rig).animate_hero(dt, t + i, 0.0, false, false, 0, false, false, fmod(t + i, 4.0) < 2.0)
 		(n.get_node("Light") as OmniLight3D).light_energy = 1.4 * night_amount if claimed and not blackout else 0.0
 		(n.get_node("Flag") as Node3D).rotation.y = sin(t * 1.3 + i) * 0.25
 	for id in people:
@@ -1185,6 +1245,15 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		var r:Rig = community[i]
 		r.animate_hero(dt, t, 0.0, false, false, 0, false, false, i % 3 == 0)
 	bundle_bob(t, dt)
+	for id in job_nodes:
+		var n:Node3D = job_nodes[id]
+		if not n.has_meta("info"): continue
+		var j:Array = n.get_meta("info")
+		var target := Vector3(j[3], 0, j[4])
+		if j[1] == "transporte" and heroes.has(j[9]): target = heroes[j[9]].position + Vector3(0, 2.0, 0)
+		n.position = n.position.lerp(target, 1.0 - exp(-14.0 * dt)) if n.position.distance_to(target) < 6.0 else target
+		if j[1] == "busqueda": n.rotation.y = t * 1.5
+		if j[1] == "defensa": n.rotation.y = t * 0.3
 	for i in piece_nodes.size():
 		var n:Node3D = piece_nodes[i]
 		if not n.has_meta("info"): continue

@@ -203,7 +203,7 @@ func midi(n:float) -> float:
 	return 440.0 * pow(2.0, (n - 69.0) / 12.0)
 
 func start_music():
-	for name in ["day", "night", "combat"]:
+	for name in ["day", "night", "combat", "dawn"]:
 		var p := AudioStreamPlayer.new()
 		p.volume_db = -80
 		add_child(p)
@@ -219,9 +219,11 @@ func render_all():
 	var day := render(0)
 	var night := render(1)
 	var combat := render(2)
-	call_deferred("music_ready", day, night, combat)
+	var dawn := render(3)
+	call_deferred("music_ready", day, night, combat, dawn)
 
-func music_ready(day:PackedFloat32Array, night:PackedFloat32Array, combat:PackedFloat32Array):
+func music_ready(day:PackedFloat32Array, night:PackedFloat32Array, combat:PackedFloat32Array, dawn:PackedFloat32Array):
+	track_players.dawn.stream = wav(dawn, true)
 	track_players.day.stream = wav(day, true)
 	track_players.night.stream = wav(night, true)
 	track_players.combat.stream = wav(combat, true)
@@ -248,7 +250,19 @@ func note(buf:PackedFloat32Array, at:float, freq:float, amp:float, decay:float, 
 
 func render(mode:int) -> PackedFloat32Array:
 	var buf := PackedFloat32Array()
-	if mode == 0:
+	if mode == 3:
+		# dawn: the same verbena motif, slow, on bells over a soft pad
+		var step := 60.0 / 84.0 / 2.0
+		var steps := 64
+		buf.resize(int(steps * step * RATE))
+		for n in steps:
+			var at := n * step
+			var root:int = 60 + DAY_CHORDS[(n / 8) % DAY_CHORDS.size()]
+			if n % 8 == 0:
+				for off in [0, 4, 7]: note(buf, at, midi(root + off - 12), 0.08, 1.2, 1)
+			var mi := (n / 2) % 32
+			if n % 2 == 0 and DAY_MELODY[mi] >= 0: note(buf, at, midi(72 + SCALE_MAJOR[DAY_MELODY[mi]]), 0.12, 1.6, 3)
+	elif mode == 0:
 		var step := 60.0 / 138.0 / 2.0
 		var steps := DAY_CHORDS.size() * 6
 		buf.resize(int(steps * step * RATE))
@@ -284,6 +298,13 @@ func render(mode:int) -> PackedFloat32Array:
 	for v in buf: peak = maxf(peak, absf(v))
 	return gain(buf, 0.8 / peak)
 
+var duck := 0.0
+
+func alert():
+	## Danger cue that stays audible over music and gunfire: duck the music briefly.
+	duck = 2.5
+	play("alarm", null, 2.0)
+
 func set_music(mode:int, combat:float):
 	music_mode = mode
 	intensity = combat
@@ -291,8 +312,9 @@ func set_music(mode:int, combat:float):
 func _process(dt:float):
 	if track_players.is_empty() or track_players.day.stream == null: return
 	music_level = move_toward(music_level, 1.0, dt * 0.4)
-	var base := linear_to_db(maxf(music_volume * master * music_level, 0.0005))
-	var want := {"day": 1.0 if music_mode != 1 else 0.0, "night": 1.0 if music_mode == 1 else 0.0, "combat": intensity if music_mode == 1 else 0.0}
+	duck = maxf(0.0, duck - dt)
+	var base := linear_to_db(maxf(music_volume * master * music_level * (0.35 if duck > 0 else 1.0), 0.0005))
+	var want := {"day": 1.0 if music_mode in [0, 2] else 0.0, "night": 1.0 if music_mode == 1 else 0.0, "combat": intensity if music_mode == 1 else 0.0, "dawn": 1.0 if music_mode == 3 else 0.0}
 	for name in track_players:
 		var p:AudioStreamPlayer = track_players[name]
 		var cur := db_to_linear(p.volume_db - base) if p.volume_db > -79 else 0.0

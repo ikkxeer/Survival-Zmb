@@ -394,6 +394,14 @@ func build_base():
 	k.box(Kit.at(b.x, 0.08, b.y), Vector3(1.4, 0.16, 0.8), col("cfc5b8"), 0.04)
 	label_at("CAMPANA", Vector3(b.x, 3.25, b.y), 0.004, Color("fff2c9"), true)
 	build_stage()
+	# jobs noticeboard
+	var bd:Vector2 = Map.BOARD
+	for side in [-0.7, 0.7]: k.box(Kit.at(bd.x + side, 0.9, bd.y), Vector3(0.12, 1.8, 0.12), col("8b5e3c"), 0.03)
+	k.box(Kit.at(bd.x, 1.35, bd.y), Vector3(1.6, 1.0, 0.1), col("c98a55"), 0.05)
+	k.box(Kit.at(bd.x, 1.35, bd.y + 0.04), Vector3(1.45, 0.85, 0.04), col("e9c79a"), 0.02)
+	for q in 4: k.box(Kit.rot(bd.x - 0.45 + q * 0.3, 1.35 + (q % 2) * 0.12, bd.y + 0.07, 0, 0, (q - 1.5) * 0.08), Vector3(0.24, 0.3, 0.01), col(["fff6e0", "ffe0e6", "e0f4ff", "fff6e0"][q]), 0.0)
+	k.box(Kit.rot(bd.x, 1.98, bd.y, 0, 0, 0), Vector3(1.8, 0.1, 0.4), col("e8665a"), 0.03)
+	label_at("ENCARGOS", Vector3(bd.x, 2.3, bd.y), 0.004, Color("fff2c9"), true)
 
 func build_stage():
 	## Festival stage where the four pieces are installed to light the verbena.

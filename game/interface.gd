@@ -56,6 +56,9 @@ var base_bar := ProgressBar.new()
 var base_label := Label.new()
 var res_label := Label.new()
 var goal_label := Label.new()
+var job_label := Label.new()
+var board := PanelContainer.new()
+var board_list := VBoxContainer.new()
 var team_box := VBoxContainer.new()
 var me_name := Label.new()
 var hp_bar := ProgressBar.new()
@@ -99,6 +102,7 @@ var overlay:Control
 var help_hint := Label.new()
 var prompt_box:VBoxContainer
 var guide_box := PanelContainer.new()
+var base_panel:PanelContainer
 var guide_label := Label.new()
 var ready_label := Label.new()
 var last_state := {}
@@ -550,6 +554,7 @@ func build_hud():
 	orbit_reticle.visible = false
 	# top left: the house and shared stock
 	var tl := panel(hud, Color(NAVY, 0.88), 16, 12)
+	base_panel = tl
 	tl.position = Vector2(16, 14)
 	tl.custom_minimum_size = Vector2(300, 0)
 	var tlc := vbox(tl, 6)
@@ -564,9 +569,16 @@ func build_hud():
 	tlc.add_child(goal_label)
 	goal_label.add_theme_font_size_override("font_size", 15)
 	goal_label.add_theme_color_override("font_color", Color("ffc4e1"))
+	for l in [res_label, goal_label, job_label]:
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size.x = 300
+	tl.custom_minimum_size.x = 330
+	tlc.add_child(job_label)
+	job_label.add_theme_font_size_override("font_size", 15)
+	job_label.add_theme_color_override("font_color", Color("9ff6c8"))
 	hud.add_child(alert_box)
 	alert_box.add_theme_stylebox_override("panel", box(Color("5a1f2e"), 12, 10, CORAL, 2))
-	alert_box.position = Vector2(16, 152)
+	alert_box.position = Vector2(16, 176)
 	alert_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	alert_box.add_child(alert_label)
 	alert_label.add_theme_font_size_override("font_size", 17)
@@ -574,7 +586,7 @@ func build_hud():
 	alert_box.visible = false
 	# team list
 	hud.add_child(team_box)
-	team_box.position = Vector2(16, 200)
+	team_box.position = Vector2(16, 224)
 	team_box.add_theme_constant_override("separation", 6)
 	team_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(guide_box)
@@ -707,6 +719,18 @@ func build_hud():
 	build_buildbar()
 	build_shop()
 	build_map()
+	hud.add_child(board)
+	board.add_theme_stylebox_override("panel", box(Color(Color("3b2a1f"), 0.96), 20, 18, Color("c98a55"), 3))
+	board.custom_minimum_size = Vector2(640, 0)
+	anchor(board, 0.5, 0.5, Vector2.ZERO)
+	var bcol := vbox(board, 10)
+	label(bcol, "Tablón de encargos", 30, YELLOW, 6)
+	label(bcol, "Uno corto cerca de la plaza y otro ambicioso lejos. Caducan al anochecer.", 15, Color("e9d6b8"))
+	bcol.add_child(board_list)
+	board_list.add_theme_constant_override("separation", 10)
+	var close := button(bcol, "Cerrar", func(): board.visible = false, 36)
+	close.focus_mode = Control.FOCUS_NONE
+	board.visible = false
 
 func build_buildbar():
 	hud.add_child(build_bar)
@@ -973,6 +997,9 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 	for si in s.si: if si[0]: claimed += 1
 	res_label.text = "🪵 Materiales %d   🏳 Territorio %d/6   👥 Comunidad %d" % [s.mat, claimed, s.cm.size()]
 	goal_label.text = goal_text(s)
+	job_label.text = jobs_text(s, p)
+	job_label.visible = job_label.text != ""
+	if board.visible and Engine.get_process_frames() % 15 == 0: refresh_board()
 	var warn := alert_text(s)
 	alert_box.visible = warn != "" and s.ph != P.OVER
 	alert_label.text = warn
@@ -1008,6 +1035,11 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 		b.max_value = q.hpmax
 		b.value = q.hp
 		row += 1
+	# stack the left column under the house panel, whatever its height
+	var y := base_panel.position.y + base_panel.size.y + 8
+	alert_box.position.y = y
+	if alert_box.visible: y += alert_box.size.y + 8
+	team_box.position.y = y
 	guide_box.position = Vector2(16, team_box.position.y + team_box.size.y + 8)
 	var steps := first_day_steps(s, p)
 	guide_box.visible = steps != ""
@@ -1108,6 +1140,46 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 		for q in s.pl.values(): lines.append("%s (%s, nivel %d): %d derribos · %d lotes recogidos por otros" % [q.name, Data.ROLES[q.role].name, q.lvl, q.kills, q.get("helped", 0)])
 		over_text.text = "\n".join(lines)
 
+func jobs_text(s:Dictionary, p:Dictionary) -> String:
+	var lines := []
+	for j in s.get("jobs", []):
+		if j[5] != 1: continue
+		var d := roundi(p.p.distance_to(Vector2(j[3], j[4])))
+		var extra := ""
+		if j[1] == "defensa": extra = " · %d/%d s" % [int(j[8]), int(Data.JOB_DEFENSE_TIME)]
+		if j[1] == "transporte" and j[9] >= 0: extra = " · de camino al porche"
+		lines.append("📋 %s en %s · %d m%s" % [Data.JOBS[j[1]].name, j[11], d, extra])
+	return "\n".join(lines)
+
+func toggle_board():
+	board.visible = not board.visible
+	if board.visible: refresh_board()
+
+func refresh_board():
+	for c in board_list.get_children(): c.queue_free()
+	var s := last_state
+	if s.is_empty() or not s.pl.has(my_id): return
+	var p:Dictionary = s.pl[my_id]
+	for j in s.get("jobs", []):
+		var card := panel(board_list, Color("4a3628"), 14, 12)
+		card.mouse_filter = Control.MOUSE_FILTER_PASS
+		var r := hbox(card, 12)
+		var info := vbox(r, 2)
+		info.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var title := "%s %s · %s" % ["Encargo corto:" if j[2] == "corto" else "Encargo ambicioso:", Data.JOBS[j[1]].name.to_lower(), j[11]]
+		label(info, title, 19, YELLOW if j[2] == "corto" else Color("ff9a8a"))
+		var d := roundi(p.p.distance_to(Vector2(j[3], j[4])))
+		var how:String = Data.JOBS[j[1]].desc + (" durante %d s" % int(Data.JOB_DEFENSE_TIME) if j[1] == "defensa" else "")
+		var l := label(info, "%s. A %d m · riesgo %s · recompensa +%d materiales y +%d fichas para todos" % [how, d, j[10], j[6], j[7]], 14, Color("f0e2cc"))
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size.x = 420
+		var id:int = j[0]
+		match int(j[5]):
+			0: button(r, "Aceptar", func(): action.emit("job_accept", [id]), 40).custom_minimum_size.x = 120
+			1: button(r, "Abandonar", func(): action.emit("job_abandon", [id]), 40).custom_minimum_size.x = 120
+			2: label(r, "✔ Cumplido", 16, MINT)
+			3: label(r, "✘ Fallido", 16, CORAL)
+
 func goal_text(s:Dictionary) -> String:
 	var pcs:Array = s.get("pc", [])
 	if pcs.is_empty(): return ""
@@ -1119,7 +1191,7 @@ func goal_text(s:Dictionary) -> String:
 		if pcs[i][0] == 4: done += 1
 		else: missing.append(Data.SITES[Data.PIECES[i].site].name)
 	if done == pcs.size(): return "🎆 Verbena lista: encendedla en el escenario (E)"
-	return "🎆 Verbena %d/%d · faltan piezas en %s" % [done, pcs.size(), ", ".join(missing)]
+	return "🎆 Verbena %d/%d · piezas en %s" % [done, pcs.size(), ", ".join(missing)]
 
 func first_day_steps(s:Dictionary, p:Dictionary) -> String:
 	## Checklist for the first afternoon so new players always know a next step.
@@ -1255,6 +1327,11 @@ func draw_map(c:Control, big:bool):
 	for d in s.dr: c.draw_circle(world_to_map(c, Vector2(d[1], d[2]), big), 5.0, Color("4cc9f0"))
 	var stage_pos := world_to_map(c, Map.STAGE, big)
 	c.draw_rect(Rect2(stage_pos - Vector2(9, 4), Vector2(18, 8)), Color("e8665a"))
+	for j in s.get("jobs", []):
+		if j[5] != 1: continue
+		var jm := world_to_map(c, Vector2(j[3], j[4]), big)
+		c.draw_rect(Rect2(jm - Vector2(5, 5), Vector2(10, 10)), Color("9ff6c8"))
+		if big: c.draw_string(ThemeDB.fallback_font, jm + Vector2(8, 4), "Encargo", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("9ff6c8"))
 	var pcs:Array = s.get("pc", [])
 	for i in pcs.size():
 		if pcs[i][0] == 0 or pcs[i][0] == 4: continue

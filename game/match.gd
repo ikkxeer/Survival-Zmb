@@ -69,6 +69,8 @@ var finale := false
 var finale_t := 0.0
 var victory := false
 var match_id := 0
+var jobs := []            # today's offers: {id,kind,size,p,state(0 offered,1 accepted,2 done,3 failed),mat,coins,progress,carrier,risk,area}
+var last_jobs := []
 
 func _init():
 	rng.randomize()
@@ -156,6 +158,7 @@ func player_speed(p:Dictionary) -> float:
 	if p.role == 3: s *= 1.0 + 0.03 * (p.lvl - 1)
 	if p.role == 3 and p.buff > 0: s *= 1.45
 	if p.get("carry", -1) >= 0: s *= 0.8
+	if p.get("cargo", -1) >= 0: s *= 0.85
 	if p.st == 1: s = 0.9
 	return s
 
@@ -172,7 +175,7 @@ func join(id:int, role:int, name:String = "", rank:int = 1) -> bool:
 		"fire": false, "use": false, "roll": false, "ab": 0.0, "buff": 0.0, "med": 2 if role == 1 else 1,
 		"tr": 2, "kills": 0, "notice": "", "nt": 0.0, "hold": "", "ht": 0.0, "hm": 0.0, "hkey": "",
 		"prompt": "", "ready": false, "melee": 0.0, "heal": 0.0, "acc": 0.0, "last": time, "fix": 0,
-		"ping": null, "ping_left": 0.0, "active": time, "last_p": Vector2.ZERO, "helped": 0, "carry": -1, "dmg": 0.0, "flame": 0.0, "cursor": Vector2.ZERO,
+		"ping": null, "ping_left": 0.0, "active": time, "last_p": Vector2.ZERO, "helped": 0, "carry": -1, "cargo": -1, "dmg": 0.0, "flame": 0.0, "cursor": Vector2.ZERO,
 	}
 	players[id] = p
 	apply_rank(p, clampi(rank, 1, 4))
@@ -201,6 +204,12 @@ func leave(id:int):
 	if players.erase(id): emit("leave", [id])
 
 func drop_piece(p:Dictionary):
+	if p.cargo >= 0:
+		for j in jobs:
+			if j.id == p.cargo:
+				j.carrier = -1
+				j.p = p.p
+		p.cargo = -1
 	if p.carry < 0: return
 	var pc:Dictionary = pieces[p.carry]
 	pc.state = 3
@@ -238,6 +247,9 @@ func hurt_player(p:Dictionary, dmg:float, _src:Vector2 = Vector2.ZERO):
 	if p.role == 3 and p.buff > 0: dmg *= 0.5
 	p.hp -= dmg
 	p.dmg = 0.35
+	if p.hkey != "" and p.hm > 0:
+		p.ht = 0.0          # being hit interrupts reviving, carrying, scavenging…
+		p.hkey = "hit"
 	if p.hp <= 0:
 		p.hp = 0.0
 		p.st = 1
@@ -327,6 +339,10 @@ func act(id:int, action:String, args:Array = []):
 			emit("buy", [id])
 		"core_up": core_upgrade(p)
 		"bundle": prepare_bundle(id, p)
+		"job_accept":
+			if args.size() > 0: job_accept(p, int(args[0]))
+		"job_abandon":
+			if args.size() > 0: job_abandon(p, int(args[0]))
 
 func mark(id:int, point) -> bool:
 	## Team signal: lasts PING_DURATION, one every PING_INTERVAL. Fallen players mark where they lie.
@@ -810,11 +826,93 @@ func plan_day():
 	weather = 0 if rng.randf() < 0.55 else (1 if rng.randf() < 0.6 else 2)
 	if wave == 1: weather = 0
 	night_event = pick_event()
+	make_jobs()
 	day_plan = {
 		"survivor": rng.randf_range(0.25, 0.6) if (wave >= 2 and rng.randf() < 0.6) or wave == 1 else -1.0,
 		"drop": rng.randf_range(0.3, 0.75) if rng.randf() < 0.55 and wave > 1 else -1.0,
 		"horde": rng.randf_range(0.2, 0.7) if wave >= 3 and rng.randf() < 0.35 else -1.0,
 	}
+
+func make_jobs():
+	## One short job near the plaza and one ambitious job far away. Destinations must be
+	## reachable, rewards useful, and a job never repeats yesterday's kind and place.
+	last_jobs = jobs.map(func(j): return [j.kind, j.area])
+	jobs.clear()
+	for size in ["corto", "ambicioso"]:
+		for attempt in 40:
+			var kind:String = ["busqueda", "transporte", "defensa"][rng.randi_range(0, 2)]
+			if size == "corto" and kind == "defensa" and wave < 2: kind = "busqueda"
+			var dist := rng.randf_range(7.0, 13.0) if size == "corto" else rng.randf_range(19.0, 33.0)
+			var at := Map.BASE_CENTER + Vector2.from_angle(rng.randf() * TAU) * dist
+			at = Vector2(floorf(at.x) + 0.5, floorf(at.y) + 0.5)
+			if not Map.BOUNDS.grow(-1.5).has_point(at): continue
+			var c := nav.cell_of(at)
+			if c < 0 or nav.solid[c] or nav.blocked_cell(at, 0.5, 0) != -1: continue
+			if nav.distance_at("base", 0, at) >= Nav.INF_D: continue
+			var area:String = Map.landmark(at)
+			if [kind, area] in last_jobs: continue
+			if jobs.any(func(j): return j.area == area): continue
+			serial += 1
+			var big:bool = size == "ambicioso"
+			var risk := "bajo" if dist < 14 else ("medio" if dist < 25 else "alto")
+			if kind == "defensa": risk = "medio" if not big else "alto"
+			jobs.append({"id":serial, "kind":kind, "size":size, "p":at, "state":0, "progress":0.0, "carrier":-1,
+				"mat":(rng.randi_range(4, 6) if not big else rng.randi_range(10, 14)) + (3 if kind == "defensa" else 0),
+				"coins":(3 if not big else 7) + (2 if kind == "defensa" else 0), "risk":risk, "area":area, "spawned":0})
+			break
+
+func job_accept(p:Dictionary, id:int):
+	if p.p.distance_to(Map.BOARD) > 3.0: return say(p, "Los encargos se aceptan en el tablón")
+	for j in jobs:
+		if j.id == id and j.state == 0:
+			j.state = 1
+			emit("job", [id, 1])
+			announce("%s acepta el encargo: %s en %s" % [p.name, Data.JOBS[j.kind].name.to_lower(), j.area])
+			log_line({"evento":"encargo_aceptado", "tipo":j.kind, "tamano":j.size, "zona":j.area, "por":p.name})
+			return
+
+func job_abandon(p:Dictionary, id:int):
+	for j in jobs:
+		if j.id == id and j.state == 1:
+			finish_job(j, false, "abandonado")
+			return
+
+func finish_job(j:Dictionary, ok:bool, why:String = ""):
+	j.state = 2 if ok else 3
+	for q in players.values():
+		if q.cargo == j.id: q.cargo = -1
+	if ok:
+		materials += j.mat
+		for q in players.values():
+			q.coins += j.coins
+			give_xp(q, 6 if j.size == "corto" else 14)
+		announce("¡Encargo cumplido en %s! +%d materiales y +%d fichas para todos" % [j.area, j.mat, j.coins])
+	else:
+		announce("Encargo de %s %s" % [j.area, why])
+	emit("job", [j.id, j.state])
+	log_line({"evento":"encargo_cumplido" if ok else "encargo_fallido", "tipo":j.kind, "zona":j.area, "motivo":why, "t_dia":snappedf(phase_len - clock, 0.1)})
+
+func tick_jobs(dt:float):
+	for j in jobs:
+		if j.state != 1: continue
+		if j.kind == "transporte" and j.carrier >= 0:
+			if players.has(j.carrier): j.p = players[j.carrier].p
+			else: j.carrier = -1
+		if j.kind == "defensa":
+			var inside := false
+			for q in players.values():
+				if q.st == 0 and q.p.distance_to(j.p) < 4.0: inside = true
+			if inside:
+				j.progress += dt
+				var wave_due := int(j.progress / 8.0)
+				if wave_due >= j.spawned and j.spawned < 3:
+					j.spawned += 1
+					for i in 2 + wave / 2 + (1 if j.size == "ambicioso" else 0):
+						var at:Vector2 = j.p + Vector2.from_angle(rng.randf() * TAU) * 11.0
+						if nav.blocked_cell(at, 0.4, 1) == -1:
+							var e := new_enemy(0 if rng.randf() < 0.7 else 1, at, "base", false)
+							e.victim = -1
+				if j.progress >= Data.JOB_DEFENSE_TIME: finish_job(j, true)
 
 func pick_event() -> int:
 	if wave == 1: return 0
@@ -825,6 +923,8 @@ func pick_event() -> int:
 	return options[rng.randi_range(0, options.size() - 1)]
 
 func start_night():
+	for j in jobs:
+		if j.state == 1: finish_job(j, false, "caduca al anochecer")
 	phase = P.NIGHT
 	clock = 0.0
 	for p in players.values(): p.ready = false
@@ -971,6 +1071,10 @@ func start_dawn():
 		var guards := 0
 		for e in enemies.values(): if e.guard and e.home.distance_to(Map.SITES[i].beacon) < 6: guards += 1
 		for g in range(guards, mini(4, 2 + wave / 4)): spawn_guard(i)
+	if materials < 8:
+		event_drop(Map.PLAYER_SPAWN + Vector2(rng.randf_range(-5, 5), 5.5), true)
+		announce("Mala noche: el barrio os manda reservas en un globo junto a la plaza")
+		log_line({"evento":"rescate_de_materiales", "materiales":materials})
 	emit("dawn", [wave])
 	log_line({"evento":"amanecer", "noche":wave - 1, "casa":int(core), "materiales":materials, "danos_por_acceso":{"norte":int(sector_damage[0]), "este":int(sector_damage[1]), "sur":int(sector_damage[2]), "oeste":int(sector_damage[3])}, "informe":report.duplicate()})
 	plan_day()
@@ -1018,6 +1122,7 @@ func tick(dt:float):
 	tick_enemies(dt)
 	tick_projectiles(dt)
 	tick_world(dt)
+	tick_jobs(dt)
 	check_end()
 
 func tick_phase(dt:float):
@@ -1185,6 +1290,23 @@ func interact(id:int, p:Dictionary, dt:float):
 			if p.ht >= p.hm:
 				p.hkey = ""
 				start_finale(p)
+		"job_search":
+			if p.ht >= p.hm:
+				p.hkey = ""
+				emit("loot", [target.job.p.x, target.job.p.y])
+				finish_job(target.job, true)
+		"job_load":
+			if p.ht >= p.hm:
+				p.hkey = ""
+				target.job.carrier = id
+				p.cargo = target.job.id
+				emit("piece_take", [p.p.x, p.p.y])
+				say(p, "Lleva la caja al porche de la casa")
+		"job_deliver":
+			if p.ht >= p.hm:
+				p.hkey = ""
+				p.cargo = -1
+				finish_job(target.job, true)
 		"bundle":
 			if p.ht >= p.hm:
 				take_bundle(p, target.bundle)
@@ -1259,6 +1381,14 @@ func find_use_target(id:int, p:Dictionary) -> Dictionary:
 				return {"type":"carry", "key":"pc%d" % i, "label":"Cargando", "time":0.8, "piece":i, "prompt":"Mantén E: cargar con %s (irás más despacio)" % Data.PIECES[i].name}
 	if phase == P.PREP and not finale and installed_pieces() == pieces.size() and Map.STAGE.distance_to(p.p) < 2.8:
 		return {"type":"ignite", "key":"ignite", "label":"Encendiendo la verbena", "time":2.0, "prompt":"Mantén E: ¡ENCENDER LA VERBENA! (empieza la noche final)"}
+	for j in jobs:
+		if j.state != 1: continue
+		if j.kind == "busqueda" and j.p.distance_to(p.p) < 2.0:
+			return {"type":"job_search", "key":"js%d" % j.id, "label":"Buscando", "time":1.5, "job":j, "prompt":"Mantén E: rebuscar para el encargo"}
+		if j.kind == "transporte" and j.carrier < 0 and p.cargo < 0 and p.carry < 0 and j.p.distance_to(p.p) < 2.0:
+			return {"type":"job_load", "key":"jl%d" % j.id, "label":"Cargando la caja", "time":0.8, "job":j, "prompt":"Mantén E: cargar la caja del encargo"}
+		if j.kind == "transporte" and j.carrier == id and Map.PORCH.distance_to(p.p) < 2.6:
+			return {"type":"job_deliver", "key":"jd%d" % j.id, "label":"Entregando", "time":0.8, "job":j, "prompt":"Mantén E: entregar la caja"}
 	for b in bundles:
 		if b.owner != id and b.p.distance_to(p.p) < 2.0:
 			var who:String = players[b.owner].name if players.has(b.owner) else "un vecino"
@@ -1301,6 +1431,7 @@ func find_use_target(id:int, p:Dictionary) -> Dictionary:
 	for i in sites.size():
 		if not sites[i].claimed and Map.SITES[i].beacon.distance_to(p.p) < 3.2:
 			hint = "C: conquistar %s (%d materiales)" % [Data.SITES[i].name, claim_cost()]
+	if Map.BOARD.distance_to(p.p) < 2.2 and phase != P.NIGHT: hint = "E: ver el tablón de encargos"
 	if hint == "" and near_shop(p.p): hint = "T: abrir la tienda"
 	return {} if hint == "" else {"type":"hint", "key":"", "label":"", "prompt":hint}
 
@@ -1332,7 +1463,7 @@ func scavenge(p:Dictionary, i:int):
 
 func open_drop(p:Dictionary, d:Dictionary):
 	drops.erase(d)
-	var mat := rng.randi_range(8, 12)
+	var mat := rng.randi_range(8, 12) + (6 if d.get("rich", false) else 0)
 	materials += mat
 	p.coins += 6
 	p.tr = mini(6, p.tr + 1)
@@ -1357,10 +1488,10 @@ func event_survivor():
 	emit("survivor", [at.x, at.y])
 	announce("Se oyen gritos: hay un vecino atrapado")
 
-func event_drop():
-	var at:Vector2 = Map.DROP_SPOTS[rng.randi_range(0, Map.DROP_SPOTS.size() - 1)]
+func event_drop(at:Vector2 = Vector2.INF, rich:bool = false):
+	if not at.is_finite(): at = Map.DROP_SPOTS[rng.randi_range(0, Map.DROP_SPOTS.size() - 1)]
 	serial += 1
-	drops.append({"id":serial, "p":at, "t":5.0})
+	drops.append({"id":serial, "p":at, "t":5.0, "rich":rich})
 	emit("drop", [at.x, at.y])
 	announce("¡Un globo de feria suelta suministros!")
 
@@ -1830,7 +1961,7 @@ func snapshot() -> Dictionary:
 		var p:Dictionary = players[id]
 		pl[id] = {"name":p.name, "role":p.role, "slot":p.slot, "p":p.p, "aim":p.aim, "hp":p.hp, "hpmax":p.hpmax, "st":p.st,
 			"bleed":p.bleed, "coins":p.coins, "xp":p.xp, "lvl":p.lvl, "gun":p.gun, "guns":p.guns, "mag":p.mag, "res":p.res,
-			"rl":p.rl, "rlmax":p.rlmax, "ab":p.ab, "buff":p.buff, "med":p.med, "tr":p.tr, "kills":p.kills, "helped":p.helped, "carry":p.carry, "rank":p.get("rank", 1),
+			"rl":p.rl, "rlmax":p.rlmax, "ab":p.ab, "buff":p.buff, "med":p.med, "tr":p.tr, "kills":p.kills, "helped":p.helped, "carry":p.carry, "cargo":p.cargo, "rank":p.get("rank", 1),
 			"notice":p.notice if p.nt > 0 else "", "hold":p.hold, "ht":p.ht, "hm":p.hm, "prompt":p.prompt, "ready":p.ready,
 			"roll":p.roll, "fix":p.fix, "ping":p.ping, "ping_left":p.ping_left, "dmg":p.dmg, "fire":p.fire and p.rl <= 0, "use":p.use}
 	var si := []
@@ -1849,7 +1980,7 @@ func snapshot() -> Dictionary:
 	return {"ph":phase, "w":wave, "c":clock, "cl":phase_len, "tod":time_of_day(), "core":core, "cmax":core_max, "clvl":core_level,
 		"mat":materials, "ev":night_event, "wx":weather, "fr":fronts, "rem":remaining(), "rs":respite, "as":[assault_index, assault_count], "bu":bundles.map(func(b): return [b.id, b.p.x, b.p.y, b.owner]), "tot":night_total,
 		"pl":pl, "en":en, "st":st, "si":si, "lo":loot.duplicate(), "pr":pr, "sv":sv, "dr":dr, "cm":community.duplicate(),
-		"fx":events.duplicate(), "rep":report, "boss":boss, "sk":sk, "stats":stats, "time":time, "cc":claim_cost(), "br":br, "pc":pieces.map(func(pc): return [pc.state, pc.p.x, pc.p.y, pc.carrier]), "fin":finale_t if finale else -1.0, "vic":victory, "mid":match_id, "sh":site_hit.duplicate()}
+		"fx":events.duplicate(), "rep":report, "boss":boss, "sk":sk, "stats":stats, "time":time, "cc":claim_cost(), "br":br, "pc":pieces.map(func(pc): return [pc.state, pc.p.x, pc.p.y, pc.carrier]), "fin":finale_t if finale else -1.0, "vic":victory, "mid":match_id, "jobs":jobs.map(func(j): return [j.id, j.kind, j.size, j.p.x, j.p.y, j.state, j.mat, j.coins, j.progress, j.carrier, j.risk, j.area]), "sh":site_hit.duplicate()}
 
 func load_structures(st:PackedInt32Array):
 	## Used by clients so local movement prediction collides with the same structures.

@@ -61,7 +61,11 @@ Primero probar este ritmo durante tres noches con los cuatro puestos actuales. P
 
 - [ ] **Dar una pista útil al salir de casa.** Desde el porche deben distinguirse un recurso cercano y una oportunidad más arriesgada. En una prueba con cinco personas nuevas, observar si al menos cuatro eligen su primer destino sin abrir la ayuda.
   - Implementado: el primer día marca en pantalla «✦ Botín cercano» y la propiedad libre más próxima como «arriesgado», además del vecino atrapado. Falta la prueba con cinco personas.
-- [ ] **Ofrecer un encargo corto y otro ambicioso.** Probar una recogida local y una reparación en dos paradas. Mostrar ubicación, riesgo y recompensa antes de aceptar. Completar, abandonar y dejar caducar cada encargo en solitario y en pareja.
+- [x] **Ofrecer un encargo corto y otro ambicioso.** El tablón junto a la tienda (E) ofrece cada día uno corto cerca de la plaza y otro ambicioso lejos.
+  - Antes de aceptar muestra el lugar, la distancia, el riesgo y la recompensa común.
+  - Tres tipos: búsqueda, transporte hasta el porche (quien carga va más despacio y suelta la caja si cae) y defensa de una zona durante 25 s mientras llegan brotados.
+  - Se pueden abandonar y caducan al anochecer. El HUD, el plano y las marcas en pantalla guían al destino.
+  - Verificado en `tests/jobs_test.gd`. Falta probarlo en pareja.
 - [x] **Permitir adelantar la noche.** La campana de la plaza (mantener E) o N marcan a cada vecino como listo, y volver a tocarla lo cancela. Cuando todos los presentes están listos, la noche llega en 4 s; en solitario basta con una persona. Quien se desconecta deja de contar. Verificado en `match_test`.
 - [x] **Dar trabajo útil a quien se queda en casa.** El plano indica el acceso más débil (defensas y resistencia por lado). En la tienda se prepara un lote por 4 materiales comunes: munición, botiquín, traca y 40 de salud, que se deja en el porche para un compañero. La recogida se anuncia con el nombre de quien lo preparó y la pantalla final cuenta los lotes de cada uno. Falta comprobar con jugadores que lo explican.
 - [x] **Introducir pausas elegidas durante el asalto.** Cada noche se divide en dos asaltos, o tres a partir de la tercera. Tras rechazar uno hay 15 s de respiro con cuenta atrás, y un globo deja una caja en el exterior. Si no da tiempo a todo, el siguiente asalto llega con la tarea a medias. Verificado en `match_test`. Falta medir con jugadores cuántas acciones caben.
@@ -80,8 +84,8 @@ Primero probar este ritmo durante tres noches con los cuatro puestos actuales. P
 - [ ] **Abrir rutas con consecuencias.** Crear un atajo del taller a la plaza que también pueda aprovechar la horda. Comparar dos partidas con la misma oleada y registrar cuándo interesa abrirlo y cuándo conviene mantenerlo cerrado.
 - [ ] **Dar una función jugable a cada interior.** Empezar con el dispensario: una pista visible desde fuera, dos salidas y un botiquín que hay que transportar. Probar que la cámara permite ver al portador y a sus perseguidores en las puertas.
 - [ ] **Encadenar decisiones entre días.** Un vecino rescatado puede atender el dispensario o reforzar el taller. Hacer visible el efecto de su destino la noche siguiente y verificar que ambos destinos aportan ventajas distintas.
-- [ ] **Variar los encargos con reglas sencillas.** Alternar transporte, búsqueda y defensa de posición. Generar diez partidas de prueba y detectar destinos inaccesibles, recompensas inútiles o encargos idénticos consecutivos.
-- [ ] **Diseñar una recuperación tras una mala noche.** Si quedan pocos materiales, ofrecer una salida corta con recursos suficientes para recuperar una defensa. Probarla con la casa dañada y comprobar que sigue teniendo sentido ahorrar cuando el equipo va bien.
+- [x] **Variar los encargos con reglas sencillas.** El generador alterna búsqueda, transporte y defensa con destinos alcanzables según la navegación, recompensas útiles y sin repetir tipo y lugar del día anterior. `jobs_test` genera diez partidas de seis días (60 días) y no encuentra destinos inaccesibles, recompensas inútiles ni encargos idénticos consecutivos.
+- [x] **Diseñar una recuperación tras una mala noche.** Si el amanecer llega con menos de 8 materiales, un globo deja reservas (14–18 materiales) junto a la plaza: es una salida corta. Si el equipo va bien, no hay ayuda extra, así que ahorrar sigue teniendo sentido. Verificado en `match_test`.
 - [ ] **Crear combinaciones entre roles.** Probar al explorador localizando un relevo de energía y al ingeniero instalándolo mientras otro cubre el regreso. El mismo objetivo debe poder completarse solo, en varias visitas.
 - [ ] **Diversificar las compras.** Comparar una inversión personal, una defensa automática y la conquista de un puesto con el mismo presupuesto inicial. Si una opción domina las tres primeras noches en todas las pruebas, revisar coste, utilidad o momento de acceso.
 - [ ] **Dar motivos para probar otra estrategia.** Ofrecer al final una variante voluntaria, como un barrio con apagones y más rutas de suministro. Mostrar sus reglas antes de empezar y comprobar que cambia al menos una decisión de ruta o de construcción.
@@ -92,9 +96,15 @@ Coordinar estos puntos con la rama de gráficos y jugabilidad. Revisar primero l
 
 - [ ] **Crear una escena de referencia artística.** Pulir el trayecto del porche al taller con un personaje, un brotado, escaparates y guirnaldas. Aprobar el tratamiento de materiales, iluminación y proporciones en capturas de día y de noche antes de extenderlo al barrio.
 - [ ] **Reconocer el peligro por la silueta.** Diferenciar corredor, grandullón y enemigo común por postura, movimiento y preparación del ataque. Probar su identificación al anochecer y en una captura en escala de grises.
-- [ ] **Animar las interacciones importantes.** Llevar una caja, reparar y levantar a un compañero deben leerse desde la cámara de otro jugador. Cancelar cada acción al recibir daño y comprobar que sonido, animación y resultado coinciden.
-- [ ] **Contar la historia del barrio mientras se juega.** Introducir al menos un detalle que cambie tras cada conquista, como vecinos preparando el escenario o un escaparate que vuelve a encenderse. Verificar que se distingue al regresar desde otra calle.
+- [x] **Animar las interacciones importantes.**
+  - Las piezas y las cajas se llevan sobre la cabeza.
+  - Reparar, reanimar y rebuscar tienen una animación de manos con barra de progreso y sonido.
+  - Recibir un golpe interrumpe la acción y reinicia su progreso (verificado en `match_test`).
+  - Falta revisarlo desde la cámara de otro jugador.
+- [x] **Contar la historia del barrio mientras se juega.** Cada propiedad conquistada se llena de vecinos que celebran bajo banderines nuevos, con el estandarte de colores y su luz por la noche. Cada pieza instalada aparece en el escenario. Falta verificar que se distingue al volver desde otra calle.
 - [ ] **Componer un motivo musical de la verbena.** Probar tres arreglos para preparación, asalto y amanecer. Durante una brecha, las señales de peligro deben seguir oyéndose sobre música y disparos. Repetir con auriculares y altavoces.
+  - Hecho: el mismo motivo suena como vals de verbena de día, como pulso tenso de noche (con una capa de combate que crece con los brotados) y lento con campanas al amanecer y tras la victoria. Una brecha nueva o los golpes a la casa suenan con una alarma y bajan la música unos segundos.
+  - Falta escucharlo con auriculares y altavoces.
 - [ ] **Hacer accesible la información bajo presión.** Acompañar las alarmas por sonido con texto e iconos, ajustar tamaño de interfaz y ofrecer reducción de destellos y sacudidas. Completar una reparación y un rescate con el audio silenciado.
   - Hecho: brechas, golpes a la casa, estandartes atacados, caídos, vecinos atrapados, piezas y suministros tienen texto y marca en pantalla además de sonido. Hay tamaño de interfaz y opciones para quitar sacudidas y destellos (luces, explosiones, relámpagos y pulso de daño).
   - Falta la prueba con el audio silenciado.

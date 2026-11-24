@@ -114,6 +114,12 @@ const PIECES = [
 	{"site":4, "name":"Bidón de gasoil", "color":"e86a5c"},
 ]
 const FINALE_TIME := 120.0
+const JOBS = {
+	"busqueda": {"name":"Búsqueda", "verb":"Busca", "desc":"Rebusca en el punto marcado"},
+	"transporte": {"name":"Transporte", "verb":"Trae", "desc":"Carga la caja marcada y llévala al porche"},
+	"defensa": {"name":"Defensa", "verb":"Aguanta", "desc":"Quédate en la zona marcada mientras llegan brotados"},
+}
+const JOB_DEFENSE_TIME := 25.0
 const CORE_UPGRADE = {"mat":[10,14,18], "coins":[8,12,16], "hp":50.0}
 
 # ---------------------------------------------------------------- loot nodes
