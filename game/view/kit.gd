@@ -179,6 +179,10 @@ func roof(xf:Transform3D, width:float, height:float, depth:float, c:Color, thick
 	for side in [-1.0, 1.0]:
 		var t := Transform3D(Basis(Vector3(0, 0, 1), -side * ang), Vector3(side * half * 0.5, height * 0.5, 0))
 		box(xf * t, Vector3(slope + 0.2, thick, depth), c, r, 0.0, 1)
+		var rows := int(slope / 0.45)
+		for i in rows:
+			var off := -slope * 0.5 + (i + 0.6) * slope / rows
+			box(xf * t * Transform3D(Basis(), Vector3(off, thick * 0.5, 0)), Vector3(0.07, 0.05, depth - 0.1), c.darkened(0.12), 0.0)
 	box(xf * Transform3D(Basis(), Vector3(0, height + thick * 0.15, 0)), Vector3(0.22, 0.16, depth + 0.06), c.darkened(0.12), 0.06)
 
 func gable(xf:Transform3D, width:float, height:float, depth:float, c:Color):

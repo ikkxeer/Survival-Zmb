@@ -135,6 +135,7 @@ func start(which:String, role:int, address:String, player_name:String):
 	build_kind = -1
 	paused = false
 	ui.show_menu(false)
+	get_viewport().gui_release_focus()
 	Input.set_custom_mouse_cursor(crosshair, Input.CURSOR_ARROW, Vector2(20, 20))
 	sim = Match.new()
 	if mode == "join":

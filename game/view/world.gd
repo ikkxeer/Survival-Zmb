@@ -419,6 +419,39 @@ func label_at(text:String, pos:Vector3, px:float, color:Color, billboard:bool, b
 	label_nodes.append(l)
 	return l
 
+
+func roof_sign(text:String, center:Vector2, top:float, width:float, bg:Color):
+	## A billboard on the roof, tilted towards the camera so every property reads from above.
+	var k := K(center)
+	var xf := Transform3D(Basis(Vector3(1, 0, 0), -0.45), Vector3(center.x, top + 0.9, center.y))
+	for sx in [-1, 1]: k.box(Kit.at(center.x + sx * width * 0.38, top + 0.45, center.y + 0.1), Vector3(0.12, 0.9, 0.12), col("5a5a68"), 0.03)
+	k.box(xf * Kit.at(0, 0.35, 0), Vector3(width + 0.25, 1.15, 0.12), col("fffaf0"), 0.08)
+	k.box(xf * Kit.at(0, 0.35, 0.05), Vector3(width, 0.95, 0.1), bg, 0.08)
+	for i in int(width / 0.7):
+		k.sphere(xf * Kit.at(-width * 0.5 + 0.35 + i * 0.7, 0.98, 0.08), Vector3(0.07, 0.07, 0.07), Kit.glow(col(["ffd166", "ffffff"][i % 2])), 6, 4)
+	var l:Label3D = label_at(text, xf * Vector3(0, 0.35, 0.13), 0.0078, Color("fffaf0"), false, xf.basis)
+	l.font_size = 96
+
+func flat_roof(xf:Transform3D, w:float, d:float, top:float, trim:Color, seed:int):
+	var k := K(Vector2(xf.origin.x, xf.origin.z))
+	for side in [-1, 1]:
+		k.box(xf * Kit.at(side * (w * 0.5 - 0.1), top + 0.18, 0), Vector3(0.24, 0.36, d), trim, 0.05)
+		k.box(xf * Kit.at(0, top + 0.18, side * (d * 0.5 - 0.1)), Vector3(w, 0.36, 0.24), trim, 0.05)
+	var rng2 := RandomNumberGenerator.new()
+	rng2.seed = seed
+	for i in 3:
+		var p := Vector3(rng2.randf_range(-w * 0.35, w * 0.35), top, rng2.randf_range(-d * 0.3, d * 0.3))
+		k.box(xf * Kit.at(p.x, top + 0.3, p.z), Vector3(0.9, 0.6, 0.7), col("c8ccd4"), 0.08, 0.25)
+		k.cylinder(xf * Kit.at(p.x, top + 0.62, p.z), 0.25, 0.25, 0.04, col("8f97a8"), 12)
+	for i in 2:
+		k.box(xf * Kit.at(-w * 0.25 + i * w * 0.5, top + 0.08, d * 0.25), Vector3(1.2, 0.16, 0.8), Kit.glow(col("bfe2ff"), 0.6), 0.04)
+
+func roof_cross(center:Vector2, top:float, c:Color, size:float):
+	var k := K(center)
+	k.cylinder(Kit.at(center.x, top + 0.03, center.y), size, size, 0.05, col("fffaf0"), 24)
+	k.box(Kit.at(center.x, top + 0.07, center.y), Vector3(size * 1.2, 0.04, size * 0.4), c, 0.0)
+	k.box(Kit.at(center.x, top + 0.07, center.y), Vector3(size * 0.4, 0.04, size * 1.2), c, 0.0)
+
 func taller(s:Dictionary):
 	var k := K(s.rect.get_center())
 	var xf := site_xf(s)
@@ -439,6 +472,8 @@ func taller(s:Dictionary):
 	for i in 4: k.cylinder(xf * Kit.at(w * 0.5 + 0.7, 0.15 + i * 0.3, d * 0.3), 0.42, 0.42, 0.28, col("2f2f38"), 12)
 	for i in 3: k.cylinder(xf * Kit.at(-w * 0.5 - 0.6, 0.5, -d * 0.3 + i * 0.85), 0.35, 0.35, 1.0, col(["4f86c6", "e85d5d", "5ab07a"][i]), 12, true, 0.3)
 	for i in 2: window(k, xf * Kit.at(w * 0.36 * (1 if i else -1), 1.9, d * 0.5), col("fffaf0"), Kit.glow(col("bfe2ff")), col("8b5e3c"))
+	for i in 3: window(k, xf * Kit.rot(-w * 0.3 + i * w * 0.3, 1.9, -d * 0.5, PI), col("fffaf0"), Kit.glow(col("bfe2ff")), col("8b5e3c"))
+	roof_sign("TALLER", s.rect.get_center() + Vector2(0, 1.2), 4.3, 3.0, col("c44b3b"))
 
 func dispensario(s:Dictionary):
 	var k := K(s.rect.get_center())
@@ -452,6 +487,9 @@ func dispensario(s:Dictionary):
 	k.box(xf * Kit.at(0, 4.6, 0.12), Vector3(0.7, 0.2, 0.06), Kit.glow(col("e85d5d"), 0.6), 0.02)
 	k.box(xf * Kit.at(0, 4.6, 0.12), Vector3(0.2, 0.7, 0.06), Kit.glow(col("e85d5d"), 0.6), 0.02)
 	sign_board(k, xf, "DISPENSARIO", Vector3(0, 3.3, d * 0.5 + 0.3), col("5aa89a"), 3.6)
+	flat_roof(xf, w + 0.3, d + 0.3, 4.22, col("5aa89a"), 3)
+	roof_cross(s.rect.get_center() + Vector2(-1.5, -0.8), 4.22, col("e8463c"), 1.4)
+	roof_sign("DISPENSARIO", s.rect.get_center() + Vector2(1.0, 2.2), 4.22, 4.2, col("5aa89a"))
 	var amb := xf * Kit.at(w * 0.5 + 1.8, 0, d * 0.5 - 1.2)
 	car(k, amb, col("fafafa"), col("e85d5d"))
 
@@ -469,6 +507,9 @@ func economato(s:Dictionary):
 		k.box(xf * Kit.rot(-w * 0.45 + i * w * 0.1, 2.85, d * 0.5 + 0.6, 0, 0.4), Vector3(w * 0.1, 0.07, 1.4), stripe, 0.02)
 	k.box(xf * Kit.at(0, 3.75, 0), Vector3(w + 0.3, 0.3, d + 0.3), col("f2c14e"), 0.06)
 	sign_board(k, xf, "ECONOMATO", Vector3(0, 4.3, d * 0.5 - 0.2), col("e85d5d"), 4.2)
+	flat_roof(xf, w + 0.3, d + 0.3, 3.9, col("e85d5d"), 5)
+	for i in 6: k.box(xf * Kit.at(-w * 0.42 + i * w * 0.168, 1.5, -d * 0.5 - 0.03), Vector3(w * 0.12, 1.6, 0.08), Kit.glow(col("cdeeff"), 0.8), 0.04)
+	roof_sign("ECONOMATO", s.rect.get_center() + Vector2(0, 1.6), 3.9, 5.2, col("e85d5d"))
 	for i in 3:
 		var cx := w * 0.5 + 0.8
 		var cxf := xf * Kit.rot(cx, 0, d * 0.5 - 0.6 - i * 0.7, PI * 0.5)
@@ -489,6 +530,9 @@ func almacen(s:Dictionary):
 	k.box(xf * Kit.at(0, 1.5, d * 0.5 + 0.05), Vector3(3.4, 3.0, 0.1), col("e39a4c"), 0.04)
 	for i in 10: k.box(xf * Kit.at(0, 0.2 + i * 0.3, d * 0.5 + 0.11), Vector3(3.3, 0.05, 0.03), col("c47f38"), 0.0)
 	sign_board(k, xf, "ALMACÉN", Vector3(0, 3.4, d * 0.5 + 0.2), col("8b5e3c"), 3.0)
+	for i in 4: k.box(xf * Kit.rot(-w * 0.3 + i * w * 0.2, 4.15, d * 0.2, 0, -0.42), Vector3(0.9, 0.1, 1.3), Kit.glow(col("bfe2ff"), 0.5), 0.03)
+	for i in 3: k.box(xf * Kit.rot(-w * 0.25 + i * w * 0.25, 4.15, -d * 0.2, 0, 0.42), Vector3(0.9, 0.1, 1.3), Kit.glow(col("bfe2ff"), 0.5), 0.03)
+	roof_sign("ALMACÉN", s.rect.get_center() + Vector2(0, 0.6), 4.6, 3.6, col("8b5e3c"))
 	for i in 5:
 		var px := -w * 0.5 + 0.8 + (i % 3) * 1.0
 		var pz := d * 0.5 + 1.2 + (i / 3) * 1.0
@@ -503,12 +547,15 @@ func gasolinera(s:Dictionary):
 	walls_with_windows(k, xf, w, d, 2.6, col("fff6ea"), col("e86a5c"), col("e86a5c"), true, col("e86a5c"))
 	k.box(xf * Kit.at(0, 3.05, 0), Vector3(w + 0.3, 0.3, d + 0.3), col("e86a5c"), 0.06)
 	sign_board(k, xf, "GASOLINERA", Vector3(0, 2.45, d * 0.5 + 0.35), col("e86a5c"), 3.3)
+	flat_roof(xf, w + 0.3, d + 0.3, 3.2, col("e86a5c"), 9)
 	var cxf := Transform3D(Basis(), Vector3(-23.0, 0, -0.5))
 	for px in [-3.0, 3.0]:
 		for pz in [-3.0, 3.0]:
 			K(Vector2(-23, 0)).cylinder(cxf * Kit.at(px, 1.8, pz), 0.16, 0.16, 3.6, col("fffaf0"), 10)
 	K(Vector2(-23, 0)).box(cxf * Kit.at(0, 3.75, 0), Vector3(8.0, 0.4, 8.0), col("fffaf0"), 0.1)
 	K(Vector2(-23, 0)).box(cxf * Kit.at(0, 3.7, 0), Vector3(8.15, 0.25, 8.15), col("e86a5c"), 0.08)
+	for i in 4: K(Vector2(-23, 0)).box(cxf * Kit.at(0, 3.97, -3.0 + i * 2.0), Vector3(7.6, 0.03, 0.5), col("ffd166") if i % 2 == 0 else col("e86a5c"), 0.0)
+	roof_sign("GASOLINERA", Vector2(-23, 2.0), 3.95, 4.6, col("e86a5c"))
 	for i in 4: K(Vector2(-23, 0)).box(cxf * Kit.at(-2.6 + i * 1.75, 3.53, 0), Vector3(0.9, 0.04, 6.5), Kit.glow(col("fff2d0"), 0.9), 0.0)
 	for p in Map.PROPS:
 		if p.kind != "pump": continue
@@ -532,6 +579,11 @@ func comisaria(s:Dictionary):
 	walls_with_windows(k, xf, w, d, 3.6, col("dbe4f6"), col("ffffff"), col("4f6fb8"), true, col("2f4f88"))
 	k.box(xf * Kit.at(0, 4.05, 0), Vector3(w + 0.3, 0.35, d + 0.3), col("4f6fb8"), 0.08)
 	sign_board(k, xf, "COMISARÍA", Vector3(0, 3.35, d * 0.5 + 0.3), col("2f4f88"), 3.4)
+	flat_roof(xf, w + 0.3, d + 0.3, 4.22, col("4f6fb8"), 13)
+	var star:Vector2 = s.rect.get_center() + Vector2(1.5, -1.0)
+	k.cylinder(Kit.at(star.x, 4.25, star.y), 1.3, 1.3, 0.05, col("f2c14e"), 5)
+	k.cylinder(Kit.rot(star.x, 4.26, star.y, PI / 5.0), 1.3, 1.3, 0.05, col("f2c14e"), 5)
+	roof_sign("COMISARÍA", s.rect.get_center() + Vector2(-0.5, 2.2), 4.22, 4.0, col("2f4f88"))
 	k.box(xf * Kit.at(-0.4, 4.5, 0), Vector3(0.5, 0.35, 0.5), Kit.glow(col("ff5a5a"), 0.8), 0.12)
 	k.box(xf * Kit.at(0.4, 4.5, 0), Vector3(0.5, 0.35, 0.5), Kit.glow(col("5a8aff"), 0.8), 0.12)
 	k.cylinder(xf * Kit.at(w * 0.5 + 1.0, 2.5, d * 0.5 + 0.5), 0.06, 0.06, 5.0, col("dddddd"), 6)
@@ -1060,6 +1112,9 @@ func update_time(tod:float, event:int, wx:int, focus:Vector3, dt:float, t:float)
 	var fogc:Color = k[6]
 	var clouds := 0.25 + 0.35 * float(wx >= 1) + 0.3 * cur_wet
 	energy *= 1.0 - 0.35 * cur_wet - 0.2 * float(wx == 1) * day
+	if cur_fog > 0:
+		fogc = fogc.lerp(Color("8f98bd"), cur_fog * 0.75)
+		amb = amb.lerp(Color("8f98bd"), cur_fog * 0.3)
 	if cur_red > 0:
 		light_col = light_col.lerp(Color("ff7a6a"), cur_red * 0.7)
 		amb = amb.lerp(Color("a0507a"), cur_red * 0.6)
@@ -1070,9 +1125,9 @@ func update_time(tod:float, event:int, wx:int, focus:Vector3, dt:float, t:float)
 	env.ambient_light_color = amb
 	env.ambient_light_energy = k[5] * 0.62 + flash_light
 	env.fog_light_color = fogc
-	env.fog_density = 0.0018 + 0.022 * cur_fog + 0.004 * cur_wet
-	env.fog_height = 1.0
-	env.fog_height_density = 0.2 * cur_fog
+	env.fog_density = 0.0018 + 0.03 * cur_fog + 0.004 * cur_wet
+	env.fog_height_density = 0.35 * cur_fog
+	env.fog_height = 2.5
 	env.volumetric_fog_enabled = quality >= 3 and cur_fog > 0.05
 	env.volumetric_fog_density = 0.04 * cur_fog
 	env.volumetric_fog_albedo = Color(0.75, 0.8, 0.95)

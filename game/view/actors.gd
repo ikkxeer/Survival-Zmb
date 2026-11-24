@@ -782,7 +782,7 @@ func build_static():
 		label.text = Data.SITES[i].name
 		label.font_size = 64
 		label.outline_size = 14
-		label.pixel_size = 0.006
+		label.pixel_size = 0.0085
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		label.position.y = 4.4
 		label.outline_modulate = Color(0.1, 0.08, 0.14, 0.9)
