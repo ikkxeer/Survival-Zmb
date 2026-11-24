@@ -12,6 +12,7 @@ Objetivo de la próxima versión: que un grupo pueda descargar el juego, entrar 
 ## P0 · Conseguir una versión que se pueda probar con amigos
 
 - [ ] **Combinar las dos ramas en una candidata.** Cuando esté disponible la rama de gráficos y jugabilidad, comparar sus cambios en entrada, cámara, HUD y estado de partida. Probar disparo, giro, construcción, reanimación y señales con el plano abierto y cerrado.
+- [x] **Empaquetar Windows x64.** Perfil de exportación release, instrucciones de juego y avisos del motor incluidos en el ZIP. Dos instancias del ejecutable descomprimido bajo Wine se conectaron por bucle local y mostraron Equipo 2/4. [Procedimiento de exportación](distribution/DISTRIBUCION.md)
 - [ ] **Entregar un ZIP de Windows.** Preparar una exportación reproducible y abrirla en un PC sin Godot instalado. Dos equipos deben poder crear y unirse a una partida con esa misma descarga.
 - [ ] **Sostener una sesión de tres noches.** Probar con uno, dos y cuatro jugadores, incluyendo una salida durante la oleada y una conexión con latencia. Registrar si divergen la vida de la casa, las fichas o las defensas y si el equipo puede seguir jugando.
 - [ ] **Medir una oleada llena.** Registrar CPU, GPU, memoria y tiempos de fotograma con 48 enemigos y las dos opciones gráficas en un PC identificado. Repetir el mismo recorrido tras integrar los cambios visuales.
@@ -29,3 +30,54 @@ Objetivo de la próxima versión: que un grupo pueda descargar el juego, entrar 
 - [ ] **Primer rescate jugable.** Escoltar a un vecino desde un puesto hasta la casa, con recompensa compartida y resolución tanto si llega como si cae.
 - [ ] **Primer jefe de barrio.** Introducir un ataque reconocible que el equipo pueda anticipar y contrarrestar con dos estrategias.
 - [ ] **Progresión entre partidas.** Probar un desbloqueo por rol, guardado local versionado y recuperación tras cerrar el juego durante el guardado.
+
+## P1 · Que siempre haya una decisión disponible
+
+Primero probar este ritmo durante tres noches con los cuatro puestos actuales. Por ejemplo, al atardecer quedan materiales para reforzar la entrada sur. El dispensario pide ayuda y la exploradora ha encontrado un atajo. En solitario puedes cerrar el acceso y volver mañana. En cooperativo, alguien puede cubrirte mientras vas a por el botiquín. Ambas decisiones deberían dar lugar a una noche interesante.
+
+- [ ] **Dar una pista útil al salir de casa.** Desde el porche deben distinguirse un recurso cercano y una oportunidad más arriesgada. En una prueba con cinco personas nuevas, observar si al menos cuatro eligen su primer destino sin abrir la ayuda.
+- [ ] **Ofrecer un encargo corto y otro ambicioso.** Probar una recogida local y una reparación en dos paradas. Mostrar ubicación, riesgo y recompensa antes de aceptar. Completar, abandonar y dejar caducar cada encargo en solitario y en pareja.
+- [ ] **Permitir adelantar la noche.** Si todos han terminado de prepararse, pueden tocar la campana de la plaza. Probar el inicio inmediato en solitario y la votación en grupo, también cuando un jugador cancela o se desconecta.
+- [ ] **Dar trabajo útil a quien se queda en casa.** Permitir consultar el acceso más débil, preparar un lote de suministros y dejarlo para otro compañero. Comprobar que quien sale y quien se queda pueden explicar cómo ayudó el otro.
+- [ ] **Introducir pausas elegidas durante el asalto.** Tras rechazar un grupo, dar tiempo para reanimar, reparar o salir a recuperar una caja. Medir si las tres acciones caben por separado y si intentar hacerlas todas tiene un coste reconocible.
+- [ ] **Cambiar la siguiente decisión al amanecer.** Mostrar qué acceso recibió más daño, qué propiedad ayudó y cuánto queda en la caja común. Probar si el equipo usa esos datos para decidir su próxima compra.
+- [ ] **Medir la espera real.** Revisar grabaciones de sesiones en solitario y en grupo. Anotar por jugador los tramos de más de 20 segundos en los que quería actuar y no encontraba cómo. Distinguirlos del descanso voluntario y repetir la prueba tras corregir el tramo más frecuente.
+
+## P2 · Convertir el barrio en un lugar al que merezca la pena volver
+
+- [ ] **Dar una meta final a la partida.** Prototipar «Encender la verbena»: recuperar piezas en los puestos, llevarlas a la plaza y defender el encendido. Ensayar victoria, derrota y revancha con el mismo grupo. El equipo debe saber desde el primer día qué le falta.
+- [ ] **Abrir rutas con consecuencias.** Crear un atajo del taller a la plaza que también pueda aprovechar la horda. Comparar dos partidas con la misma oleada y registrar cuándo interesa abrirlo y cuándo conviene mantenerlo cerrado.
+- [ ] **Dar una función jugable a cada interior.** Empezar con el dispensario: una pista visible desde fuera, dos salidas y un botiquín que hay que transportar. Probar que la cámara permite ver al portador y a sus perseguidores en las puertas.
+- [ ] **Encadenar decisiones entre días.** Un vecino rescatado puede atender el dispensario o reforzar el taller. Hacer visible el efecto de su destino la noche siguiente y verificar que ambos destinos aportan ventajas distintas.
+- [ ] **Variar los encargos con reglas sencillas.** Alternar transporte, búsqueda y defensa de posición. Generar diez partidas de prueba y detectar destinos inaccesibles, recompensas inútiles o encargos idénticos consecutivos.
+- [ ] **Diseñar una recuperación tras una mala noche.** Si quedan pocos materiales, ofrecer una salida corta con recursos suficientes para recuperar una defensa. Probarla con la casa dañada y comprobar que sigue teniendo sentido ahorrar cuando el equipo va bien.
+- [ ] **Crear combinaciones entre roles.** Probar al explorador localizando un relevo de energía y al ingeniero instalándolo mientras otro cubre el regreso. El mismo objetivo debe poder completarse solo, en varias visitas.
+- [ ] **Diversificar las compras.** Comparar una inversión personal, una defensa automática y la conquista de un puesto con el mismo presupuesto inicial. Si una opción domina las tres primeras noches en todas las pruebas, revisar coste, utilidad o momento de acceso.
+- [ ] **Dar motivos para probar otra estrategia.** Ofrecer al final una variante voluntaria, como un barrio con apagones y más rutas de suministro. Mostrar sus reglas antes de empezar y comprobar que cambia al menos una decisión de ruta o de construcción.
+
+## P2 · Conseguir una identidad visual y sonora reconocible
+
+Coordinar estos puntos con la rama de gráficos y jugabilidad. Revisar primero lo que ya resuelve su versión integrada.
+
+- [ ] **Crear una escena de referencia artística.** Pulir el trayecto del porche al taller con un personaje, un brotado, escaparates y guirnaldas. Aprobar el tratamiento de materiales, iluminación y proporciones en capturas de día y de noche antes de extenderlo al barrio.
+- [ ] **Reconocer el peligro por la silueta.** Diferenciar corredor, grandullón y enemigo común por postura, movimiento y preparación del ataque. Probar su identificación al anochecer y en una captura en escala de grises.
+- [ ] **Animar las interacciones importantes.** Llevar una caja, reparar y levantar a un compañero deben leerse desde la cámara de otro jugador. Cancelar cada acción al recibir daño y comprobar que sonido, animación y resultado coinciden.
+- [ ] **Contar la historia del barrio mientras se juega.** Introducir al menos un detalle que cambie tras cada conquista, como vecinos preparando el escenario o un escaparate que vuelve a encenderse. Verificar que se distingue al regresar desde otra calle.
+- [ ] **Componer un motivo musical de la verbena.** Probar tres arreglos para preparación, asalto y amanecer. Durante una brecha, las señales de peligro deben seguir oyéndose sobre música y disparos. Repetir con auriculares y altavoces.
+- [ ] **Hacer accesible la información bajo presión.** Acompañar las alarmas por sonido con texto e iconos, ajustar tamaño de interfaz y ofrecer reducción de destellos y sacudidas. Completar una reparación y un rescate con el audio silenciado.
+
+## Salida comercial · Pasar de la candidata a la versión de venta
+
+- [ ] **Cerrar el alcance de la versión 1.0.** Tras probar el final de partida, acordar modos, contenido, idiomas y plataformas que se ofrecerán al comprador. Asociar cada promesa de la ficha de tienda a una función verificable en la candidata.
+- [ ] **Facilitar jugar con amigos desde casa.** Elegir el método de invitación de la tienda objetivo y probarlo entre dos conexiones domésticas. Cubrir invitación caducada, sala llena y versiones incompatibles con un mensaje que permita actuar.
+- [ ] **Recuperar una sesión interrumpida.** Guardar un punto de control al amanecer. Volver a entrar con otro orden de conexión y verificar propiedad de fichas, equipo, territorio y oleada. Simular un cierre durante la escritura y recuperar el último punto válido.
+- [ ] **Fijar requisitos de PC a partir de mediciones.** Elegir equipos mínimo y recomendado, resolución y objetivo de fluidez tras medir la candidata. Publicar los ajustes usados y repetir el recorrido más exigente antes de etiquetar la versión.
+- [ ] **Probar textos y menús en la distribución real.** Revisar tildes, textos largos, escalado de Windows y navegación por teclado en cada idioma anunciado. Llegar desde el arranque hasta una partida y regresar al menú en la resolución mínima admitida.
+- [x] **Inventariar la edición basada en c897f26.** Revisados recursos del juego, sonido sintetizado, fuente del motor y plantilla estándar. El paquete incluye el [inventario de procedencia](distribution/licencias/Materiales.txt) y las licencias oficiales del motor y sus dependencias.
+- [ ] **Auditar los derechos de los materiales.** Inventariar música, fuentes, modelos, texturas y dependencias con su procedencia, licencia y créditos. Verificar el permiso de distribución comercial para cada elemento incluido en el paquete.
+- [ ] **Preparar una demo representativa.** Incluir una salida al barrio, una decisión de construcción y un asalto con cierre propio. Probar si alguien que termina la demo puede explicar qué ofrece la partida completa y qué le apetecería intentar después.
+- [ ] **Enseñar la experiencia real en la tienda.** Preparar portada, capturas y un tráiler breve con exploración, cooperación y consecuencias de una brecha. Comparar la ficha con la versión descargable y verificar que refleja la cámara, la interfaz y el número de jugadores disponibles.
+- [ ] **Celebrar una prueba cerrada antes de fijar fecha.** Invitar tanto a grupos de amigos como a jugadores solitarios. Registrar dónde abandonan, qué recuerdan al día siguiente y si eligen repetir voluntariamente. Corregir y volver a probar los dos obstáculos más repetidos.
+- [x] **Abrir un canal para incidencias de la candidata.** Preparado el [formulario de GitHub](.github/ISSUE_TEMPLATE/fallo-de-partida.yml) con versión, modo de juego, reproducción y equipo. Aparecerá en el selector de incidencias al integrar la rama en la predeterminada.
+- [ ] **Ensayar el primer parche.** Instalar la candidata, crear una partida guardada, actualizarla y cargarla de nuevo. Dejar preparados el canal de incidencias, las notas de versión y la recuperación si una actualización daña partidas.
+- [ ] **Decidir la salida con una partida de principio a fin.** En el paquete exacto que se venderá, comprobar compra o descarga, instalación limpia, primera sesión, victoria, derrota, guardado y cooperativo. Resolver los fallos reproducibles que impidan completar cualquiera de esos recorridos antes de publicar.
