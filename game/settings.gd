@@ -3,7 +3,7 @@ extends RefCounted
 ## Saved to user://ajustes.cfg with a version so future releases can migrate it.
 
 const PATH := "user://ajustes.cfg"
-const VERSION := 1
+const VERSION := 2
 
 const ACTIONS = [
 	["up", "Avanzar", KEY_W], ["down", "Retroceder", KEY_S], ["left", "Izquierda", KEY_A], ["right", "Derecha", KEY_D],
@@ -16,7 +16,7 @@ const ACTIONS = [
 
 var values := {
 	"quality": 2, "fullscreen": false, "volume": 0.8, "music": 0.6, "sfx": 1.0,
-	"shake": true, "flashes": true, "numbers": true, "sensitivity": 1.0, "ui_scale": 1.0, "name": "",
+	"shake": true, "flashes": true, "numbers": false, "sensitivity": 1.0, "ui_scale": 1.0, "name": "",
 }
 var binds := {}
 
@@ -26,10 +26,13 @@ func _init():
 func load_file() -> bool:
 	var cfg := ConfigFile.new()
 	if cfg.load(PATH) != OK: return false
-	if int(cfg.get_value("meta", "version", 0)) > VERSION: return false
+	var version := int(cfg.get_value("meta", "version", 0))
+	if version > VERSION: return false
 	for k in values:
 		var v = cfg.get_value("ajustes", k, values[k])
 		if typeof(v) == typeof(values[k]) or (values[k] is float and v is int): values[k] = v
+	# v2: the cleaner interface hides damage numbers unless the player turns them back on
+	if version < 2: values.numbers = false
 	for a in ACTIONS:
 		var code = cfg.get_value("teclas", a[0], a[2])
 		if code is int and code > 0: binds[a[0]] = code

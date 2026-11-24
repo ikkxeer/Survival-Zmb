@@ -112,6 +112,35 @@ static func landmark(p:Vector2) -> String:
 			best = l[0]
 	return best
 
+const CAR_HALF := Vector2(0.85, 1.6)   # half width (local x) and half length (local z) of a car
+
+static func loot_yaw(i:int) -> float:
+	## Orientation of a loot prop; abandoned cars on the east-west avenue lie along it.
+	var l:Dictionary = LOOT[i]
+	return fmod(l.p.x * 1.7 + l.p.y, 1.0) - 0.5 + (PI * 0.5 if l.kind == 1 and absf(fmod(l.p.y, 24.0) - 12.0) < 3.0 else 0.0)
+
+static func site_car(i:int, local:Vector2, local_yaw:float) -> Array:
+	## A car parked next to property i, given in the property's own frame (as world.gd draws it).
+	var s:Dictionary = SITES[i]
+	var horizontal := absf(s.face.x) > 0.5
+	var yaw := atan2(s.face.x, s.face.y)
+	var w:float = (s.rect.size.y if horizontal else s.rect.size.x) - 0.2
+	var d:float = (s.rect.size.x if horizontal else s.rect.size.y) - 0.2
+	var off := Vector2(local.x * w * 0.5 + signf(local.x) * 1.8, d * 0.5 + local.y)
+	return [s.rect.get_center() + off.rotated(-yaw), yaw + local_yaw]
+
+static func cars() -> Array:
+	## Every car in the neighbourhood as [centre, yaw]. They are solid: nobody walks or shoots through them.
+	var list := []
+	for i in 4:
+		var x:float = [-7.9, -3.4, 3.4, 7.9][i]
+		list.append([Vector2(x, 17.4), 0.04 * (i - 1.5)])
+	list.append(site_car(1, Vector2(1, -1.2), 0.0))       # ambulance at the Dispensario
+	list.append(site_car(5, Vector2(-1, -1.0), PI * 0.5)) # patrol car at the Comisaría
+	for i in LOOT.size():
+		if LOOT[i].kind == 1: list.append([LOOT[i].p, loot_yaw(i)])
+	return list
+
 static func solids() -> Array:
 	var list := [BASE]
 	for s in SITES: list.append(s.rect)

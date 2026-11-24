@@ -29,6 +29,8 @@ var heroes := {}
 var horde := {}
 var structs := {}
 var loot_nodes := []
+var local_rolling := false   # the local dodge, ahead of the snapshot
+var local_firing := false   # set by main from the local mouse button, ahead of the snapshot
 var beacons := []
 var drops := {}
 var bundles := {}
@@ -778,7 +780,7 @@ func build_static():
 		sp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		n.add_child(sp)
 		n.position = Vector3(l.p.x, 0, l.p.y)
-		n.rotation.y = fmod(l.p.x * 1.7 + l.p.y, 1.0) - 0.5 + (PI * 0.5 if l.kind == 1 and absf(fmod(l.p.y, 24.0) - 12.0) < 3.0 else 0.0)
+		n.rotation.y = Map.loot_yaw(i)
 		add_child(n)
 		loot_nodes.append(n)
 	for i in Map.SITES.size():
@@ -1184,11 +1186,21 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		var before := r.position
 		r.position = target if id == local_id else r.position.lerp(target, 1.0 - exp(-14.0 * dt))
 		var vel := (r.position - before) / maxf(dt, 0.0001)
-		var moving := clampf(Vector2(vel.x, vel.z).length() / 4.5, 0.0, 1.0)
+		# smoothed ground velocity: per-frame deltas are noisy (network, tick rate)
+		r.ground_vel = r.ground_vel.lerp(Vector2(vel.x, vel.z), 1.0 - exp(-12.0 * dt))
+		if r.ground_vel.length() > 12.0: r.ground_vel = r.ground_vel.normalized() * 12.0
 		var aim:Vector2 = local_aim if id == local_id and local_aim != Vector2.ZERO else p.aim
-		var aiming:bool = p.fire or p.st == 0
-		r.face(aim if p.st == 0 else Vector2(vel.x, vel.z), dt)
-		r.animate_hero(dt, t, moving, aiming, p.fire, p.st, p.roll, p.rl > 0, p.use and p.hold != "")
+		if p.fire or (id == local_id and local_firing) or r.swing > 0: r.fire_t = 0.9
+		r.fire_t = maxf(0.0, r.fire_t - dt)
+		var aiming:bool = p.st == 0 and r.fire_t > 0
+		# Walk facing where you go (forward with the camera shows your back);
+		# turn to the cursor only while shooting or swinging the pan.
+		var rolling:bool = local_rolling if id == local_id else p.roll
+		if p.st != 0: r.face(r.ground_vel, dt)
+		elif rolling: r.face(r.ground_vel, dt, 30.0)
+		elif aiming: r.face(aim, dt, 22.0)
+		elif r.ground_vel.length() > 0.5: r.face(r.ground_vel, dt, 10.0)
+		r.animate_hero(dt, t, r.ground_vel, aiming, p.fire, p.st, rolling, p.rl > 0, p.use and p.hold != "")
 		r.flashlight.light_energy = (2.2 if p.st == 0 else 0.0) * smoothstep(0.3, 0.9, night_amount)
 		r.label.visible = id != local_id
 		if p.dmg > 0.25: r.hit_flash = 0.7
@@ -1206,9 +1218,13 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		var grow := clampf(z.spawn_t * 3.0, 0.0, 1.0)
 		z.body.scale = Vector3.ONE * (0.4 + 0.6 * grow)
 		z.animate_zombie(dt, t, moving, info[2])
-		if info[3] > 0.05: z.hit_flash = 1.0
+		if info[3] > 0.05:
+			z.hit_flash = 1.0
+			z.bar_t = 2.5
+		z.bar_t = maxf(0.0, z.bar_t - dt)
 		var hp:float = info[0]
-		z.bar.visible = hp < 0.999
+		# only tough enemies keep a bar; the rest show it briefly after being hit
+		z.bar.visible = hp < 0.999 and (z.bar_t > 0 or z.kind == 2) and z.kind != 7
 		if z.bar.visible:
 			z.bar.set_instance_shader_parameter("value", hp)
 			z.bar.set_instance_shader_parameter("fill", Color("ff6b6b") if info[2] & 8 == 0 else Color("ffd166"))
@@ -1244,7 +1260,7 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		var claimed:bool = n.get_meta("claimed", false)
 		if n.has_node("Story"):
 			for r in n.get_node("Story").get_children():
-				if r is Rig: (r as Rig).animate_hero(dt, t + i, 0.0, false, false, 0, false, false, fmod(t + i, 4.0) < 2.0)
+				if r is Rig: (r as Rig).animate_hero(dt, t + i, Vector2.ZERO, false, false, 0, false, false, fmod(t + i, 4.0) < 2.0)
 		(n.get_node("Light") as OmniLight3D).light_energy = 1.4 * night_amount if claimed and not blackout else 0.0
 		(n.get_node("Flag") as Node3D).rotation.y = sin(t * 1.3 + i) * 0.25
 	for id in people:
@@ -1254,8 +1270,9 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		r.position = r.position.lerp(info[0], 1.0 - exp(-10.0 * dt))
 		var vel := r.position - before
 		var moving := clampf(vel.length() / maxf(dt, 0.0001) / 3.0, 0.0, 1.0)
-		r.face(Vector2(vel.x, vel.z), dt)
-		r.animate_hero(dt, t, moving, false, false, 0, false, false, false)
+		r.ground_vel = r.ground_vel.lerp(Vector2(vel.x, vel.z) / maxf(dt, 0.0001), 1.0 - exp(-10.0 * dt))
+		r.face(r.ground_vel, dt)
+		r.animate_hero(dt, t, r.ground_vel, false, false, 0, false, false, false)
 		if info[1] == 0:
 			r.arm_r.rotation = Vector3(-2.8, 0, -0.3 + sin(t * 9.0) * 0.4)
 			r.label.visible = true
@@ -1264,7 +1281,7 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 			r.label.visible = false
 	for i in community.size():
 		var r:Rig = community[i]
-		r.animate_hero(dt, t, 0.0, false, false, 0, false, false, i % 3 == 0)
+		r.animate_hero(dt, t, Vector2.ZERO, false, false, 0, false, false, i % 3 == 0)
 	bundle_bob(t, dt)
 	for id in job_nodes:
 		var n:Node3D = job_nodes[id]

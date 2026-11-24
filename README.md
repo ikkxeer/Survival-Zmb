@@ -12,11 +12,11 @@ Abre `project.godot` con **Godot 4.7** (probado con 4.7.2) y pulsa **F5**. Tambi
 
 En el menú escribe tu nombre, elige un oficio y pulsa **Jugar en solitario**.
 
-Para jugar en red, una persona pulsa **Crear partida en red**. El HUD muestra sus IP locales. Hasta tres compañeros escriben esa IP y pulsan **Unirse**, también con la partida ya empezada. Hay que permitir UDP 24680 en el cortafuegos del anfitrión. Por Internet hace falta una dirección accesible o una red privada compartida (Tailscale, ZeroTier…). La partida termina si sale el anfitrión.
+Para jugar en red, una persona pulsa **Crear partida en red**. Al crearla aparece un aviso con sus IP locales. Hasta tres compañeros escriben esa IP y pulsan **Unirse**, también con la partida ya empezada. Hay que permitir UDP 24680 en el cortafuegos del anfitrión. Por Internet hace falta una dirección accesible o una red privada compartida (Tailscale, ZeroTier…). La partida termina si sale el anfitrión.
 
 | Acción | Control |
 | --- | --- |
-| Moverse · correr · voltereta | WASD (según la cámara) · Mayús · Espacio |
+| Moverse · correr · voltereta | WASD según la cámara (W aleja de la cámara y el personaje mira hacia donde camina; al disparar se gira hacia el puntero) · Mayús · Espacio |
 | Apuntar y disparar · sartenazo | Ratón y clic izquierdo · clic derecho corto o V |
 | Acercar o alejar la cámara (de vista táctica a tercera persona) | Rueda del ratón |
 | Girar la cámara | Arrastra con el botón derecho |
@@ -70,7 +70,7 @@ A veces el tablón ofrece un **relevo eléctrico** perdido: la exploradora lo lo
 
 **La meta: encender la verbena.** Cuatro propiedades guardan una pieza del escenario: cuadro eléctrico, guirnalda maestra, altavoces y bidón de gasoil. Al conquistarlas, hay que llevar cada pieza al escenario de la plaza; quien carga va más despacio y la suelta si cae. Con las cuatro instaladas se enciende la verbena y empieza la noche final: 120 segundos de ataque por todas las calles. Si la casa aguanta, ganáis. Después, el anfitrión puede ofrecer una revancha con el mismo grupo.
 
-La partida acaba si cae la casa o si todo el equipo queda fuera de combate. Un jugador caído aguanta 30 segundos. Un compañero puede reanimarlo manteniendo E, y él mismo puede levantarse con un botiquín.
+La partida acaba si cae la casa o si todo el equipo queda fuera de combate. Si cae la casa, la cámara se vuelve hacia ella y se ve cómo se derrumba: las paredes se parten y caen hacia fuera, el tejado se hunde en V, el mirador vuelca, el cartel se descuelga y quedan escombros y polvo antes de la pantalla final. Un jugador caído aguanta 30 segundos. Un compañero puede reanimarlo manteniendo E, y él mismo puede levantarse con un botiquín.
 
 ## Oficios
 
@@ -95,7 +95,7 @@ Cada oficio sube cinco niveles con su experiencia: matar, reparar, curar, rebusc
 - **Lanzatracas** (explosivos en parábola).
 - **Soplete de verbena** (chorro de chispas que quema).
 
-Cada arma tiene cargador, reserva, tiempo de recarga, dispersión, alcance, retroceso, sonido y efectos propios, y se mejora dos veces en la tienda. El rifle y el lanzatracas necesitan la Comisaría. El soplete necesita la Gasolinera. Además hay sartenazo cuerpo a cuerpo, tracas arrojadizas, golpes críticos y bonificación contra brotados deslumbrados por un foco.
+Cada arma tiene cargador, reserva, tiempo de recarga, dispersión, alcance, retroceso, sonido y efectos propios, y se mejora dos veces en la tienda. Las balas son proyectiles visibles (un núcleo brillante con una estela corta que se afina) que viajan desde la boca del arma a la velocidad propia de cada arma, también las de las torretas, con fogonazo orientado, humo, casquillos e impactos distintos si dan en un brotado o fallan. En la pestaña **Vender** de la tienda se recupera la mitad de lo invertido en un arma y sus mejoras (la pistola de feria no se vende), y también se venden botiquines y tracas. El rifle y el lanzatracas necesitan la Comisaría. El soplete necesita la Gasolinera. Además hay sartenazo cuerpo a cuerpo, tracas arrojadizas, golpes críticos y bonificación contra brotados deslumbrados por un foco.
 
 Los brotados mueren en una explosión de confeti y hojas. Los números de daño, los destellos al impactar, las sacudidas de cámara y los efectos de luz refuerzan cada disparo sin perder el tono animado.
 
@@ -172,7 +172,8 @@ Todo se genera en código, sin texturas ni modelos externos, y el audio también
 | `game/view/actors.gd`, `rig.gd` | Héroes, brotados, defensas, botín, estandartes, globos, supervivientes y su animación. |
 | `game/view/fx.gd` | Efectos con reservas de objetos reutilizables. |
 | `game/audio.gd` | Síntesis de efectos y música renderizada en un hilo de trabajo. |
-| `game/interface.gd` | Menú, ajustes, ayuda, HUD, minimapa, mapa, tienda, construcción, pausa y final. |
+| `game/interface.gd` | Menú, ajustes, ayuda, minimapa, mapa, tienda, construcción, pausa y final, con el tema de papel y tinta. |
+| `game/ui/hud.gd`, `game/ui/style.gd`, `game/ui/portrait.gd` | HUD dibujado por código (medallón del día, retrato 3D de la casa con su anillo de resistencia, palé de materiales, farolillos, insignia del oficio, arma, avisos sobre la cabeza), la paleta, fuentes e iconos comunes, y los retratos renderizados con los modelos del juego. |
 
 **Red.** El anfitrión decide todo lo que afecta al resultado. Cada cliente predice su propio movimiento y sus fogonazos para que el control responda sin retraso, y envía posición, puntería y botones a 30 Hz. El anfitrión valida la velocidad y corrige si hace falta. Las instantáneas viajan comprimidas a 20 Hz: unos 2 KB con decenas de brotados. Los eventos (disparos, impactos, construcciones…) llevan número de serie y se repiten durante varias instantáneas, así que una pérdida de paquete no borra efectos.
 
@@ -197,6 +198,10 @@ godot --headless -s tests/camera_test.gd
 ```
 
 ```bash
+godot --headless -s tests/shop_ui_test.gd
+```
+
+```bash
 godot --headless -s tests/coop_test.gd
 ```
 
@@ -204,7 +209,8 @@ godot --headless -s tests/coop_test.gd
 godot --headless -s tests/network_test.gd -- --host
 ```
 
-- `match_test.gd` comprueba 29 reglas: construcción, rutas alrededor de muros, rebuscar, tienda, disparo y recarga, conquista, reanimación, habilidades, ciclo de fases, derribadores y derrotas.
+- `shop_ui_test.gd` abre la tienda en una partida real y hace clics largos con el ratón mientras la partida sigue: comprar y vender deben funcionar.
+- `match_test.gd` comprueba 35 reglas (entre ellas, que coches, brotados y balas no atraviesan los coches): construcción, rutas alrededor de muros, rebuscar, tienda, disparo y recarga, conquista, reanimación, habilidades, ciclo de fases, derribadores y derrotas.
 - `goal_test.gd` comprueba las piezas, la carga, la caída con pieza, la instalación, la noche final, la victoria, la derrota y la revancha.
 - `profile_test.gd` comprueba los rangos, las ventajas, el guardado versionado y la recuperación de un archivo a medias.
 - `jobs_test.gd` comprueba el tablón de encargos y la generación de 60 días sin destinos inaccesibles ni repeticiones.

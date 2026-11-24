@@ -60,6 +60,15 @@ func _initialize():
 	for i in 60: g.tick(1.0 / 30.0)
 	check(not g.loot[0] and g.materials > mat, "Rebuscar da materiales")
 	g.drive(1, spot, Vector2.DOWN, 0)
+	# --- cars are solid
+	var car_c:Vector2 = Map.cars()[1][0]
+	var walker := car_c + Vector2(-3.0, 0)
+	for i in 120: walker = g.nav.move(walker, Vector2(4.0, 0) / 60.0, Game.PLAYER_R, 0)
+	check(walker.x < car_c.x - Map.CAR_HALF.x - Game.PLAYER_R + 0.05 and walker.x > car_c.x - 1.6, "Un coche aparcado no se atraviesa")
+	var zwalker := car_c + Vector2(0, -3.0)
+	for i in 120: zwalker = g.nav.move(zwalker, Vector2(0, 4.0) / 60.0, 0.38, 1)
+	check(zwalker.y < car_c.y - Map.CAR_HALF.y, "Los brotados tampoco atraviesan coches")
+	check(g.nav.ray(car_c + Vector2(-5, 0), Vector2.RIGHT, 10.0) < 4.5, "Las balas chocan con los coches")
 	# --- shop and weapons
 	p.p = Map.PLAYER_SPAWN
 	p.coins = 40
@@ -91,6 +100,14 @@ func _initialize():
 	p.coins = 30
 	g.act(1, "buy_gun", [4])
 	check(p.guns.has(4), "La Comisaría desbloquea el rifle de tómbola")
+	var before_sell:int = p.coins
+	g.act(1, "sell_gun", [4])
+	check(not p.guns.has(4) and p.coins == before_sell + 13 and p.guns.has(p.gun), "Vender un arma devuelve la mitad y cambia a otra")
+	g.act(1, "sell_gun", [0])
+	check(p.guns.has(0), "La pistola de feria no se vende")
+	p.tr = 2
+	g.act(1, "sell_item", ["traca"])
+	check(p.tr == 1 and p.coins == before_sell + 15, "Vender una traca")
 	# --- downed and revived
 	var mate:Dictionary = g.players[2]
 	mate.p = p.p + Vector2(1, 0)

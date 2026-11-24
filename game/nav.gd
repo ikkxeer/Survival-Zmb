@@ -17,6 +17,8 @@ var solid := PackedByteArray()        # buildings, props, trees, beacons
 var skind := PackedInt32Array()       # structure kind per cell or -1
 var shp := PackedFloat32Array()       # structure hp per cell (for path costs)
 var seeds := {}                       # field key -> Array of cells
+var cars := []                        # [centre, yaw] of each car (oriented boxes, see Map.cars)
+var car_at := {}                      # cell -> indices of cars overlapping it
 var fields := {}                      # "key:mode" -> PackedInt32Array
 var dirty := {}                       # "key:mode" -> true
 var active := {"base":true}           # objectives kept warm; others rebuild on demand
@@ -28,6 +30,7 @@ func _init():
 	skind.fill(-1)
 	shp.resize(W * H)
 	for r in Map.solids(): mark_rect(r)
+	mark_cars()
 	for s in Map.SITES: solid[cell_of(s.beacon)] = 1
 	var base_seeds := []
 	var br:Rect2 = Map.BASE
@@ -51,6 +54,36 @@ func mark_rect(r:Rect2):
 		for z in range(int(r.position.y), int(r.end.y)):
 			var c := cell_xz(x - OX, z - OZ)
 			if c >= 0: solid[c] = 1
+
+func mark_cars():
+	## Cars collide with their exact oriented box. Cells mostly covered by one are
+	## also solid (value 2) so flow fields route around and nobody builds there.
+	cars = Map.cars()
+	var half:Vector2 = Map.CAR_HALF
+	var reach := half.length()
+	for i in cars.size():
+		var c:Vector2 = cars[i][0]
+		for x in range(floori(c.x - reach), floori(c.x + reach) + 1):
+			for z in range(floori(c.y - reach), floori(c.y + reach) + 1):
+				var cell := cell_xz(x - OX, z - OZ)
+				if cell < 0: continue
+				if car_box_distance(i, Vector2(x + 0.5, z + 0.5)) < 0.72:
+					if not car_at.has(cell): car_at[cell] = []
+					car_at[cell].append(i)
+				if solid[cell] == 0 and in_car(i, Vector2(x + 0.5, z + 0.5), 0.15): solid[cell] = 2
+
+func car_local(i:int, p:Vector2) -> Vector2:
+	return (p - cars[i][0]).rotated(cars[i][1])
+
+func in_car(i:int, p:Vector2, grow:float = 0.0) -> bool:
+	var l := car_local(i, p)
+	return absf(l.x) <= Map.CAR_HALF.x + grow and absf(l.y) <= Map.CAR_HALF.y + grow
+
+func car_box_distance(i:int, p:Vector2) -> float:
+	## Distance from p to car i's box (0 inside).
+	var l := car_local(i, p)
+	var q := Vector2(maxf(absf(l.x) - Map.CAR_HALF.x, 0.0), maxf(absf(l.y) - Map.CAR_HALF.y, 0.0))
+	return q.length()
 
 func cell_xz(x:int, z:int) -> int:
 	if x < 0 or z < 0 or x >= W or z >= H: return -1
@@ -194,6 +227,10 @@ func blocked_cell(p:Vector2, r:float, who:int) -> int:
 	for x in range(floori(p.x - r), floori(p.x + r) + 1):
 		for z in range(floori(p.y - r), floori(p.y + r) + 1):
 			var c := cell_xz(x - OX, z - OZ)
+			if c >= 0 and car_at.has(c):
+				for i in car_at[c]:
+					if car_box_distance(i, p) < r: return c
+			if c >= 0 and solid[c] == 2 and skind[c] < 0: continue
 			if not blocks(c, who): continue
 			var q := Vector2(clampf(p.x, x, x + 1), clampf(p.y, z, z + 1))
 			if q.distance_squared_to(p) < r * r: return c if c >= 0 else -2
@@ -212,8 +249,12 @@ func ray(from:Vector2, dir:Vector2, length:float) -> float:
 	## Distance until a static obstacle (buildings stop bullets, structures do not).
 	var t := 0.3
 	while t < length:
-		var c := cell_of(from + dir * t)
-		if c >= 0 and solid[c]: return t
+		var q := from + dir * t
+		var c := cell_of(q)
+		if c >= 0 and solid[c] == 1: return t
+		if c >= 0 and car_at.has(c):
+			for i in car_at[c]:
+				if in_car(i, q): return t
 		t += 0.25
 	return length
 
