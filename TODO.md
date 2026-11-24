@@ -31,10 +31,14 @@ Objetivo de la próxima versión: que un grupo pueda descargar el juego, entrar 
 ## P1 · Mejorar las decisiones que se toman durante una noche
 
 - [ ] **Validar la lectura de las brechas con jugadores.** En una prueba sin instrucciones, comprobar si otro jugador llega al acceso anunciado y lo repara. Medir el tiempo desde el aviso hasta la reparación.
+  - Medición lista: el anfitrión guarda un registro por partida en `user://registros/partida-*.jsonl`. Cada brecha anota el acceso, la defensa perdida, cuánto tardó en cerrarse y quién la cerró. Falta la prueba con jugadores.
 - [ ] **Afinar la primera noche.** Observar a un jugador nuevo desde el menú hasta el amanecer. Anotar cuándo encuentra la primera caja, qué construye y si entiende el coste de conquistar. Corregir el primer bloqueo observado y repetir.
+  - Preparado: el primer día muestra una lista de pasos que se van marcando: rebuscar, construir en el lado del ataque, una opción arriesgada y tocar la campana. Falta observar a jugadores nuevos.
 - [ ] **Diferenciar las armas al oído y al disparar.** Coordinar con la rama de jugabilidad el sonido, la animación y la lectura del impacto de cada arma. Probar una defensa cercana y otra a distancia con los tres modelos.
+  - Implementado en la rama integrada: siete armas con sonido sintetizado propio, color y grosor de trazadora, fogonazo, sacudida, retroceso del personaje y empuje. El soplete y el lanzatracas tienen efectos propios. Falta la prueba de defensa cercana y lejana con jugadores.
 - [ ] **Afinar los ataques por varias calles.** Registrar por dónde llega cada grupo y qué defensa elige atacar. Probar al menos dos preparaciones distintas que permitan superar la misma oleada.
-- [ ] **Dar opciones de comodidad.** Sensibilidad de cámara, volumen de efectos y controles reasignables. Verificar que se conservan al reiniciar y que la ayuda muestra las teclas elegidas.
+  - Registro listo: cada grupo anota su calle, su tamaño y su asalto. Cada amanecer anota el daño recibido por acceso y la defensa perdida en cada brecha. Falta comparar dos preparaciones.
+- [x] **Dar opciones de comodidad.** Ajustes incluye sensibilidad de cámara, volumen general, de efectos y de música, tamaño de interfaz, sacudidas, destellos y números de daño, y todas las acciones reasignables (una tecla ocupada se intercambia). Se guardan de forma segura en `user://ajustes.cfg` con versión. `tests/settings_test.gd` verifica que se conservan al reiniciar y que la ayuda muestra las teclas elegidas.
 
 ## P2 · Ampliar el barrio después de validar el núcleo
 
@@ -47,12 +51,14 @@ Objetivo de la próxima versión: que un grupo pueda descargar el juego, entrar 
 Primero probar este ritmo durante tres noches con los cuatro puestos actuales. Por ejemplo, al atardecer quedan materiales para reforzar la entrada sur. El dispensario pide ayuda y la exploradora ha encontrado un atajo. En solitario puedes cerrar el acceso y volver mañana. En cooperativo, alguien puede cubrirte mientras vas a por el botiquín. Ambas decisiones deberían dar lugar a una noche interesante.
 
 - [ ] **Dar una pista útil al salir de casa.** Desde el porche deben distinguirse un recurso cercano y una oportunidad más arriesgada. En una prueba con cinco personas nuevas, observar si al menos cuatro eligen su primer destino sin abrir la ayuda.
+  - Implementado: el primer día marca en pantalla «✦ Botín cercano» y la propiedad libre más próxima como «arriesgado», además del vecino atrapado. Falta la prueba con cinco personas.
 - [ ] **Ofrecer un encargo corto y otro ambicioso.** Probar una recogida local y una reparación en dos paradas. Mostrar ubicación, riesgo y recompensa antes de aceptar. Completar, abandonar y dejar caducar cada encargo en solitario y en pareja.
-- [ ] **Permitir adelantar la noche.** Si todos han terminado de prepararse, pueden tocar la campana de la plaza. Probar el inicio inmediato en solitario y la votación en grupo, también cuando un jugador cancela o se desconecta.
-- [ ] **Dar trabajo útil a quien se queda en casa.** Permitir consultar el acceso más débil, preparar un lote de suministros y dejarlo para otro compañero. Comprobar que quien sale y quien se queda pueden explicar cómo ayudó el otro.
-- [ ] **Introducir pausas elegidas durante el asalto.** Tras rechazar un grupo, dar tiempo para reanimar, reparar o salir a recuperar una caja. Medir si las tres acciones caben por separado y si intentar hacerlas todas tiene un coste reconocible.
-- [ ] **Cambiar la siguiente decisión al amanecer.** Mostrar qué acceso recibió más daño, qué propiedad ayudó y cuánto queda en la caja común. Probar si el equipo usa esos datos para decidir su próxima compra.
+- [x] **Permitir adelantar la noche.** La campana de la plaza (mantener E) o N marcan a cada vecino como listo, y volver a tocarla lo cancela. Cuando todos los presentes están listos, la noche llega en 4 s; en solitario basta con una persona. Quien se desconecta deja de contar. Verificado en `match_test`.
+- [x] **Dar trabajo útil a quien se queda en casa.** El plano indica el acceso más débil (defensas y resistencia por lado). En la tienda se prepara un lote por 4 materiales comunes: munición, botiquín, traca y 40 de salud, que se deja en el porche para un compañero. La recogida se anuncia con el nombre de quien lo preparó y la pantalla final cuenta los lotes de cada uno. Falta comprobar con jugadores que lo explican.
+- [x] **Introducir pausas elegidas durante el asalto.** Cada noche se divide en dos asaltos, o tres a partir de la tercera. Tras rechazar uno hay 15 s de respiro con cuenta atrás, y un globo deja una caja en el exterior. Si no da tiempo a todo, el siguiente asalto llega con la tarea a medias. Verificado en `match_test`. Falta medir con jugadores cuántas acciones caben.
+- [x] **Cambiar la siguiente decisión al amanecer.** El informe del amanecer muestra lo ganado, lo que aportó cada propiedad y cada vecino de la comunidad, el acceso más castigado (y si sigue abierto) y la caja común. Falta comprobar si el equipo lo usa para decidir.
 - [ ] **Medir la espera real.** Revisar grabaciones de sesiones en solitario y en grupo. Anotar por jugador los tramos de más de 20 segundos en los que quería actuar y no encontraba cómo. Distinguirlos del descanso voluntario y repetir la prueba tras corregir el tramo más frecuente.
+  - Registro listo: el anfitrión anota cada tramo de más de 20 s sin moverse ni actuar, con jugador, duración y fase. Falta cruzarlo con grabaciones para separar el descanso voluntario.
 
 ## P2 · Convertir el barrio en un lugar al que merezca la pena volver
 

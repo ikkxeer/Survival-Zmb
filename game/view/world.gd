@@ -380,6 +380,17 @@ func build_base():
 		var stripe := col("fff2d6") if i % 2 == 0 else col("e8665a")
 		k.box(sx * Kit.rot(-0.83 + i * 0.33, 2.2, 0.05, 0, 0.35), Vector3(0.33, 0.06, 1.3), stripe, 0.01)
 	label_at("TIENDA", Vector3(4.6, 1.5, 3.25), 0.0045, Color("fff2c9"), true)
+	# plaza bell: ringing it votes to bring the night forward
+	var b:Vector2 = Map.BELL
+	for side in [-0.45, 0.45]:
+		k.box(Kit.rot(b.x + side, 1.3, b.y, 0, 0, -side * 0.12), Vector3(0.16, 2.6, 0.16), col("8b5e3c"), 0.04)
+	k.box(Kit.at(b.x, 2.65, b.y), Vector3(1.3, 0.18, 0.5), col("c44b3b"), 0.06)
+	k.box(Kit.rot(b.x - 0.33, 2.85, b.y, 0, 0, 0.5), Vector3(0.8, 0.08, 0.55), col("e8665a"), 0.03)
+	k.box(Kit.rot(b.x + 0.33, 2.85, b.y, 0, 0, -0.5), Vector3(0.8, 0.08, 0.55), col("e8665a"), 0.03)
+	k.cylinder(Kit.at(b.x, 2.22, b.y), 0.32, 0.16, 0.5, col("e0a63a"), 14, true, 0.2)
+	k.sphere(Kit.at(b.x, 1.94, b.y), Vector3(0.07, 0.07, 0.07), col("8b5e3c"), 6, 4)
+	k.box(Kit.at(b.x, 0.08, b.y), Vector3(1.4, 0.16, 0.8), col("cfc5b8"), 0.04)
+	label_at("CAMPANA", Vector3(b.x, 3.25, b.y), 0.004, Color("fff2c9"), true)
 
 func build_sites():
 	taller(Map.SITES[0])

@@ -31,6 +31,7 @@ var structs := {}
 var loot_nodes := []
 var beacons := []
 var drops := {}
+var bundles := {}
 var people := {}
 var community := []
 var projectiles := []
@@ -810,7 +811,7 @@ func set_beacon(i:int, claimed:bool, frac:float):
 	n.set_meta("claimed", claimed)
 
 func clear_all():
-	for d in [heroes, horde, structs, drops, people]:
+	for d in [heroes, horde, structs, drops, people, bundles]:
 		for n in d.values(): n.queue_free()
 		d.clear()
 	for n in community: n.queue_free()
@@ -983,6 +984,28 @@ func apply(s:Dictionary, me:int):
 		if not dr_seen.has(id):
 			drops[id].queue_free()
 			drops.erase(id)
+	# supply bundles left on the porch
+	var bu_seen := {}
+	for b in s.get("bu", []):
+		bu_seen[b[0]] = true
+		if not bundles.has(b[0]):
+			var mi := MeshInstance3D.new()
+			mi.mesh = cached("bundle", func(k:Kit):
+				k.box(Kit.at(0, 0.3, 0), Vector3(0.75, 0.6, 0.6), C("d49a5c"), 0.06, 0.25)
+				k.box(Kit.at(0, 0.3, 0), Vector3(0.12, 0.62, 0.62), C("e85d5d"), 0.02)
+				k.box(Kit.at(0, 0.3, 0), Vector3(0.77, 0.62, 0.12), C("e85d5d"), 0.02)
+				k.sphere(Kit.at(0, 0.66, 0), Vector3(0.14, 0.09, 0.14), C("ff6b8b"), 8, 4)
+				k.box(Kit.at(0.25, 0.42, 0.31), Vector3(0.14, 0.04, 0.02), C("ffffff"), 0.0)
+				k.box(Kit.at(0.25, 0.42, 0.31), Vector3(0.04, 0.14, 0.02), C("ffffff"), 0.0))
+			mi.material_override = toon
+			mi.position = Vector3(b[1], 0, b[2])
+			mi.scale = Vector3.ONE * 0.2
+			add_child(mi)
+			bundles[b[0]] = mi
+	for id in bundles.keys():
+		if not bu_seen.has(id):
+			bundles[id].queue_free()
+			bundles.erase(id)
 	# projectiles
 	var pr:PackedFloat32Array = s.pr
 	var count := pr.size() / 4
@@ -1101,12 +1124,19 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 	for i in community.size():
 		var r:Rig = community[i]
 		r.animate_hero(dt, t, 0.0, false, false, 0, false, false, i % 3 == 0)
+	bundle_bob(t, dt)
 	for id in drops:
 		var d:Array = drop_info[id]
 		var mi:MeshInstance3D = drops[id]
 		var fall:float = d[3]
 		mi.position = Vector3(d[1] + sin(t * 0.7) * 0.3 * minf(fall, 1.0), maxf(0.0, fall) * 4.0, d[2])
 		mi.rotation.y = t * 0.3
+
+func bundle_bob(t:float, dt:float):
+	for id in bundles:
+		var mi:MeshInstance3D = bundles[id]
+		mi.scale = mi.scale.lerp(Vector3.ONE, 1.0 - exp(-8.0 * dt))
+		mi.rotation.y = sin(t * 1.5 + id) * 0.15
 
 func show_ghost(kind:int, at:Vector3, valid:bool):
 	if kind < 0:

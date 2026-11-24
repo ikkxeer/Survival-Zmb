@@ -14,6 +14,8 @@ const EVENT_KEEP := 0.4
 const PING_DURATION := 8.0
 const PING_INTERVAL := 1.5
 const ALERT_TIME := 3.2
+const RESPITE := 15.0
+const BUNDLE_COST := 4
 
 var nav := Nav.new()
 var rng := RandomNumberGenerator.new()
@@ -55,6 +57,13 @@ var buckets := {}
 var alerts := []          # per access (norte, este, sur, oeste): {hit, breach, house}
 var sector_damage := [0.0, 0.0, 0.0, 0.0]
 var site_hit := []
+var assaults := []        # remaining assault groups of tonight
+var assault_index := 0
+var assault_count := 1
+var respite := 0.0
+var bundles := []         # supply bundles left at the porch for team-mates
+var journal := []         # telemetry lines for playtests (read and cleared by the host)
+var breach_open := [-1.0, -1.0, -1.0, -1.0]
 
 func _init():
 	rng.randomize()
@@ -154,7 +163,7 @@ func join(id:int, role:int, name:String = "") -> bool:
 		"fire": false, "use": false, "roll": false, "ab": 0.0, "buff": 0.0, "med": 2 if role == 1 else 1,
 		"tr": 2, "kills": 0, "notice": "", "nt": 0.0, "hold": "", "ht": 0.0, "hm": 0.0, "hkey": "",
 		"prompt": "", "ready": false, "melee": 0.0, "heal": 0.0, "acc": 0.0, "last": time, "fix": 0,
-		"ping": null, "ping_left": 0.0, "dmg": 0.0, "flame": 0.0, "cursor": Vector2.ZERO,
+		"ping": null, "ping_left": 0.0, "active": time, "last_p": Vector2.ZERO, "helped": 0, "dmg": 0.0, "flame": 0.0, "cursor": Vector2.ZERO,
 	}
 	players[id] = p
 	emit("join", [id])
@@ -215,6 +224,7 @@ func give_xp(p:Dictionary, amount:int):
 func act(id:int, action:String, args:Array = []):
 	if not players.has(id) or phase == P.OVER: return
 	var p:Dictionary = players[id]
+	p.active = time
 	if action == "ready":
 		p.ready = not p.ready
 		return
@@ -273,6 +283,7 @@ func act(id:int, action:String, args:Array = []):
 			p.tr += 1
 			emit("buy", [id])
 		"core_up": core_upgrade(p)
+		"bundle": prepare_bundle(id, p)
 
 func mark(id:int, point) -> bool:
 	## Team signal: lasts PING_DURATION, one every PING_INTERVAL. Fallen players mark where they lie.
@@ -333,6 +344,9 @@ func build(id:int, p:Dictionary, kind:int, cell:int):
 	give_xp(p, 2)
 	if def.block or kind == Data.S_WIRE:
 		var sec := sector_of(c)
+		if alerts[sec].breach and breach_open[sec] >= 0:
+			log_line({"evento":"brecha_cerrada", "acceso":Map.FRONT_NAMES[sec], "segundos":snappedf(time - breach_open[sec], 0.1), "por":p.name})
+			breach_open[sec] = -1.0
 		alerts[sec].breach = false
 		alerts[sec].hit = 0.0
 	emit("build", [cell, kind])
@@ -367,7 +381,12 @@ func demolish(p:Dictionary, cell:int):
 func remove_structure(cell:int, broken:bool):
 	if not structures.has(cell): return
 	var k:int = structures[cell].k
-	if broken and (Data.STRUCTURES[k].block or k == Data.S_WIRE): alerts[sector_of(nav.center(cell))].breach = true
+	if broken and (Data.STRUCTURES[k].block or k == Data.S_WIRE):
+		var sec := sector_of(nav.center(cell))
+		if not alerts[sec].breach:
+			breach_open[sec] = time
+			log_line({"evento":"brecha", "acceso":Map.FRONT_NAMES[sec], "defensa":Data.STRUCTURES[k].name})
+		alerts[sec].breach = true
 	structures.erase(cell)
 	nav.clear_structure(cell)
 	emit("break" if broken else "remove", [cell, k])
@@ -436,6 +455,33 @@ func buy_ammo(p:Dictionary, g:int):
 	p.coins -= price
 	p.res[g] = top
 	emit("buy", [p.p.x, p.p.y])
+
+func prepare_bundle(id:int, p:Dictionary):
+	## Someone staying home packs ammo, a medkit and a firecracker for a team-mate.
+	if not near_shop(p.p): return say(p, "Prepara el lote en la tienda de la casa")
+	if players.size() < 2: return say(p, "Los lotes sirven para tus compañeros")
+	if bundles.size() >= 3: return say(p, "Ya hay tres lotes esperando en el porche")
+	if materials < BUNDLE_COST: return say(p, "Necesitas %d materiales" % BUNDLE_COST)
+	materials -= BUNDLE_COST
+	serial += 1
+	var spot:Vector2 = Map.PORCH + Vector2(bundles.size() * 0.9, 0)
+	bundles.append({"id":serial, "p":spot, "owner":id})
+	give_xp(p, 3)
+	emit("bundle", [spot.x, spot.y])
+	announce("%s deja un lote de suministros en el porche" % p.name)
+
+func take_bundle(p:Dictionary, b:Dictionary):
+	bundles.erase(b)
+	for g in p.guns: if p.res[g] >= 0: p.res[g] = max_reserve(p, g)
+	p.med = mini(3, p.med + 1)
+	p.tr = mini(6, p.tr + 1)
+	p.hp = minf(p.hpmax, p.hp + 40)
+	if players.has(b.owner):
+		players[b.owner].helped += 1
+		give_xp(players[b.owner], 5)
+		announce("%s recoge el lote de %s: munición, botiquín y traca" % [p.name, players[b.owner].name])
+	emit("loot", [b.p.x, b.p.y])
+	log_line({"evento":"lote", "de":players[b.owner].name if players.has(b.owner) else "?", "para":p.name})
 
 func core_upgrade(p:Dictionary):
 	if not near_shop(p.p): return say(p, "Hazlo desde la casa")
@@ -758,8 +804,22 @@ func start_night():
 				queue.append(k)
 				break
 	if night_event == 6:
-		queue.insert(mini(4, queue.size()), Data.BOSS)
+		queue.append(Data.BOSS)
 	night_total = queue.size()
+	# Split the night into assaults with a respite between them.
+	assault_count = 2 if wave < 3 else 3
+	assaults = []
+	var per := ceili(float(queue.size()) / assault_count)
+	for i in assault_count:
+		assaults.append(queue.slice(i * per, mini(queue.size(), (i + 1) * per)))
+	if night_event == 6:
+		var last:Array = assaults[-1]
+		last.erase(Data.BOSS)
+		last.insert(0, Data.BOSS)
+	queue = assaults.pop_front()
+	assault_index = 1
+	respite = 0.0
+	log_line({"evento":"noche", "noche":wave, "tipo":Data.NIGHT_EVENTS[night_event].name, "frentes":fronts.map(func(f): return Map.FRONT_NAMES[f]), "brotados":night_total, "asaltos":assault_count})
 	sector_damage = [0.0, 0.0, 0.0, 0.0]
 	spawn_timer = 2.0
 	lightning_timer = 5.0
@@ -774,6 +834,7 @@ func spawn_tick(dt:float):
 	if enemies.size() >= MAX_ENEMIES: return
 	var group := mini(queue.size(), rng.randi_range(3, 5 + wave / 3))
 	var front:int = fronts[rng.randi_range(0, fronts.size() - 1)]
+	log_line({"evento":"grupo", "frente":Map.FRONT_NAMES[front], "tamano":group, "asalto":assault_index})
 	for i in group:
 		var kind:int = queue.pop_front()
 		var e := new_enemy(kind, front_point(front), pick_goal(), true)
@@ -835,6 +896,7 @@ func start_dawn():
 		for e in enemies.values(): if e.guard and e.home.distance_to(Map.SITES[i].beacon) < 6: guards += 1
 		for g in range(guards, mini(4, 2 + wave / 4)): spawn_guard(i)
 	emit("dawn", [wave])
+	log_line({"evento":"amanecer", "noche":wave - 1, "casa":int(core), "materiales":materials, "danos_por_acceso":{"norte":int(sector_damage[0]), "este":int(sector_damage[1]), "sur":int(sector_damage[2]), "oeste":int(sector_damage[3])}, "informe":report.duplicate()})
 	plan_day()
 
 func start_prep():
@@ -847,10 +909,19 @@ func time_of_day() -> float:
 	match phase:
 		P.PREP: return lerpf(0.76, 0.30, clock / phase_len)
 		P.NIGHT:
-			var done := 1.0 - float(queue.size() + night_alive()) / maxf(1.0, night_total)
+			var done := 1.0 - float(remaining()) / maxf(1.0, night_total)
 			return fmod(0.80 + 0.32 * clampf(done, 0, 1), 1.0)
 		P.DAWN: return lerpf(0.29, 0.13, clock / phase_len)
 	return 0.9
+
+func remaining() -> int:
+	var n := queue.size() + night_alive()
+	for a in assaults: n += a.size()
+	return n
+
+func log_line(entry:Dictionary):
+	entry["t"] = snappedf(time, 0.1)
+	journal.append(entry)
 
 func night_alive() -> int:
 	var n := 0
@@ -896,8 +967,23 @@ func tick_phase(dt:float):
 					new_enemy(0, front_point(rng.randi_range(0, 3)), "base", false)
 			if clock <= 0: start_night()
 		P.NIGHT:
+			if respite > 0:
+				respite -= dt
+				if respite <= 0:
+					queue = assaults.pop_front()
+					assault_index += 1
+					spawn_timer = 1.0
+					emit("assault", [assault_index, assault_count])
+					announce("¡Asalto %d de %d!" % [assault_index, assault_count])
+				return
 			spawn_tick(dt)
-			if queue.is_empty() and night_alive() == 0: start_dawn()
+			if queue.is_empty() and night_alive() == 0:
+				if assaults.is_empty(): start_dawn()
+				else:
+					respite = RESPITE
+					emit("respite", [RESPITE])
+					announce("Respiro de %d s: reparad, reanimad o salid a por la caja del globo" % int(RESPITE))
+					event_drop()
 		P.DAWN:
 			clock -= dt
 			if clock <= 0: start_prep()
@@ -913,6 +999,7 @@ func check_end():
 func end_game(reason:String):
 	phase = P.OVER
 	report = [reason]
+	log_line({"evento":"fin", "motivo":reason, "noche":wave, "derribos":stats.kills})
 	emit("over", [wave])
 
 func tick_players(dt:float):
@@ -927,6 +1014,11 @@ func tick_players(dt:float):
 		p.buff = maxf(0, p.buff - dt)
 		p.melee = maxf(0, p.melee - dt)
 		p.cool -= dt
+		if p.p.distance_to(p.last_p) > 0.05 or p.fire or p.use:
+			if time - p.active > 20.0 and phase != P.OVER:
+				log_line({"evento":"espera", "jugador":p.name, "segundos":snappedf(time - p.active, 0.1), "fase":Data.PHASE_NAMES[phase]})
+			p.active = time
+		p.last_p = p.p
 		if p.st == 1:
 			p.bleed -= dt
 			p.prompt = "Has caído. Espera a un compañero%s" % (" o pulsa H para usar un botiquín" if p.med > 0 else "")
@@ -988,6 +1080,15 @@ func interact(id:int, p:Dictionary, dt:float):
 			if p.ht >= p.hm:
 				open_drop(p, target.drop)
 				p.hkey = ""
+		"bundle":
+			if p.ht >= p.hm:
+				take_bundle(p, target.bundle)
+				p.hkey = ""
+		"bell":
+			if p.ht >= p.hm:
+				p.ready = not p.ready
+				p.ht = -1000.0  # one toggle per press: release E to ring again
+				emit("bell", [Map.BELL.x, Map.BELL.y, 1 if p.ready else 0])
 		"loot":
 			if p.ht >= p.hm:
 				scavenge(p, target.index)
@@ -1044,6 +1145,13 @@ func find_use_target(id:int, p:Dictionary) -> Dictionary:
 	for d in drops:
 		if d.t <= 0 and d.p.distance_to(p.p) < 2.2:
 			return {"type":"drop", "key":"dr%d" % d.id, "label":"Abriendo suministros", "time":1.0, "drop":d, "prompt":"Mantén E: abrir suministros"}
+	for b in bundles:
+		if b.owner != id and b.p.distance_to(p.p) < 2.0:
+			var who:String = players[b.owner].name if players.has(b.owner) else "un vecino"
+			return {"type":"bundle", "key":"bu%d" % b.id, "label":"Recogiendo el lote", "time":0.6, "bundle":b, "prompt":"Mantén E: recoger el lote de %s" % who}
+	if phase == P.PREP and Map.BELL.distance_to(p.p) < 1.9:
+		var txt := "cancelar «listo»" if p.ready else "tocar la campana (listos para la noche)"
+		return {"type":"bell", "key":"bell", "label":"Tocando la campana", "time":0.35, "prompt":"Mantén E: " + txt}
 	var best := -1
 	var best_d := 1.9
 	for i in loot.size():
@@ -1606,7 +1714,7 @@ func snapshot() -> Dictionary:
 		var p:Dictionary = players[id]
 		pl[id] = {"name":p.name, "role":p.role, "slot":p.slot, "p":p.p, "aim":p.aim, "hp":p.hp, "hpmax":p.hpmax, "st":p.st,
 			"bleed":p.bleed, "coins":p.coins, "xp":p.xp, "lvl":p.lvl, "gun":p.gun, "guns":p.guns, "mag":p.mag, "res":p.res,
-			"rl":p.rl, "rlmax":p.rlmax, "ab":p.ab, "buff":p.buff, "med":p.med, "tr":p.tr, "kills":p.kills,
+			"rl":p.rl, "rlmax":p.rlmax, "ab":p.ab, "buff":p.buff, "med":p.med, "tr":p.tr, "kills":p.kills, "helped":p.helped,
 			"notice":p.notice if p.nt > 0 else "", "hold":p.hold, "ht":p.ht, "hm":p.hm, "prompt":p.prompt, "ready":p.ready,
 			"roll":p.roll, "fix":p.fix, "ping":p.ping, "ping_left":p.ping_left, "dmg":p.dmg, "fire":p.fire and p.rl <= 0, "use":p.use}
 	var si := []
@@ -1623,7 +1731,7 @@ func snapshot() -> Dictionary:
 	for key in enemies:
 		if enemies[key].k == Data.BOSS: boss = [key, enemies[key].hp / enemies[key].max]
 	return {"ph":phase, "w":wave, "c":clock, "cl":phase_len, "tod":time_of_day(), "core":core, "cmax":core_max, "clvl":core_level,
-		"mat":materials, "ev":night_event, "wx":weather, "fr":fronts, "rem":queue.size() + night_alive(), "tot":night_total,
+		"mat":materials, "ev":night_event, "wx":weather, "fr":fronts, "rem":remaining(), "rs":respite, "as":[assault_index, assault_count], "bu":bundles.map(func(b): return [b.id, b.p.x, b.p.y, b.owner]), "tot":night_total,
 		"pl":pl, "en":en, "st":st, "si":si, "lo":loot.duplicate(), "pr":pr, "sv":sv, "dr":dr, "cm":community.duplicate(),
 		"fx":events.duplicate(), "rep":report, "boss":boss, "sk":sk, "stats":stats, "time":time, "cc":claim_cost(), "br":br, "sh":site_hit.duplicate()}
 

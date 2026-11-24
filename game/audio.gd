@@ -139,6 +139,7 @@ func build_bank():
 	bank.down = wav(synth(0.7, func(t, i): return sin(TAU * (440 - 260 * t) * t) * 0.35 * exp(-3 * t)))
 	bank.alarm = wav(synth(0.4, func(t, i): return signf(sin(TAU * (880 if fmod(t, 0.2) < 0.1 else 660) * t)) * 0.18 * exp(-2 * t)))
 	bank.claim = wav(mix(bank_arp([392.0, 523.0, 659.0, 784.0]), synth(0.6, func(t, i): return sin(TAU * 1046 * t) * 0.2 * exp(-4 * t)), 0.36))
+	bank.bell = wav(synth(1.6, func(t, i): return (sin(TAU * 523 * t) + 0.6 * sin(TAU * 1310 * t) * exp(-3 * t) + 0.4 * sin(TAU * 2093 * t) * exp(-5 * t) + 0.3 * sin(TAU * 262 * t)) * 0.28 * exp(-2.2 * t) * minf(1.0, t * 200.0)))
 	bank.fuse = wav(synth(0.3, func(t, i): return noise() * 0.3 * (0.5 + 0.5 * signf(sin(TAU * 30 * t)))))
 	bank.birds = wav(synth(4.0, func(t, i):
 		var s := 0.0

@@ -65,6 +65,7 @@ var autopilot := {}        # tests and benchmarks: {"move":Vector2, "cursor":Vec
 var latency := 0.0          # simulated one-way delay for clients (--latencia=ms)
 var lag_in := []
 var lag_out := []
+var journal_file:FileAccess
 var last_phase := -1
 var crosshair:ImageTexture
 
@@ -158,6 +159,7 @@ func start(which:String, role:int, address:String, player_name:String):
 		ui.big("Conectando…", "Buscando al anfitrión en " + address, Color.WHITE, 30.0)
 		return
 	sim.join(1, chosen_role, chosen_name)
+	open_journal()
 	state = sim.snapshot()
 	if mode == "host":
 		var ips := []
@@ -166,8 +168,25 @@ func start(which:String, role:int, address:String, player_name:String):
 		ui.say("Partida abierta en el puerto %d. Tus compañeros pueden unirse a: %s" % [PORT, ", ".join(ips) if ips.size() else "tu IP local"], Color("ffd166"))
 	ui.big("La última verbena", "Prepara la casa antes del anochecer. Rebusca, construye (B) y conquista (C).", Color("ffd166"), 5.0)
 
+func open_journal():
+	## Host-side session log (JSON lines) for playtests: routes, breaches, waits and dawns.
+	DirAccess.make_dir_recursive_absolute("user://registros")
+	var stamp := Time.get_datetime_string_from_system().replace(":", "").replace("-", "").replace("T", "-")
+	journal_file = FileAccess.open("user://registros/partida-%s.jsonl" % stamp, FileAccess.WRITE)
+	if journal_file:
+		journal_file.store_line(JSON.stringify({"evento":"inicio", "modo":mode, "version":ProjectSettings.get_setting("application/config/version", "dev"), "fecha":Time.get_datetime_string_from_system()}))
+
+func flush_journal():
+	if sim.journal.is_empty(): return
+	if journal_file:
+		for entry in sim.journal: journal_file.store_line(JSON.stringify(entry))
+		journal_file.flush()
+	sim.journal.clear()
+
 func stop(reason:String):
 	if mode == "": return
+	if mode != "join": flush_journal()
+	journal_file = null
 	mode = ""
 	end_orbit()
 	camera.reset()
@@ -464,6 +483,7 @@ func _physics_process(dt:float):
 		return
 	if not me.is_empty(): sim.drive(1, local_pos, cursor - local_pos, buttons)
 	sim.tick(dt)
+	flush_journal()
 	var snap := sim.snapshot()
 	if mode == "host" and net_clock <= 0:
 		net_clock = SEND_RATE
@@ -690,6 +710,18 @@ func handle_event(type:String, d:Array, me:int):
 			fx.ring(v3(d[0], d[1]), col, 0.3, 2.5, 1.2)
 			fx.ring(v3(d[0], d[1]), col, 2.0, 2.0, 5.0, true)
 			audio.play("click", null, 0, 0.6)
+		"assault":
+			audio.play("horn", null, -2, 1.1)
+			ui.big("ASALTO %d DE %d" % [d[0], d[1]], "Vuelven a la carga", Color("ff9a8a"), 3.0)
+		"respite":
+			audio.play("dawn", null, -8, 1.4)
+			ui.big("RESPIRO", "%d s para reparar, reanimar o salir a por la caja del globo" % int(d[0]), Color("9ff6c8"), 3.5)
+		"bundle":
+			fx.burst("stars", v3(d[0], d[1], 0.1))
+			audio.play("coin", v3(d[0], d[1], 1), -2, 0.8)
+		"bell":
+			audio.play("bell", v3(d[0], d[1], 2.2), 0)
+			fx.ring(v3(d[0], d[1]), Color("ffd166"), 0.5, 6.0, 0.8)
 		"warn":
 			fx.ring(v3(d[0], d[1]), Color("cfe4ff"), 4.0, 4.0, 1.0, true)
 		"bolt":
@@ -804,6 +836,15 @@ func indicators(s:Dictionary, me:int) -> Array:
 		var dist := roundi(Vector2(local_pos.x, local_pos.y).distance_to(q.ping)) if local_pos != Vector2.INF else 0
 		var col := Color("ff6b6b") if q.st != 0 else Color(actors.SLOT_COLORS[q.slot % 4])
 		add.call(v3(q.ping.x, q.ping.y, 1.7), col, "%s · %d m" % [Data.ROLES[q.role].name if id != me else "Tú", dist])
+	if s.w == 1 and s.ph == P.PREP and local_pos != Vector2.INF:
+		var near := -1
+		for i in Map.LOOT.size():
+			if s.lo[i] and (near < 0 or Map.LOOT[i].p.distance_to(local_pos) < Map.LOOT[near].p.distance_to(local_pos)): near = i
+		if near >= 0: add.call(v3(Map.LOOT[near].p.x, Map.LOOT[near].p.y, 1.8), Color("9ff6c8"), "✦ Botín cercano")
+		var site := -1
+		for i in Map.SITES.size():
+			if not s.si[i][0] and (site < 0 or Map.SITES[i].beacon.distance_to(local_pos) < Map.SITES[site].beacon.distance_to(local_pos)): site = i
+		if site >= 0: add.call(v3(Map.SITES[site].beacon.x, Map.SITES[site].beacon.y, 3.5), Color(Data.SITES[site].color), "%s · arriesgado" % Data.SITES[site].name)
 	if s.boss.size() > 0 and actors.horde.has(s.boss[0]): add.call(actors.horde[s.boss[0]].position + Vector3(0, 3, 0), Color("c45ad8"), "Gigantón")
 	return out
 

@@ -44,7 +44,7 @@ Todas las teclas se cambian en **Ajustes → Controles** y se guardan en `user:/
 - Una **horda errante** cruza el barrio.
 - Brotados sueltos rondan las calles.
 
-Cuando todos pulsan **N**, la noche llega antes.
+Cuando todos tocan la **campana** de la plaza o pulsan **N**, la noche llega antes. El primer día una lista de pasos y dos marcas (botín cercano y una propiedad arriesgada) orientan a quien empieza. Quien se queda en casa puede preparar en la tienda un **lote** con munición, botiquín y traca para un compañero.
 
 **Noche (supervivencia).** Los brotados llegan en grupos por los frentes anunciados. Van a por la casa y a por los estandartes de las propiedades conquistadas. La IA usa campos de flujo sobre una cuadrícula de 1 m. Cada brotado compara rodear las defensas con romperlas según su resistencia, persigue a los jugadores que ve y golpea lo que le cierra el paso. Cada noche aplica un evento:
 
@@ -57,6 +57,8 @@ Cuando todos pulsan **N**, la noche llega antes.
 | Tormenta | Lluvia y rayos que caen al azar sobre brotados, defensas y vecinos. |
 | Verbena roja | Luna roja: brotados más rápidos y más fichas. |
 | Noche de gigantes | Cada cinco noches llega un **Gigantón** que pisa en área y convoca brotados. |
+
+La noche llega en dos o tres **asaltos**. Entre uno y otro hay 15 segundos de **respiro**: da tiempo a reparar, reanimar o salir a por la caja que suelta un globo, pero no a todo.
 
 **Amanecer (recuperación).** Llegan las recompensas de las propiedades y de la comunidad. Los caídos vuelven y el botín se repone. Es el momento de comprar, mejorar y reparar antes del siguiente día.
 
@@ -164,6 +166,8 @@ Todo se genera en código, sin texturas ni modelos externos, y el audio también
 
 **Red.** El anfitrión decide todo lo que afecta al resultado. Cada cliente predice su propio movimiento y sus fogonazos para que el control responda sin retraso, y envía posición, puntería y botones a 30 Hz. El anfitrión valida la velocidad y corrige si hace falta. Las instantáneas viajan comprimidas a 20 Hz: unos 2 KB con decenas de brotados. Los eventos (disparos, impactos, construcciones…) llevan número de serie y se repiten durante varias instantáneas, así que una pérdida de paquete no borra efectos.
 
+**Registro de partida.** El anfitrión guarda en `user://registros/` un archivo JSON por línea con noches, frentes y grupos de cada asalto, brechas con su tiempo de cierre, esperas de más de 20 s, lotes y amaneceres. Sirve para las pruebas con jugadores de [TODO.md](TODO.md).
+
 **Rendimiento.** Hay un máximo de 72 brotados activos. Las búsquedas de vecinos usan cubos espaciales y las mallas compartidas se precalculan al cargar. La vegetación se dibuja con MultiMesh y los efectos reutilizan nodos. Los ajustes gráficos tienen cuatro niveles: sombras, oclusión ambiental, antialiasing, escala de render, densidad de césped, niebla volumétrica y desenfoque. En la prueba de estrés, la lógica y la presentación tardan unos 7 ms de CPU por fotograma con más de 70 brotados.
 
 ## Verificación
@@ -189,6 +193,9 @@ godot --headless -s tests/network_test.gd -- --host
 ```
 
 - `match_test.gd` comprueba 29 reglas: construcción, rutas alrededor de muros, rebuscar, tienda, disparo y recarga, conquista, reanimación, habilidades, ciclo de fases, derribadores y derrotas.
+- `settings_test.gd` comprueba que ajustes y teclas se conservan al reiniciar, que una tecla ocupada se intercambia y que la ayuda muestra las teclas elegidas.
+- `python tests/run_session.py --jugadores 1|2|4` juega tres noches con un anfitrión y clientes reales por ENet (latencia simulada y una salida a mitad de oleada) y compara el estado final en todos los procesos.
+- `godot --path . -s tests/benchmark.gd` mide una oleada llena en cada calidad gráfica y guarda `user://benchmark.md`.
 - `soak_test.gd` hace que cuatro bots jueguen varias noches y mide el coste de cada paso de simulación y el tamaño de las instantáneas.
 - `camera_test.gd` comprueba el movimiento relativo a la cámara girada, los límites de giro y zoom, la parada ante las fachadas y que el puntero coincide con el plano de tiro.
 - `coop_test.gd` comprueba el plano (proyección, clic para señalar sin disparar), la frecuencia, los límites y la caducidad de las señales, las brechas y su limpieza, y la petición de ayuda al caer.

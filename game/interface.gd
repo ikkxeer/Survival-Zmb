@@ -90,6 +90,8 @@ var over_text := Label.new()
 var overlay:Control
 var help_hint := Label.new()
 var prompt_box:VBoxContainer
+var guide_box := PanelContainer.new()
+var guide_label := Label.new()
 var ready_label := Label.new()
 var last_state := {}
 var my_id := 0
@@ -550,6 +552,15 @@ func build_hud():
 	team_box.position = Vector2(16, 178)
 	team_box.add_theme_constant_override("separation", 6)
 	team_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud.add_child(guide_box)
+	guide_box.add_theme_stylebox_override("panel", box(Color(Color("24364f"), 0.9), 14, 12, YELLOW, 2))
+	guide_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guide_box.custom_minimum_size = Vector2(330, 0)
+	guide_box.add_child(guide_label)
+	guide_label.add_theme_font_size_override("font_size", 15)
+	guide_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	guide_label.custom_minimum_size.x = 306
+	guide_box.visible = false
 	# message feed
 	hud.add_child(feed)
 	anchor(feed, 0.0, 1.0, Vector2(18, -205))
@@ -773,6 +784,7 @@ func refresh_shop():
 						shop_row("Munición: " + w.name, "Rellena la reserva (%d)." % p.res[g], "Rellenar · %d" % w.ammo_price, p.coins >= w.ammo_price, func(): action.emit("ammo", [g]), Color("aab4cc"))
 		1:
 			shop_row("Botiquín (%d/3)" % p.med, "H para curarte 55 de salud. Si caes, te levanta.", "Comprar · %d" % Data.MEDKIT.price, p.coins >= Data.MEDKIT.price and p.med < 3, func(): action.emit("buy_medkit", []), MINT)
+			shop_row("Lote para el equipo", "Deja en el porche munición, un botiquín, una traca y 40 de salud para un compañero. Quien se queda en casa también ayuda. Cuesta %d materiales comunes." % 4, "Preparar · 4 mat.", s.mat >= 4 and s.pl.size() > 1, func(): action.emit("bundle", []), SKY)
 			shop_row("Traca (%d/6)" % p.tr, "G para lanzarla: explota en área. También se fabrican en el banco de taller.", "Comprar · %d" % Data.GRENADE.price, p.coins >= Data.GRENADE.price and p.tr < 6, func(): action.emit("buy_traca", []), CORAL)
 		2:
 			var lvl:int = s.clvl
@@ -891,10 +903,17 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 			clock_bar.value = s.c
 			banner_sub.text = "Esta noche: %s · Llegarán por el %s" % [ev.name, front_text]
 		P.NIGHT:
-			banner.text = "NOCHE %d · %s · %d brotados" % [s.w, ev.name.to_upper(), s.rem]
-			clock_bar.max_value = maxf(1, s.tot)
-			clock_bar.value = s.rem
-			banner_sub.text = ev.desc + " Frentes: " + front_text
+			var asl:Array = s.get("as", [1, 1])
+			if s.get("rs", 0.0) > 0:
+				banner.text = "NOCHE %d · RESPIRO %d s" % [s.w, ceili(s.rs)]
+				clock_bar.max_value = 15.0
+				clock_bar.value = s.rs
+				banner_sub.text = "Después, asalto %d de %d. Reparad, reanimad o id a por la caja del globo" % [asl[0] + 1, asl[1]]
+			else:
+				banner.text = "NOCHE %d · ASALTO %d/%d · %d brotados" % [s.w, asl[0], asl[1], s.rem]
+				clock_bar.max_value = maxf(1, s.tot)
+				clock_bar.value = s.rem
+				banner_sub.text = "%s: %s Frentes: %s" % [ev.name, ev.desc, front_text]
 		P.DAWN:
 			banner.text = "AMANECER · %s" % fmt_time(s.c)
 			clock_bar.max_value = s.cl
@@ -957,6 +976,10 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 		b.max_value = q.hpmax
 		b.value = q.hp
 		row += 1
+	guide_box.position = Vector2(16, team_box.position.y + team_box.size.y + 8)
+	var steps := first_day_steps(s, p)
+	guide_box.visible = steps != ""
+	guide_label.text = steps
 	# me
 	me_name.text = "%s · %s · Nivel %d" % [p.name, Data.ROLES[p.role].name, p.lvl]
 	me_name.add_theme_color_override("font_color", Color(Data.ROLES[p.role].color).lightened(0.25))
@@ -1042,8 +1065,30 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 		var lines := []
 		lines.append(str(s.rep[0]) if s.rep.size() > 0 else "")
 		lines.append("Aguantasteis %d noches · %d brotados derrotados · %d vecinos rescatados" % [s.stats.nights, s.stats.kills, s.stats.rescued])
-		for q in s.pl.values(): lines.append("%s (%s, nivel %d): %d derribos" % [q.name, Data.ROLES[q.role].name, q.lvl, q.kills])
+		for q in s.pl.values(): lines.append("%s (%s, nivel %d): %d derribos · %d lotes recogidos por otros" % [q.name, Data.ROLES[q.role].name, q.lvl, q.kills, q.get("helped", 0)])
 		over_text.text = "\n".join(lines)
+
+func first_day_steps(s:Dictionary, p:Dictionary) -> String:
+	## Checklist for the first afternoon so new players always know a next step.
+	if s.w != 1 or s.ph != P.PREP: return ""
+	var looted := false
+	for v in s.lo: if not v: looted = true
+	var front:int = s.fr[0] if s.fr.size() > 0 else 2
+	var built := false
+	var st:PackedInt32Array = s.st
+	for i in range(0, st.size(), 8):
+		var c := Vector2(st[i] % 74 - 37 + 0.5, st[i] / 74 - 33 + 0.5)
+		var d := c - Map.BASE_CENTER
+		var sec := (1 if d.x > 0 else 3) if absf(d.x) > absf(d.y) else (2 if d.y > 0 else 0)
+		if sec == front: built = true
+	var risky:bool = s.cm.size() > 0 or s.sv.any(func(v): return v[4] == 1)
+	for si in s.si: if si[0]: risky = true
+	var lines := ["PRIMER DÍA"]
+	lines.append(("✔ " if looted else "▢ ") + "Rebusca en un punto con ✦ cerca de la plaza (mantén %s)" % k("use"))
+	lines.append(("✔ " if built else "▢ ") + "Construye una defensa en el lado %s, por donde llegarán (%s)" % [Map.FRONT_NAMES[front], k("build")])
+	lines.append(("✔ " if risky else "▢ ") + "Más arriesgado: libera al vecino atrapado (!) o conquista una propiedad (%s)" % k("claim"))
+	lines.append(("✔ " if p.ready else "▢ ") + "Toca la campana de la plaza o pulsa %s cuando estéis listos" % k("ready"))
+	return "\n".join(lines)
 
 func alert_text(s:Dictionary) -> String:
 	## Most urgent warning first: the house, then open breaches, then defences under attack.
@@ -1060,6 +1105,23 @@ func alert_text(s:Dictionary) -> String:
 		if sh[i] > 0: lines.append("Atacan el estandarte de %s" % Data.SITES[i].name)
 	return "\n".join(lines.slice(0, 3))
 
+func weakest_access(s:Dictionary) -> String:
+	## Sum of standing defence health per side of the house.
+	var hp := [0, 0, 0, 0]
+	var count := [0, 0, 0, 0]
+	var st:PackedInt32Array = s.st
+	for i in range(0, st.size(), 8):
+		if not Data.STRUCTURES[st[i + 1]].block and st[i + 1] != Data.S_WIRE: continue
+		var c := Vector2(st[i] % 74 - 37 + 0.5, st[i] / 74 - 33 + 0.5)
+		if c.distance_to(Map.BASE_CENTER) > Map.BASE_BUILD_RADIUS + 1: continue
+		var d := c - Map.BASE_CENTER
+		var sec := (1 if d.x > 0 else 3) if absf(d.x) > absf(d.y) else (2 if d.y > 0 else 0)
+		hp[sec] += st[i + 3]
+		count[sec] += 1
+	var weakest := 0
+	for i in 4: if hp[i] < hp[weakest]: weakest = i
+	return "Acceso más débil: %s (%d defensas, %d de resistencia)" % [Map.FRONT_NAMES[weakest], count[weakest], hp[weakest]]
+
 func bigmap_world(pos:Vector2):
 	## World point under a screen position on the big map, or null outside it.
 	if not map_panel.visible: return null
@@ -1074,6 +1136,7 @@ func map_text(s:Dictionary) -> String:
 		var si:Array = s.si[i]
 		lines.append("%s %s\n   %s" % ["🏳" if si[0] else "·", Data.SITES[i].name + (" (%d%%)" % int(100.0 * si[1] / si[2]) if si[0] else ""), Data.SITES[i].bonus])
 	lines.append("")
+	lines.append(weakest_access(s))
 	lines.append("Conquistar cuesta %d materiales (%s junto al estandarte, de día y sin brotados cerca)." % [s.cc, k("claim")])
 	lines.append("")
 	lines.append("Norte arriba · ◇ estandarte · • brotado · ✚ compañero caído")

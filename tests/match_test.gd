@@ -108,7 +108,17 @@ func _initialize():
 	g.clock = 0.0
 	g.tick(0.016)
 	check(g.phase == Data.Phase.NIGHT and g.queue.size() > 0, "Llega la noche con su oleada")
+	check(g.assault_count == 2 and g.assaults.size() == 1, "La noche se divide en asaltos")
 	g.queue.clear()
+	for k in g.enemies.keys():
+		if g.enemies[k].night: g.enemies.erase(k)
+	g.tick(0.016)
+	check(g.phase == Data.Phase.NIGHT and g.respite > 0, "Tras rechazar un asalto llega un respiro")
+	check(g.drops.size() > 0, "El respiro trae una caja que se puede ir a buscar")
+	g.tick(Game.RESPITE + 0.1)
+	check(g.respite <= 0 and g.queue.size() > 0 and g.assault_index == 2, "Al acabar el respiro empieza el siguiente asalto")
+	g.queue.clear()
+	g.assaults.clear()
 	for k in g.enemies.keys():
 		if g.enemies[k].night: g.enemies.erase(k)
 	var coins_before:int = p.coins
@@ -117,6 +127,35 @@ func _initialize():
 	check(p.coins > coins_before, "Recompensas al amanecer")
 	g.tick(15.0)
 	check(g.phase == Data.Phase.PREP, "Empieza un nuevo día")
+	# --- the plaza bell votes for the night
+	g.drops.clear()
+	for id in g.players: g.players[id].ready = false
+	p.p = Map.BELL + Vector2(0.5, 0)
+	g.drive(1, p.p, Vector2.DOWN, 2)
+	for i in 30: g.tick(1.0 / 30.0)
+	check(p.ready, "Tocar la campana marca al jugador como listo")
+	for i in 30: g.tick(1.0 / 30.0)
+	check(p.ready, "Mantener E no vuelve a tocarla")
+	g.drive(1, p.p, Vector2.DOWN, 0)
+	g.tick(0.05)
+	g.drive(1, p.p, Vector2.DOWN, 2)
+	for i in 30: g.tick(1.0 / 30.0)
+	check(not p.ready, "Volver a tocarla cancela el «listo»")
+	g.drive(1, p.p, Vector2.DOWN, 0)
+	# --- supply bundles for team-mates
+	g.materials = 10
+	p.p = Map.PLAYER_SPAWN
+	g.act(1, "bundle")
+	check(g.bundles.size() == 1 and g.materials == 6, "Preparar un lote cuesta materiales comunes")
+	var q:Dictionary = g.players[2]
+	q.st = 0
+	q.med = 0
+	q.p = g.bundles[0].p
+	g.drive(2, q.p, Vector2.DOWN, 2)
+	for i in 30: g.tick(1.0 / 30.0)
+	check(g.bundles.is_empty() and q.med == 1 and p.helped == 1, "Un compañero recoge el lote y cuenta como ayuda")
+	g.drive(2, q.p, Vector2.DOWN, 0)
+	check(g.journal.any(func(e): return e.evento == "lote"), "El registro de la sesión anota el lote")
 	# --- zombies damage what blocks them
 	clear_enemies(g)
 	var ring := []
