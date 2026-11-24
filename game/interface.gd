@@ -1,5 +1,6 @@
 extends CanvasLayer
 signal launch(mode:String,role:int,address:String)
+signal graphics_changed(high:bool)
 signal leave
 var menu := PanelContainer.new()
 var role := OptionButton.new()
@@ -61,6 +62,11 @@ func _ready():
 	stack.add_child(address)
 	address.placeholder_text = "Dirección IP del anfitrión"
 	button(stack,"Conectarse",launch_mode.bind("join"))
+	var quality := CheckButton.new()
+	stack.add_child(quality)
+	quality.text = "Sombras y suavizado de bordes"
+	quality.button_pressed = true
+	quality.toggled.connect(func(high): graphics_changed.emit(high))
 	stack.add_child(status)
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status.modulate = Color("ffdc91")

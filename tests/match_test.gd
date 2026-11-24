@@ -21,6 +21,10 @@ func _initialize():
 	g.act(1,"use")
 	g.act(1,"use")
 	check(g.wood==13 and p.coins==7,"Recogida única")
+	g.act(1,"claim")
+	g.act(1,"claim")
+	check(g.claimed[0] and g.wood==5,"Propiedad conquistada una sola vez")
+	g.core = 72
 	g.players[2].hp = 0
 	g.players[2].p = p.p
 	g.act(1,"use")
@@ -41,6 +45,7 @@ func _initialize():
 	g.drive(1,Vector2.ZERO,Vector2.DOWN,true)
 	g.tick(0.016)
 	check(g.phase=="Recuperación" and g.wave==2 and g.shots.size()==3,"Disparo y recompensa de oleada")
+	check(g.core==84,"El taller repara la casa al amanecer")
 	g.tick(11)
 	check(g.phase=="Preparación" and g.caches[0],"Inicio del siguiente día")
 	g.core = 0

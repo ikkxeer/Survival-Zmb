@@ -70,6 +70,10 @@ func _ready():
 	dusk.color = Color.TRANSPARENT
 	add_child(ui)
 	ui.launch.connect(start)
+	ui.graphics_changed.connect(func(high):
+		art.sun.shadow_enabled = high
+		get_viewport().msaa_3d = Viewport.MSAA_2X if high else Viewport.MSAA_DISABLED
+	)
 	ui.leave.connect(stop.bind(""))
 	multiplayer.peer_disconnected.connect(func(id): sim.players.erase(id))
 	multiplayer.connected_to_server.connect(func(): register.rpc_id(1,chosen))
