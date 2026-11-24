@@ -1,0 +1,26 @@
+LA ÚLTIMA VERBENA · PROCEDENCIA DE ESTA EDICIÓN DE PRUEBA
+
+Contenido del proyecto
+El escenario, los personajes, las animaciones y los efectos se generan desde
+game/art.gd y game/main.gd. Los iconos del plano se dibujan desde
+game/coop/tactical_map.gd. Las texturas de asfalto, hierba, adoquines y tejas
+y los shaders de superficie, cielo y contacto se crearon para este proyecto.
+Su incorporación se puede consultar en los cambios edc19db, 6ef51c1 y 7e6c5a2
+del repositorio https://github.com/ikkxeer/Survival-Zmb.
+
+El sonido del disparo se sintetiza durante la ejecución en game/main.gd.
+Esta compilación no incluye grabaciones musicales, muestras de audio externas,
+archivos de fuentes añadidos ni paquetes de modelos de terceros.
+
+Motor y componentes
+El ejecutable utiliza la plantilla oficial estándar de Godot Engine 4.7.2
+para Windows x86_64. Godot se distribuye bajo la licencia MIT. Véase
+Godot-LICENSE.txt. Godot-COPYRIGHT.txt recoge los componentes de terceros,
+sus titulares y sus licencias, incluidos ENet y la fuente Noto Sans.
+El juego utiliza la tipografía de interfaz incluida con el motor.
+
+Los avisos se obtuvieron de la etiqueta 4.7.2-stable del motor.
+https://github.com/godotengine/godot/tree/4.7.2-stable
+
+Las licencias del motor y de sus dependencias se aplican a sus respectivos
+componentes. Este inventario no otorga una licencia nueva al juego.
