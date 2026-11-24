@@ -113,7 +113,18 @@ Coordinar estos puntos con la rama de gráficos y jugabilidad. Revisar primero l
 
 - [ ] **Cerrar el alcance de la versión 1.0.** Tras probar el final de partida, acordar modos, contenido, idiomas y plataformas que se ofrecerán al comprador. Asociar cada promesa de la ficha de tienda a una función verificable en la candidata.
 - [ ] **Facilitar jugar con amigos desde casa.** Elegir el método de invitación de la tienda objetivo y probarlo entre dos conexiones domésticas. Cubrir invitación caducada, sala llena y versiones incompatibles con un mensaje que permita actuar.
-- [ ] **Recuperar una sesión interrumpida.** Guardar un punto de control al amanecer. Volver a entrar con otro orden de conexión y verificar propiedad de fichas, equipo, territorio y oleada. Simular un cierre durante la escritura y recuperar el último punto válido.
+  - Hecho para la conexión directa: el cliente envía su versión al unirse y el anfitrión responde con un motivo antes de cerrar.
+    - «Versión distinta: el anfitrión usa la X y tú la Y».
+    - «La partida está llena (4 de 4)».
+    - «La partida ha terminado; espera a la revancha».
+    - Si no hay respuesta, el mensaje indica revisar la IP, la partida y el puerto UDP 24680.
+  - Verificado con `tests/join_test.gd`: tres clientes dentro, uno con versión antigua y un quinto.
+  - Falta elegir la tienda y su sistema de invitaciones.
+- [x] **Recuperar una sesión interrumpida.** El anfitrión (o quien juega en solitario) guarda en cada amanecer `user://partida.sav`, versionado y con copia anterior. El menú ofrece «Continuar partida» con la noche y los vecinos.
+  - Al volver, cada vecino recupera por su nombre sus fichas, armas y mejoras, munición, botiquines, tracas, experiencia y oficio, aunque entre en otro orden. Quien es nuevo empieza de cero.
+  - Se conservan territorio, defensas, materiales, comunidad, piezas y noche. Una pieza que se cargaba queda en el suelo.
+  - Un guardado a medias recupera el anterior, y al terminar la partida se borra.
+  - Verificado en `tests/checkpoint_test.gd`.
 - [ ] **Fijar requisitos de PC a partir de mediciones.** Elegir equipos mínimo y recomendado, resolución y objetivo de fluidez tras medir la candidata. Publicar los ajustes usados y repetir el recorrido más exigente antes de etiquetar la versión.
 - [ ] **Probar textos y menús en la distribución real.** Revisar tildes, textos largos, escalado de Windows y navegación por teclado en cada idioma anunciado. Llegar desde el arranque hasta una partida y regresar al menú en la resolución mínima admitida.
 - [x] **Inventariar la edición basada en c897f26.** Revisados recursos del juego, sonido sintetizado, fuente del motor y plantilla estándar. El paquete incluye el [inventario de procedencia](distribution/licencias/Materiales.txt) y las licencias oficiales del motor y sus dependencias.

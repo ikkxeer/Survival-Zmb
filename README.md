@@ -172,6 +172,8 @@ Todo se genera en código, sin texturas ni modelos externos, y el audio también
 
 **Registro de partida.** El anfitrión guarda en `user://registros/` un archivo JSON por línea con noches, frentes y grupos de cada asalto, brechas con su tiempo de cierre, esperas de más de 20 s, lotes y amaneceres. Sirve para las pruebas con jugadores de [TODO.md](TODO.md).
 
+**Continuar una partida.** En cada amanecer, el anfitrión o quien juega en solitario guarda la partida. Si la sesión se interrumpe, el menú ofrece «Continuar partida» y cada vecino recupera lo suyo al volver con el mismo nombre. Al unirse, el cliente envía su versión, y el anfitrión explica por qué rechaza una conexión: versión distinta, partida llena o partida terminada.
+
 **Rendimiento.** Hay un máximo de 72 brotados activos. Las búsquedas de vecinos usan cubos espaciales y las mallas compartidas se precalculan al cargar. La vegetación se dibuja con MultiMesh y los efectos reutilizan nodos. Los ajustes gráficos tienen cuatro niveles: sombras, oclusión ambiental, antialiasing, escala de render, densidad de césped, niebla volumétrica y desenfoque. En la prueba de estrés, la lógica y la presentación tardan unos 7 ms de CPU por fotograma con más de 70 brotados.
 
 ## Verificación
@@ -199,6 +201,9 @@ godot --headless -s tests/network_test.gd -- --host
 - `match_test.gd` comprueba 29 reglas: construcción, rutas alrededor de muros, rebuscar, tienda, disparo y recarga, conquista, reanimación, habilidades, ciclo de fases, derribadores y derrotas.
 - `goal_test.gd` comprueba las piezas, la carga, la caída con pieza, la instalación, la noche final, la victoria, la derrota y la revancha.
 - `profile_test.gd` comprueba los rangos, las ventajas, el guardado versionado y la recuperación de un archivo a medias.
+- `jobs_test.gd` comprueba el tablón de encargos y la generación de 60 días sin destinos inaccesibles ni repeticiones.
+- `checkpoint_test.gd` comprueba el guardado al amanecer, la reconexión en otro orden y la recuperación de un archivo a medias.
+- `join_test.gd` (un anfitrión con `--host` y cinco clientes, uno con `--version=0.1.0`) comprueba los mensajes de partida llena y versión distinta.
 - `settings_test.gd` comprueba que ajustes y teclas se conservan al reiniciar, que una tecla ocupada se intercambia y que la ayuda muestra las teclas elegidas.
 - `python tests/run_session.py --jugadores 1|2|4` juega tres noches con un anfitrión y clientes reales por ENet (latencia simulada y una salida a mitad de oleada) y compara el estado final en todos los procesos.
 - `godot --path . -s tests/benchmark.gd` mide una oleada llena en cada calidad gráfica y guarda `user://benchmark.md`.

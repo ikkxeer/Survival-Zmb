@@ -71,6 +71,8 @@ var victory := false
 var match_id := 0
 var jobs := []            # today's offers: {id,kind,size,p,state(0 offered,1 accepted,2 done,3 failed),mat,coins,progress,carrier,risk,area}
 var last_jobs := []
+var pending := {}         # players from a checkpoint waiting to reconnect, by name
+const KEEP = ["role", "coins", "xp", "lvl", "hpmax", "guns", "mag", "res", "med", "tr", "kills", "helped", "rank"]
 
 func _init():
 	rng.randomize()
@@ -178,10 +180,73 @@ func join(id:int, role:int, name:String = "", rank:int = 1) -> bool:
 		"ping": null, "ping_left": 0.0, "active": time, "last_p": Vector2.ZERO, "helped": 0, "carry": -1, "cargo": -1, "dmg": 0.0, "flame": 0.0, "cursor": Vector2.ZERO,
 	}
 	players[id] = p
+	if pending.has(p.name):
+		# a neighbour coming back to a saved match recovers what they had
+		var saved:Dictionary = pending[p.name]
+		pending.erase(p.name)
+		for k in KEEP:
+			if saved.has(k): p[k] = saved[k]
+		p.hp = p.hpmax
+		p.gun = 0
+		emit("join", [id])
+		announce("%s vuelve a la verbena" % p.name)
+		return true
 	apply_rank(p, clampi(rank, 1, 4))
 	emit("join", [id])
 	announce("%s se une como %s" % [p.name, Data.ROLES[role].name])
 	return true
+
+func to_save() -> Dictionary:
+	## Everything needed to continue at dawn. Enemies are not saved: the day starts clean.
+	var pl := {}
+	for p in players.values():
+		var d := {}
+		for k in KEEP: d[k] = p.get(k, null)
+		pl[p.name] = d
+	for name in pending: pl[name] = pending[name]
+	var st := {}
+	for cell in structures:
+		var x:Dictionary = structures[cell]
+		st[cell] = {"k":x.k, "lvl":x.lvl, "hp":x.hp, "max":x.max, "owner":x.owner}
+	return {"wave":wave, "core":core, "core_max":core_max, "core_level":core_level, "materials":materials,
+		"players":pl, "structures":st, "sites":sites.duplicate(true), "loot":loot.duplicate(), "community":community.duplicate(),
+		"pieces":pieces.map(func(pc): return {"state":3 if pc.state == 2 else pc.state, "p":pc.p}), "stats":stats.duplicate(),
+		"night_event":night_event, "weather":weather, "fronts":fronts.duplicate()}
+
+func from_save(d:Dictionary):
+	wave = d.wave
+	core = d.core
+	core_max = d.core_max
+	core_level = d.core_level
+	materials = d.materials
+	pending = d.players.duplicate(true)
+	structures.clear()
+	for cell in d.structures:
+		var x:Dictionary = d.structures[cell]
+		structures[cell] = {"k":x.k, "lvl":x.lvl, "hp":x.hp, "max":x.max, "cool":0.0, "owner":x.owner, "aim":0.0, "on":true}
+		nav.set_structure(cell, x.k, x.hp)
+	sites = d.sites.duplicate(true)
+	for i in sites.size():
+		if sites[i].claimed: nav.active["site%d" % i] = true
+	loot = d.loot.duplicate()
+	community = d.community.duplicate()
+	for i in mini(pieces.size(), d.pieces.size()):
+		pieces[i].state = d.pieces[i].state
+		pieces[i].p = d.pieces[i].p
+		pieces[i].carrier = -1
+	stats = d.stats.duplicate()
+	enemies.clear()
+	for i in sites.size():
+		if not sites[i].claimed:
+			for g in 2 + mini(2, wave / 4): spawn_guard(i)
+	night_event = d.night_event
+	weather = d.weather
+	fronts = d.fronts.duplicate()
+	phase = P.DAWN
+	clock = 14.0
+	phase_len = 14.0
+	report = ["Partida recuperada: amanecer de la noche %d" % (wave - 1)]
+	make_jobs()
 
 func apply_rank(p:Dictionary, rank:int):
 	## Perks earned between matches (see profile.gd): rank 2 per role, rank 3 more health.

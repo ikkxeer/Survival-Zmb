@@ -38,6 +38,7 @@ var prefs
 var profile
 var rank_labels := []
 var record_label:Label
+var continue_button:Button
 var settings_list := VBoxContainer.new()
 var bind_buttons := {}
 var waiting_bind := ""
@@ -304,6 +305,9 @@ func build_menu():
 		d.custom_minimum_size.x = 245
 		role_cards.append(card)
 	record_label = label(col, "", 14, Color("cfd8ee"))
+	continue_button = button(col, "", func(): emit_launch("continue"), 46)
+	continue_button.add_theme_color_override("font_color", YELLOW)
+	continue_button.visible = false
 	var row := hbox(col, 10)
 	var solo := button(row, "▶  Jugar en solitario", func(): emit_launch("solo"), 52)
 	solo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -353,6 +357,11 @@ func refresh_profile():
 		var goal:int = profile.next_goal(i)
 		rank_labels[i].text = "· Rango %d%s" % [r, "" if goal < 0 else " (%d/%d)" % [profile.role_xp[i], goal]]
 		role_cards[i].tooltip_text = "Ventajas: " + (", ".join(profile.unlocked(i)) if profile.unlocked(i).size() else "aún ninguna") + "\nRango 2: %s · Rango 3: %s" % [profile.UNLOCKS[i][0], profile.UNLOCKS[i][1]]
+	var saved:Dictionary = preload("res://game/checkpoint.gd").peek()
+	continue_button.visible = not saved.is_empty()
+	if continue_button.visible:
+		continue_button.text = "⟳  Continuar partida: amanecer de la noche %d · %s (%s)" % [saved.wave - 1, ", ".join(saved.players), "en red" if saved.mode == "host" else "solitario"]
+	if prefs != null and name_edit.text == "": name_edit.text = prefs.values.get("name", "")
 	record_label.text = "Partidas %d · Victorias %d · Mejor noche %d · Rango %d de %s: %s" % [profile.matches, profile.wins, profile.best_night, profile.rank(role), Data.ROLES[role].name, ", ".join(profile.unlocked(role)) if profile.unlocked(role).size() else "sube de rango jugando con este oficio"]
 
 func pick_role(i:int):

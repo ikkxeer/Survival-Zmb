@@ -13,6 +13,7 @@ const UI = preload("res://game/interface.gd")
 const CameraRig = preload("res://game/view/camera_rig.gd")
 const Settings = preload("res://game/settings.gd")
 const Profile = preload("res://game/profile.gd")
+const Checkpoint = preload("res://game/checkpoint.gd")
 const P := Data.Phase
 const PORT := 24680
 const SEND_RATE := 1.0 / 20.0
@@ -27,6 +28,7 @@ var prefs := Settings.new()
 var profile := Profile.new()
 var xp_saved := 0          # experience of this match already written to the profile
 var result_saved := false
+var saved_wave := 0
 var listener := AudioListener3D.new()
 var screen := ColorRect.new()
 var screen_mat := ShaderMaterial.new()
@@ -111,8 +113,8 @@ func _ready():
 	ui.rematch.connect(rematch)
 	multiplayer.peer_disconnected.connect(func(id):
 		if mode == "host": sim.leave(id))
-	multiplayer.connected_to_server.connect(func(): register.rpc_id(1, chosen_role, chosen_name, profile.rank(chosen_role)))
-	multiplayer.connection_failed.connect(stop.bind("No se pudo conectar con esa dirección."))
+	multiplayer.connected_to_server.connect(func(): register.rpc_id(1, chosen_role, chosen_name, profile.rank(chosen_role), version()))
+	multiplayer.connection_failed.connect(stop.bind("No se pudo conectar con esa dirección. Comprueba la IP, que el anfitrión haya creado la partida y que su cortafuegos permita UDP 24680."))
 	multiplayer.server_disconnected.connect(stop.bind("El anfitrión ha cerrado la partida."))
 	crosshair = make_crosshair()
 	for a in OS.get_cmdline_user_args():
@@ -140,13 +142,25 @@ func make_crosshair() -> ImageTexture:
 # ================================================================== session
 func start(which:String, role:int, address:String, player_name:String):
 	if mode != "": return
+	var resume := {}
+	if which == "continue":
+		resume = Checkpoint.read_any()
+		if resume.is_empty():
+			ui.status.text = "No se pudo leer la partida guardada."
+			return
+		which = resume.get("mode", "solo")
+		if player_name == "" and resume.players.size() > 0: player_name = resume.players.keys()[0]
+		if resume.players.has(player_name): role = resume.players[player_name].role
 	chosen_role = role
 	chosen_name = player_name
+	if player_name != "":
+		prefs.values.name = player_name
+		prefs.save_file()
 	if which != "solo":
 		var peer := ENetMultiplayerPeer.new()
 		var err:Error
 		if which == "host":
-			err = peer.create_server(PORT, 3)
+			err = peer.create_server(PORT, 6)  # room to answer extra players with a reason
 		else:
 			if address.is_empty():
 				ui.status.text = "Introduce la IP del anfitrión."
@@ -173,6 +187,10 @@ func start(which:String, role:int, address:String, player_name:String):
 	if mode == "join":
 		ui.big("Conectando…", "Buscando al anfitrión en " + address, Color.WHITE, 30.0)
 		return
+	saved_wave = 0
+	if not resume.is_empty():
+		sim.from_save(resume)
+		saved_wave = sim.wave
 	sim.join(1, chosen_role, chosen_name, profile.rank(chosen_role))
 	open_journal()
 	state = sim.snapshot()
@@ -211,6 +229,7 @@ func rematch():
 	open_journal()
 	local_pos = Vector2.INF
 	fireworks = 0.0
+	saved_wave = 0
 	state = sim.snapshot()
 	ui.big("¡Revancha!", "Mismo barrio, misma pandilla. Que no se apague la verbena.", Color("ffd166"), 4.0)
 
@@ -266,10 +285,29 @@ func set_paused(v:bool):
 		ui.help_panel.visible = false
 
 @rpc("any_peer", "reliable")
-func register(role:int, player_name:String = "", rank:int = 1):
+func register(role:int, player_name:String = "", rank:int = 1, client_version:String = ""):
 	if mode != "host": return
 	var id := multiplayer.get_remote_sender_id()
-	if not sim.join(id, role, player_name, rank): multiplayer.multiplayer_peer.disconnect_peer(id)
+	var reason := ""
+	if client_version != version():
+		reason = "Versión distinta: el anfitrión usa la %s y tú la %s. Descargad la misma versión." % [version(), client_version if client_version != "" else "anterior"]
+	elif sim.phase == P.OVER:
+		reason = "Esa partida ha terminado. Espera a que el anfitrión pulse «Revancha» y vuelve a unirte."
+	elif sim.players.size() >= 4:
+		reason = "La partida está llena (4 de 4 vecinos). Prueba más tarde o crea la tuya."
+	elif not sim.join(id, role, player_name, rank):
+		reason = "El anfitrión no pudo añadirte a la partida."
+	if reason != "":
+		rejected.rpc_id(id, reason)
+		get_tree().create_timer(0.5).timeout.connect(func():
+			if mode == "host" and multiplayer.get_peers().has(id): multiplayer.multiplayer_peer.disconnect_peer(id))
+
+@rpc("authority", "reliable")
+func rejected(reason:String):
+	if mode == "join": stop(reason)
+
+func version() -> String:
+	return str(ProjectSettings.get_setting("application/config/version", "dev"))
 
 @rpc("any_peer", "call_remote", "unreliable_ordered", 1)
 func controls(pos:Vector2, aim:Vector2, buttons:int):
@@ -539,6 +577,14 @@ func _physics_process(dt:float):
 	if not me.is_empty(): sim.drive(1, local_pos, cursor - local_pos, buttons)
 	sim.tick(dt)
 	flush_journal()
+	if sim.phase == P.DAWN and sim.wave != saved_wave:
+		saved_wave = sim.wave
+		var data := sim.to_save()
+		data["mode"] = mode
+		Checkpoint.write(data)
+	elif sim.phase == P.OVER and saved_wave >= 0:
+		saved_wave = -1
+		Checkpoint.clear()
 	var snap := sim.snapshot()
 	if mode == "host" and net_clock <= 0:
 		net_clock = SEND_RATE
