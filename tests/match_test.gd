@@ -1,59 +1,158 @@
 extends SceneTree
+## Rule checks for the authoritative simulation: godot --headless -s tests/match_test.gd
 const Game = preload("res://game/match.gd")
-var failed := false
-func check(condition:bool,detail:String):
+const Data = preload("res://game/data.gd")
+const Map = preload("res://game/map.gd")
+var failed := 0
+
+func check(condition:bool, detail:String):
 	if not condition:
-		failed = true
-		push_error(detail)
+		failed += 1
+		push_error("FALLO: " + detail)
+	else:
+		print("ok  ", detail)
+
+func clear_enemies(g):
+	g.enemies.clear()
 
 func _initialize():
 	var g := Game.new()
-	for i in range(1,6): g.join(i,i-1)
-	check(g.players.size()==4,"Límite de jugadores")
-	var p = g.players[1]
-	p.p = Game.GATES[0]
-	g.act(1,"wall")
-	check(g.wood==10 and g.gates[0].hp==95,"Construcción con descuento")
-	g.gates[0].hp = 20
-	g.act(1,"use")
-	check(g.wood==9 and g.gates[0].hp==68,"Reparación")
-	p.p = Game.CACHES[0]
-	g.act(1,"use")
-	g.act(1,"use")
-	check(g.wood==13 and p.coins==7,"Recogida única")
-	g.act(1,"claim")
-	g.act(1,"claim")
-	check(g.claimed[0] and g.wood==5,"Propiedad conquistada una sola vez")
-	g.core = 72
-	g.players[2].hp = 0
-	g.players[2].p = p.p
-	g.act(1,"use")
-	check(g.players[2].hp==30,"Reanimación")
-	p.p = Vector2(0,3)
-	p.coins = 10
-	g.act(1,"1")
-	g.act(1,"1")
-	check(p.gun==1 and p.coins==1,"Compra y cambio sin doble cobro")
-	g.clock = 0
+	for i in range(1, 6): g.join(i, (i - 1) % 4, "J%d" % i)
+	check(g.players.size() == 4, "Máximo de cuatro jugadores")
+	var p:Dictionary = g.players[1]
+	# --- construction and territory
+	g.materials = 20
+	var cell:int = g.nav.cell_of(Vector2(4.5, 5.5))
+	p.p = Vector2(4.5, 7.0)
+	g.act(1, "build", [Data.S_WALL, cell])
+	check(g.structures.has(cell) and g.materials == 18, "La ingeniera construye una barricada con descuento (2 materiales)")
+	g.act(1, "build", [Data.S_WALL, cell])
+	check(g.materials == 18, "No se puede construir sobre otra defensa")
+	var far:int = g.nav.cell_of(Vector2(30.5, 28.5))
+	p.p = Vector2(30.5, 27.0)
+	g.act(1, "build", [Data.S_WALL, far])
+	check(not g.structures.has(far), "Fuera del territorio no se construye")
+	p.p = Vector2(4.5, 7.0)
+	g.act(1, "upgrade", [cell])
+	check(g.structures[cell].lvl == 1 and g.structures[cell].max > 220, "Mejora de barricada a tablones")
+	# --- path finding respects walls
+	var before:int = g.nav.distance_at("base", 0, Vector2(0.5, 9.5))
+	for x in range(-6, 7):
+		var c:int = g.nav.cell_of(Vector2(x + 0.5, 8.5))
+		g.structures[c] = {"k":Data.S_WALL, "lvl":0, "hp":120.0, "max":120.0, "cool":0.0, "owner":1, "aim":0.0, "on":true}
+		g.nav.set_structure(c, Data.S_WALL, 120.0)
+	g.nav.delay = 0
+	while g.nav.update_one(): pass
+	var after:int = g.nav.distance_at("base", 0, Vector2(0.5, 9.5))
+	check(after > before, "Un muro alarga el camino de los brotados (%d → %d)" % [before, after])
+	var next:int = g.nav.next_cell("base", 0, Vector2(0.5, 9.5))
+	check(next >= 0, "Siempre existe una ruta hacia la casa")
+	var breaker:int = g.nav.distance_at("base", 1, Vector2(0.5, 9.5))
+	check(breaker <= after, "Los derribadores prefieren atravesar muros")
+	for c in g.structures.keys():
+		if c != cell: g.remove_structure(c, false)
+	# --- scavenging (hold E)
+	clear_enemies(g)
+	var spot:Vector2 = Map.LOOT[0].p
+	p.p = spot
+	var mat:int = g.materials
+	g.drive(1, spot, Vector2.DOWN, 2)
+	for i in 60: g.tick(1.0 / 30.0)
+	check(not g.loot[0] and g.materials > mat, "Rebuscar da materiales")
+	g.drive(1, spot, Vector2.DOWN, 0)
+	# --- shop and weapons
+	p.p = Map.PLAYER_SPAWN
+	p.coins = 40
+	g.act(1, "buy_gun", [1])
+	check(p.guns.has(1) and p.coins == 28 and p.gun == 1, "Compra del trabuco")
+	g.act(1, "buy_gun", [4])
+	check(not p.guns.has(4), "El rifle de tómbola exige la Comisaría")
+	g.act(1, "up_gun", [1])
+	check(p.guns[1] == 2 and p.coins == 18, "Mejora de arma")
+	# --- firing and reloading
+	clear_enemies(g)
+	var e:Dictionary = g.new_enemy(0, p.p + Vector2(0, 3), "base", true)
+	e.hp = 5.0
+	g.drive(1, p.p, Vector2(0, 1), 1)
+	g.tick(1.0 / 60.0)
+	check(g.enemies.is_empty(), "El disparo derriba al brotado")
+	check(p.mag[1] == 5, "El disparo gasta munición")
+	g.drive(1, p.p, Vector2(0, 1), 0)
+	g.act(1, "reload")
+	for i in 120: g.tick(1.0 / 60.0)
+	check(p.mag[1] == 6, "Recarga completa")
+	# --- claim a property
+	clear_enemies(g)
+	g.materials = 30
+	p.p = Map.SITES[5].beacon + Vector2(1.5, 0)
+	g.act(1, "claim")
+	check(g.sites[5].claimed and g.materials == 24, "Conquista de la Comisaría")
+	p.p = Map.PLAYER_SPAWN
+	p.coins = 30
+	g.act(1, "buy_gun", [4])
+	check(p.guns.has(4), "La Comisaría desbloquea el rifle de tómbola")
+	# --- downed and revived
+	var mate:Dictionary = g.players[2]
+	mate.p = p.p + Vector2(1, 0)
+	g.hurt_player(mate, 500.0)
+	check(mate.st == 1, "Un compañero cae al perder la salud")
+	g.drive(1, p.p, Vector2.DOWN, 2)
+	for i in 100: g.tick(1.0 / 30.0)
+	check(mate.st == 0 and mate.hp > 0, "Reanimar manteniendo E")
+	g.drive(1, p.p, Vector2.DOWN, 0)
+	# --- role ability
+	g.players[3].p = p.p
+	g.act(3, "ability")
+	check(g.players[3].buff > 0 and g.players[3].ab > 0, "Habilidad de oficio con recarga")
+	# --- night and dawn
+	g.clock = 0.0
 	g.tick(0.016)
+	check(g.phase == Data.Phase.NIGHT and g.queue.size() > 0, "Llega la noche con su oleada")
+	g.queue.clear()
+	for k in g.enemies.keys():
+		if g.enemies[k].night: g.enemies.erase(k)
+	var coins_before:int = p.coins
 	g.tick(0.016)
-	check(g.phase=="Noche" and g.enemies.size()==1,"Llegada de la primera oleada")
-	g.reserve = 0
-	var e = g.enemies.values()[0]
-	e.p = Vector2(0,5.1)
-	e.hp = 10
-	g.drive(1,Vector2.ZERO,Vector2.DOWN,true)
-	g.tick(0.016)
-	check(g.phase=="Recuperación" and g.wave==2 and g.shots.size()==3,"Disparo y recompensa de oleada")
-	check(g.core==84,"El taller repara la casa al amanecer")
-	g.tick(11)
-	check(g.phase=="Preparación" and g.caches[0],"Inicio del siguiente día")
+	check(g.phase == Data.Phase.DAWN and g.wave == 2, "Amanece cuando no quedan brotados")
+	check(p.coins > coins_before, "Recompensas al amanecer")
+	g.tick(15.0)
+	check(g.phase == Data.Phase.PREP, "Empieza un nuevo día")
+	# --- zombies damage what blocks them
+	clear_enemies(g)
+	var ring := []
+	for x in range(-5, 5):
+		for zz in range(-5, 4):
+			if x == -5 or x == 4 or zz == -5 or zz == 3:
+				var c:int = g.nav.cell_of(Vector2(x + 0.5, zz + 0.5))
+				if g.nav.is_free_for_build(c):
+					g.structures[c] = {"k":Data.S_WALL, "lvl":0, "hp":120.0, "max":120.0, "cool":0.0, "owner":1, "aim":0.0, "on":true}
+					g.nav.set_structure(c, Data.S_WALL, 120.0)
+					ring.append(c)
+	g.nav.delay = 0
+	while g.nav.update_one(): pass
+	for id in g.players: g.players[id].p = Vector2(25, 25)
+	var z:Dictionary = g.new_enemy(3, Vector2(0.5, 6.5), "base", true)
+	for i in 600: g.tick(1.0 / 30.0)
+	var hurt := 0
+	for c in ring:
+		if not g.structures.has(c) or g.structures[c].hp < 120.0: hurt += 1
+	check(hurt > 0, "Un derribador destroza la barricada que le cierra el paso")
+	# --- game over
 	g.core = 0
 	g.tick(0.016)
-	check(g.phase=="Fin","Derrota por pérdida de casa")
+	check(g.phase == Data.Phase.OVER, "Derrota si cae la casa")
 	g = Game.new()
-	g.join(1,1)
-	g.players[1].hp = 0
+	g.join(1, 1)
+	g.players[1].med = 0
+	g.hurt_player(g.players[1], 999)
 	g.tick(0.016)
-	check(g.phase=="Fin","Derrota por equipo caído")
+	check(g.phase == Data.Phase.OVER, "Derrota si cae todo el equipo")
+	g = Game.new()
+	g.join(1, 1)
+	g.hurt_player(g.players[1], 999)
+	g.tick(0.016)
+	check(g.phase != Data.Phase.OVER, "Con botiquín aún se puede levantar en solitario")
+	g.act(1, "medkit")
+	check(g.players[1].st == 0, "El botiquín levanta al jugador caído")
+	print("%d fallos" % failed)
 	quit(1 if failed else 0)
