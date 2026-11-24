@@ -92,7 +92,15 @@ Primero probar este ritmo durante tres noches con los cuatro puestos actuales. P
 - [x] **Variar los encargos con reglas sencillas.** El generador alterna búsqueda, transporte y defensa con destinos alcanzables según la navegación, recompensas útiles y sin repetir tipo y lugar del día anterior. `jobs_test` genera diez partidas de seis días (60 días) y no encuentra destinos inaccesibles, recompensas inútiles ni encargos idénticos consecutivos.
 - [x] **Diseñar una recuperación tras una mala noche.** Si el amanecer llega con menos de 8 materiales, un globo deja reservas (14–18 materiales) junto a la plaza: es una salida corta. Si el equipo va bien, no hay ayuda extra, así que ahorrar sigue teniendo sentido. Verificado en `match_test`.
 - [ ] **Crear combinaciones entre roles.** Probar al explorador localizando un relevo de energía y al ingeniero instalándolo mientras otro cubre el regreso. El mismo objetivo debe poder completarse solo, en varias visitas.
-- [ ] **Diversificar las compras.** Comparar una inversión personal, una defensa automática y la conquista de un puesto con el mismo presupuesto inicial. Si una opción domina las tres primeras noches en todas las pruebas, revisar coste, utilidad o momento de acceso.
+- [x] **Diversificar las compras.** `godot --headless -s tests/strategy_compare.gd` juega las tres primeras noches con dos bots y el mismo presupuesto (24 fichas cada uno y 18 materiales) en ocho semillas. Resultado en la rama integrada:
+
+  | Estrategia | Sobreviven | Casa al final | Mejor en |
+  | --- | --- | --- | --- |
+  | Armas personales (dos carabinas) | 6/8 | 75 % | 1/8 |
+  | Defensas automáticas (dos torretas) | 6/8 | 75 % | 4/8 |
+  | Conquistar dos propiedades | 5/8 | 62 % | 3/8 |
+
+  Ninguna domina todas las pruebas. La conquista rinde menos al principio porque atrae más brotados, pero da piezas de la verbena y bonificaciones a largo plazo. Con bots en puestos fijos la casa caía por los lados sin cubrir; con bots que acuden al acceso atacado, como pide el aviso de brecha, el equilibrio es el de la tabla. Falta repetirlo con jugadores.
 - [x] **Dar motivos para probar otra estrategia.** El menú ofrece reglas opcionales con su descripción antes de empezar:
   - «Barrio a oscuras»: apagón cada noche salvo las de gigantes, un globo de suministros cada día y más fichas, lo que obliga a construir generadores o conquistar la Gasolinera y a salir a por los globos.
   - «Estampida»: un frente más, el doble de corredores, días de 45 s y materiales extra al amanecer, lo que obliga a construir rápido y en varios lados.
