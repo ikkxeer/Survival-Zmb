@@ -60,6 +60,15 @@ func _initialize():
 	for i in 60: g.tick(1.0 / 30.0)
 	check(not g.loot[0] and g.materials > mat, "Rebuscar da materiales")
 	g.drive(1, spot, Vector2.DOWN, 0)
+	# --- cars are solid
+	var car_c:Vector2 = Map.cars()[1][0]
+	var walker := car_c + Vector2(-3.0, 0)
+	for i in 120: walker = g.nav.move(walker, Vector2(4.0, 0) / 60.0, Game.PLAYER_R, 0)
+	check(walker.x < car_c.x - Map.CAR_HALF.x - Game.PLAYER_R + 0.05 and walker.x > car_c.x - 1.6, "Un coche aparcado no se atraviesa")
+	var zwalker := car_c + Vector2(0, -3.0)
+	for i in 120: zwalker = g.nav.move(zwalker, Vector2(0, 4.0) / 60.0, 0.38, 1)
+	check(zwalker.y < car_c.y - Map.CAR_HALF.y, "Los brotados tampoco atraviesan coches")
+	check(g.nav.ray(car_c + Vector2(-5, 0), Vector2.RIGHT, 10.0) < 4.5, "Las balas chocan con los coches")
 	# --- shop and weapons
 	p.p = Map.PLAYER_SPAWN
 	p.coins = 40

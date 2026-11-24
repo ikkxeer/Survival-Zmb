@@ -1600,10 +1600,11 @@ func find_use_target(id:int, p:Dictionary) -> Dictionary:
 		var txt := "cancelar «listo»" if p.ready else "tocar la campana (listos para la noche)"
 		return {"type":"bell", "key":"bell", "label":"Tocando la campana", "time":0.35, "prompt":"Mantén E: " + txt}
 	var best := -1
-	var best_d := 1.9
+	var best_d := 0.0
 	for i in loot.size():
 		if not loot[i]: continue
-		var d:float = Map.LOOT[i].p.distance_to(p.p)
+		# cars are solid, so they can be searched from a little further away
+		var d:float = Map.LOOT[i].p.distance_to(p.p) - (2.6 if Map.LOOT[i].kind == 1 else 1.9)
 		if d < best_d:
 			best_d = d
 			best = i

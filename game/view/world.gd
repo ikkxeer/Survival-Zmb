@@ -342,37 +342,7 @@ func build_base():
 	var r:Rect2 = Map.BASE
 	var c := r.get_center()
 	var k := K(c)
-	var xf := Transform3D(Basis(), Vector3(c.x, 0, c.y))
-	var w := r.size.x - 0.1
-	var d := r.size.y - 0.1
-	var h := 3.4
-	walls_with_windows(k, xf, w, d, h, col("ffd99a"), col("fffaf0"), col("e8665a"), true, col("3f6f9f"))
-	k.gable(xf * Kit.rot(0, 0.3 + h, 0, PI * 0.5), d, 1.9, w - 0.1, col("ffe2b0"))
-	k.roof(xf * Kit.rot(0, 0.3 + h, 0, PI * 0.5), d + 0.7, 1.9, w + 0.7, col("4c7fc0"), 0.18, 0.07)
-	# rooftop lookout for the vigía survivors and a weather vane
-	k.box(xf * Kit.at(0, 0.3 + h + 2.0, 0), Vector3(1.4, 0.15, 1.4), col("c98a55"), 0.04)
-	for sx in [-1, 1]:
-		for sz in [-1, 1]: k.cylinder(xf * Kit.at(sx * 0.6, 0.3 + h + 2.35, sz * 0.6), 0.05, 0.05, 0.6, col("8a5a3a"), 6)
-	k.cylinder(xf * Kit.at(1.8, 0.3 + h + 1.4, -0.8), 0.04, 0.04, 2.2, col("3e4a5c"), 6)
-	k.box(xf * Kit.at(1.8, 0.3 + h + 2.4, -0.8), Vector3(0.6, 0.35, 0.03), col("e8665a"), 0.0)
-	# sign
-	k.box(xf * Kit.at(0, 3.25, d * 0.5 + 0.12), Vector3(3.4, 0.7, 0.14), col("2f5168"), 0.08)
-	k.box(xf * Kit.at(0, 3.25, d * 0.5 + 0.05), Vector3(3.6, 0.85, 0.08), col("f2c14e"), 0.06)
-	label_at("LA VERBENA", Vector3(c.x, 3.25, c.y + d * 0.5 + 0.21), 0.0062, Color("fff2c9"), false)
-	# bunting around the eaves
-	for side in [-1.0, 1.0]:
-		for i in 9:
-			var x := -w * 0.5 + i * w / 8.0
-			var fc:String = ["ff6b6b", "ffd166", "06d6a0", "4cc9f0", "f78fb3"][i % 5]
-			k.box(xf * Kit.rot(x, 3.5 - 0.15 * sin(i * PI / 8.0), side * (d * 0.5 + 0.55), PI * 0.25, 0, 0), Vector3(0.22, 0.32, 0.02), col(fc), 0.0)
-	# porch lanterns and steps
-	for sx in [-1, 1]:
-		k.cylinder(xf * Kit.at(sx * 2.1, 0.9, d * 0.5 + 1.2), 0.07, 0.07, 1.8, col("6b4f3c"), 6)
-		k.sphere(xf * Kit.at(sx * 2.1, 1.95, d * 0.5 + 1.2), Vector3(0.28, 0.34, 0.28), Kit.glow(col("ffb35c")), 10, 6)
-	# barrels and crates suggesting a fortified home
-	k.cylinder(xf * Kit.at(-w * 0.5 - 0.5, 0.45, d * 0.5 - 0.4), 0.38, 0.38, 0.9, col("b8743f"), 12, true, 0.3)
-	k.box(xf * Kit.at(w * 0.5 + 0.55, 0.35, d * 0.5 - 0.5), Vector3(0.7, 0.7, 0.7), col("d49a5c"), 0.06, 0.3)
-	k.box(xf * Kit.at(w * 0.5 + 0.55, 0.95, d * 0.5 - 0.45), Vector3(0.5, 0.5, 0.5), col("e0b070"), 0.05, 0.3)
+	build_party_house()
 	# shop counter (tienda) beside the house
 	var sx := Transform3D(Basis(), Vector3(4.6, 0, 3.6))
 	k.box(sx * Kit.at(0, 0.55, 0), Vector3(1.8, 1.1, 0.8), col("e8665a"), 0.08, 0.3)
@@ -409,6 +379,284 @@ func build_base():
 	for q in 4: k.box(Kit.rot(bd.x - 0.45 + q * 0.3, 1.35 + (q % 2) * 0.12, bd.y + 0.07, 0, 0, (q - 1.5) * 0.08), Vector3(0.24, 0.3, 0.01), col(["fff6e0", "ffe0e6", "e0f4ff", "fff6e0"][q]), 0.0)
 	k.box(Kit.rot(bd.x, 1.98, bd.y, 0, 0, 0), Vector3(1.8, 0.1, 0.4), col("e8665a"), 0.03)
 	label_at("ENCARGOS", Vector3(bd.x, 2.3, bd.y), 0.004, Color("fff2c9"), true)
+
+# ------------------------------------------------------------------ the party house
+# Built from separate pieces (walls, roof, lookout, sign…) so it can fall apart
+# when the brotados bring it down.
+var house_root:Node3D
+var house_parts := {}          # name -> [pivot node, rest transform]
+var house_lights := []
+var collapse_t := -1.0
+var debris := []               # [node, velocity, spin, resting]
+var rubble:MeshInstance3D
+
+func house_part(name:String, kit:Kit, pivot:Vector3) -> Node3D:
+	var piv := Node3D.new()
+	piv.name = name
+	piv.position = pivot
+	var mi := MeshInstance3D.new()
+	mi.mesh = kit.commit()
+	mi.material_override = toon
+	mi.position = -pivot
+	piv.add_child(mi)
+	house_root.add_child(piv)
+	house_parts[name] = [piv, piv.transform]
+	return piv
+
+func house_meshes() -> Array:
+	## [mesh, transform relative to the house centre] for the HUD portrait.
+	var out := []
+	for name in house_parts:
+		if name.begins_with("bunting") or name.begins_with("lantern") or name in ["barrel", "crates"]: continue
+		if not house_parts.has(name): continue
+		var piv:Node3D = house_parts[name][0]
+		var mi:MeshInstance3D = piv.get_child(0)
+		out.append([mi.mesh, Transform3D(Basis(), house_parts[name][1].origin + mi.position)])
+	return out
+
+func build_party_house():
+	var r:Rect2 = Map.BASE
+	var c := r.get_center()
+	house_root = Node3D.new()
+	house_root.position = Vector3(c.x, 0, c.y)
+	add_child(house_root)
+	var w := r.size.x - 0.1
+	var d := r.size.y - 0.1
+	var h := 3.4
+	var wall := col("ffd99a")
+	var trim := col("fffaf0")
+	var shutter := col("e8665a")
+	var glass := Kit.glow(col("bfe2ff"), 1.0)
+	var top := 0.3 + h
+	# foundation and door step stay put
+	var kb := Kit.new()
+	kb.box(Kit.at(0, 0.15, 0), Vector3(w + 0.25, 0.3, d + 0.25), col("b6a99b"), 0.05, 0.2)
+	kb.box(Kit.at(0, 0.12, d * 0.5 + 0.55), Vector3(1.6, 0.24, 0.8), col("cfc5b8"), 0.05)
+	house_part("plinth", kb, Vector3.ZERO)
+	# four walls, each in three pieces hinged at the foot so they break as they fall outwards
+	for side in ["front", "back", "left", "right"]:
+		var along_x:bool = side == "front" or side == "back"
+		var sz:float = 1.0 if side == "front" else -1.0
+		var sx:float = 1.0 if side == "right" else -1.0
+		var length:float = w if along_x else d - 0.5
+		var kits := [Kit.new(), Kit.new(), Kit.new()]
+		var seg := func(coord:float) -> Kit:
+			return kits[clampi(floori((coord + length * 0.5) / (length / 3.0)), 0, 2)]
+		for i in 3:
+			var kw:Kit = kits[i]
+			var mid := -length * 0.5 + (i + 0.5) * length / 3.0
+			var piece := length / 3.0 + 0.02
+			if along_x:
+				kw.box(Kit.at(mid, 0.3 + h * 0.5, sz * (d * 0.5 - 0.15)), Vector3(piece, h, 0.3), wall, 0.06, 0.22, 1)
+				kw.box(Kit.at(mid, top - 0.05, sz * (d * 0.5 - 0.09)), Vector3(piece + (0.06 if i != 1 else 0.0), 0.14, 0.3), trim, 0.03)
+			else:
+				kw.box(Kit.at(sx * (w * 0.5 - 0.15), 0.3 + h * 0.5, mid), Vector3(0.3, h, piece), wall, 0.06, 0.22, 1)
+				kw.box(Kit.at(sx * (w * 0.5 - 0.09), top - 0.05, mid), Vector3(0.3, 0.14, piece), trim, 0.03)
+		if along_x:
+			for cx in [-1, 1]: (seg.call(cx * w * 0.5) as Kit).box(Kit.at(cx * (w * 0.5 - 0.02), 0.3 + h * 0.5, sz * (d * 0.5 - 0.02)), Vector3(0.22, h + 0.02, 0.22), trim, 0.05)
+		for f in 2:
+			var y := 0.3 + 1.25 + f * 1.55
+			match side:
+				"front":
+					var xs := [-w * 0.3, w * 0.3] if f == 0 else [-w * 0.3, 0.0, w * 0.3]
+					for x in xs: window(seg.call(x), Kit.at(x, y, d * 0.5), trim, glass, shutter)
+				"back": window(seg.call(0.0), Kit.rot(0, y, -d * 0.5, PI), trim, glass, shutter)
+				_: window(seg.call(0.0), Kit.rot(sx * w * 0.5, y, 0, sx * PI * 0.5), trim, glass, shutter)
+		if side == "front":
+			var dz := d * 0.5
+			var kd:Kit = kits[1]
+			kd.box(Kit.at(0, 1.4, dz + 0.02), Vector3(1.25, 2.2, 0.14), trim, 0.05)
+			kd.box(Kit.at(0, 1.35, dz + 0.07), Vector3(0.95, 2.0, 0.1), col("3f6f9f"), 0.08, 0.15)
+			kd.box(Kit.at(0, 1.95, dz + 0.13), Vector3(0.5, 0.4, 0.04), glass, 0.04)
+			kd.sphere(Kit.at(0.3, 1.3, dz + 0.16), Vector3(0.06, 0.06, 0.06), col("f2c14e"), 8, 4)
+			kd.box(Kit.rot(0, 2.75, dz + 0.45, 0, 0.35), Vector3(1.8, 0.1, 0.95), shutter.darkened(0.1), 0.04)
+			kd.sphere(Kit.at(0.85, 2.2, dz + 0.2), Vector3(0.12, 0.16, 0.12), Kit.glow(col("ffd27a")), 8, 5)
+		for i in 3:
+			var mid := -length * 0.5 + (i + 0.5) * length / 3.0
+			var pivot := Vector3(mid, 0.3, sz * d * 0.5) if along_x else Vector3(sx * w * 0.5, 0.3, mid)
+			house_part("%s%d" % [side, i], kits[i], pivot)
+	# roof in two halves (they fold into a V when it caves in), with the gables
+	for half in [-1, 1]:
+		var kr := Kit.new()
+		var rd := (w + 0.7) * 0.5
+		kr.gable(Kit.rot(half * (w - 0.1) * 0.25, top, 0, PI * 0.5), d, 1.9, (w - 0.1) * 0.5, col("ffe2b0"))
+		kr.roof(Kit.rot(half * rd * 0.5, top, 0, PI * 0.5), d + 0.7, 1.9, rd + 0.02, col("4c7fc0"), 0.18, 0.07)
+		house_part("roof%d" % half, kr, Vector3(half * 0.05, top, 0))
+	# rooftop lookout and weather vane
+	var kl := Kit.new()
+	kl.box(Kit.at(0, top + 2.0, 0), Vector3(1.4, 0.15, 1.4), col("c98a55"), 0.04)
+	for px in [-1, 1]:
+		for pz in [-1, 1]: kl.cylinder(Kit.at(px * 0.6, top + 2.35, pz * 0.6), 0.05, 0.05, 0.6, col("8a5a3a"), 6)
+	kl.cylinder(Kit.at(1.8, top + 1.4, -0.8), 0.04, 0.04, 2.2, col("3e4a5c"), 6)
+	kl.box(Kit.at(1.8, top + 2.4, -0.8), Vector3(0.6, 0.35, 0.03), col("e8665a"), 0.0)
+	house_part("lookout", kl, Vector3(0, top + 1.9, 0))
+	# sign
+	var ks := Kit.new()
+	ks.box(Kit.at(0, 3.25, d * 0.5 + 0.12), Vector3(3.4, 0.7, 0.14), col("2f5168"), 0.08)
+	ks.box(Kit.at(0, 3.25, d * 0.5 + 0.05), Vector3(3.6, 0.85, 0.08), col("f2c14e"), 0.06)
+	var sign_piv := house_part("sign", ks, Vector3(0, 3.25, d * 0.5 + 0.1))
+	var l:Label3D = label_at("LA VERBENA", Vector3(c.x, 3.25, c.y + d * 0.5 + 0.21), 0.0062, Color("fff2c9"), false)
+	remove_child(l)
+	sign_piv.add_child(l)
+	l.position = Vector3(0, 0, 0.11)
+	# bunting around the eaves
+	for side in [-1.0, 1.0]:
+		var kf := Kit.new()
+		for i in 9:
+			var x := -w * 0.5 + i * w / 8.0
+			var fc:String = ["ff6b6b", "ffd166", "06d6a0", "4cc9f0", "f78fb3"][i % 5]
+			kf.box(Kit.rot(x, 3.5 - 0.15 * sin(i * PI / 8.0), side * (d * 0.5 + 0.55), PI * 0.25, 0, 0), Vector3(0.22, 0.32, 0.02), col(fc), 0.0)
+		house_part("bunting%d" % int(side), kf, Vector3(0, 3.5, side * (d * 0.5 + 0.55)))
+	# porch lanterns (with their light) and the barrels and crates of a fortified home
+	for px in [-1, 1]:
+		var kp := Kit.new()
+		kp.cylinder(Kit.at(px * 2.1, 0.9, d * 0.5 + 1.2), 0.07, 0.07, 1.8, col("6b4f3c"), 6)
+		kp.sphere(Kit.at(px * 2.1, 1.95, d * 0.5 + 1.2), Vector3(0.28, 0.34, 0.28), Kit.glow(col("ffb35c")), 10, 6)
+		house_part("lantern%d" % px, kp, Vector3(px * 2.1, 0.0, d * 0.5 + 1.2))
+	var kc := Kit.new()
+	kc.cylinder(Kit.at(-w * 0.5 - 0.5, 0.45, d * 0.5 - 0.4), 0.38, 0.38, 0.9, col("b8743f"), 12, true, 0.3)
+	house_part("barrel", kc, Vector3(-w * 0.5 - 0.5, 0.0, d * 0.5 - 0.4))
+	var kx := Kit.new()
+	kx.box(Kit.at(w * 0.5 + 0.55, 0.35, d * 0.5 - 0.5), Vector3(0.7, 0.7, 0.7), col("d49a5c"), 0.06, 0.3)
+	kx.box(Kit.at(w * 0.5 + 0.55, 0.95, d * 0.5 - 0.45), Vector3(0.5, 0.5, 0.5), col("e0b070"), 0.05, 0.3)
+	house_part("crates", kx, Vector3(w * 0.5 + 0.55, 0.0, d * 0.5 - 0.5))
+	# warm light inside: goes out when the house falls
+	var glow := OmniLight3D.new()
+	glow.position = Vector3(0, 2.2, d * 0.5 + 0.8)
+	glow.light_color = Color("ffc37a")
+	glow.light_energy = 0.0
+	glow.omni_range = 5.0
+	house_root.add_child(glow)
+	house_lights.append(glow)
+	# rubble left behind (hidden until the collapse)
+	var kru := Kit.new()
+	var rr := RandomNumberGenerator.new()
+	rr.seed = 11
+	for i in 46:
+		var p := Vector3(rr.randf_range(-w * 0.55, w * 0.55), 0, rr.randf_range(-d * 0.55, d * 0.6))
+		var hgt := 0.25 + 0.9 * (1.0 - clampf(Vector2(p.x / w, p.z / d).length() * 1.6, 0.0, 1.0))
+		var cc:Color = [wall, wall.darkened(0.15), col("4c7fc0"), col("c98a55"), trim, col("b6a99b")][i % 6]
+		kru.box(Kit.rot(p.x, 0.3 + hgt * 0.5 * rr.randf_range(0.4, 1.0), p.z, rr.randf() * TAU, rr.randf_range(-0.5, 0.5), rr.randf_range(-0.5, 0.5)), Vector3(rr.randf_range(0.4, 1.3), rr.randf_range(0.15, 0.45), rr.randf_range(0.3, 0.9)), cc, 0.04)
+	rubble = MeshInstance3D.new()
+	rubble.mesh = kru.commit()
+	rubble.material_override = toon
+	rubble.visible = false
+	house_root.add_child(rubble)
+
+func restore_house():
+	collapse_t = -1.0
+	for name in house_parts:
+		var piv:Node3D = house_parts[name][0]
+		piv.transform = house_parts[name][1]
+		piv.visible = true
+	for dbr in debris: dbr[0].queue_free()
+	debris.clear()
+	if rubble:
+		rubble.visible = false
+		rubble.scale = Vector3.ONE
+
+func collapse_house():
+	## The house gives way: walls fall outwards, the roof caves in, the lookout topples.
+	if collapse_t >= 0 or house_root == null: return
+	collapse_t = 0.0
+	var rr := RandomNumberGenerator.new()
+	rr.seed = int(Time.get_ticks_msec())
+	var cols := [col("ffd99a"), col("f0c07a"), col("4c7fc0"), col("c98a55"), col("fffaf0"), col("e8665a")]
+	for i in 54:
+		var size := Vector3(rr.randf_range(0.18, 0.6), rr.randf_range(0.1, 0.32), rr.randf_range(0.18, 0.5))
+		var kd := Kit.new()
+		kd.box(Transform3D(), size, cols[i % cols.size()], 0.03)
+		var mi := MeshInstance3D.new()
+		mi.mesh = kd.commit()
+		mi.material_override = toon
+		mi.position = Vector3(rr.randf_range(-2.6, 2.6), rr.randf_range(1.0, 4.5), rr.randf_range(-2.0, 2.2))
+		house_root.add_child(mi)
+		var out := Vector3(mi.position.x, 0, mi.position.z).normalized()
+		var vel := out * rr.randf_range(2.0, 7.0) + Vector3(0, rr.randf_range(3.0, 8.0), 0)
+		debris.append([mi, vel, Vector3(rr.randf_range(-9, 9), rr.randf_range(-9, 9), rr.randf_range(-9, 9)), false, rr.randf_range(0.0, 0.5)])
+
+func house_glow(night:float):
+	for l in house_lights: l.light_energy = 0.0 if collapse_t >= 0 else 1.4 * night
+
+func ease_fall(x:float) -> float:
+	## Accelerating fall with a small bounce at the end.
+	x = clampf(x, 0.0, 1.0)
+	if x < 0.82: return pow(x / 0.82, 2.2)
+	return 1.0 - 0.06 * sin((x - 0.82) / 0.18 * PI)
+
+func update_collapse(dt:float):
+	if collapse_t < 0: return
+	# a moment of slow motion as it gives way
+	collapse_t += dt * (0.35 if collapse_t < 0.5 else 1.0)
+	var t := collapse_t
+	var shake := maxf(0.0, 1.0 - t * 0.6)
+	house_root.position.x = Map.BASE.get_center().x + sin(t * 70.0) * 0.06 * shake
+	var falls := {"front": [0.35, Vector3(1, 0, 0), 1.0], "back": [0.6, Vector3(1, 0, 0), -1.0], "left": [0.5, Vector3(0, 0, 1), 1.0], "right": [0.75, Vector3(0, 0, 1), -1.0]}
+	for side in falls:
+		var f:Array = falls[side]
+		for i in 3:
+			var name := "%s%d" % [side, i]
+			var jitter := fmod(float(i * 37 + side.length() * 11) * 0.618, 1.0)
+			var k := ease_fall((t - f[0] - jitter * 0.25) / (0.95 + jitter * 0.3))
+			var rest:Transform3D = house_parts[name][1]
+			var piv:Node3D = house_parts[name][0]
+			var tilt:float = f[2] * k * deg_to_rad(70.0 + 18.0 * jitter)
+			piv.transform = rest.rotated_local(f[1], tilt).rotated_local(Vector3.UP, (jitter - 0.5) * 0.5 * k)
+			var along:Vector3 = Vector3(1, 0, 0) if side == "front" or side == "back" else Vector3(0, 0, 1)
+			piv.position = rest.origin + Vector3(0, -0.2 * k, 0) + along * 0.3 * k * (i - 1)
+	# the roof halves sag, drop into the gap and fold into a V
+	for half in [-1, 1]:
+		var roof:Node3D = house_parts["roof%d" % half][0]
+		var rrest:Transform3D = house_parts["roof%d" % half][1]
+		var drop := ease_fall((t - 0.55 - 0.12 * (half + 1)) / 1.0)
+		roof.transform = rrest.rotated_local(Vector3(0, 0, 1), -half * 0.5 * drop).rotated_local(Vector3(1, 0, 0), 0.1 * half * drop)
+		roof.position = rrest.origin + Vector3(half * 0.5 * drop, -(rrest.origin.y - 0.9) * drop, 0.15 * half * drop)
+	# lookout topples off the side
+	var look:Node3D = house_parts.lookout[0]
+	var lrest:Transform3D = house_parts.lookout[1]
+	var lk := ease_fall((t - 0.2) / 1.3)
+	look.transform = lrest.rotated_local(Vector3(0, 0, 1), -1.5 * lk)
+	look.position = lrest.origin + Vector3(3.2 * lk, -(lrest.origin.y - 0.4) * lk, 0.6 * lk)
+	# the sign swings on one nail, then falls flat
+	var sign:Node3D = house_parts.sign[0]
+	var srest:Transform3D = house_parts.sign[1]
+	var swing := clampf(t / 0.6, 0.0, 1.0)
+	var sk := ease_fall((t - 0.9) / 0.8)
+	sign.transform = srest.rotated_local(Vector3(0, 0, 1), 0.7 * swing + sin(t * 9.0) * 0.12 * (1.0 - sk)).rotated_local(Vector3(1, 0, 0), 1.45 * sk)
+	sign.position = srest.origin + Vector3(0, -(srest.origin.y - 0.25) * sk, 1.4 * sk)
+	# bunting flutters away, lanterns tip over
+	for side in [-1, 1]:
+		var b:Node3D = house_parts["bunting%d" % side][0]
+		var brest:Transform3D = house_parts["bunting%d" % side][1]
+		var bk := clampf((t - 0.3) / 2.5, 0.0, 1.0)
+		b.position = brest.origin + Vector3(sin(t * 2.0 + side) * bk, 2.5 * bk, side * 2.5 * bk)
+		b.rotation = Vector3(sin(t * 5.0) * 0.6 * bk, 0, side * 0.4 * bk)
+		b.visible = bk < 0.98
+		var lan:Node3D = house_parts["lantern%d" % side][0]
+		var lanrest:Transform3D = house_parts["lantern%d" % side][1]
+		lan.transform = lanrest.rotated_local(Vector3(0, 0, 1), -side * 1.45 * ease_fall((t - 0.4 - 0.15 * side) / 0.9))
+	# rubble rises as the walls go down
+	rubble.visible = t > 0.7
+	rubble.scale = Vector3(1, clampf((t - 0.7) / 1.0, 0.05, 1.0), 1)
+	# flying chunks with gravity and a couple of bounces
+	for dbr in debris:
+		var node:MeshInstance3D = dbr[0]
+		if dbr[3]: continue
+		if dbr[4] > 0:
+			dbr[4] -= dt
+			node.visible = false
+			continue
+		node.visible = true
+		var v:Vector3 = dbr[1]
+		v.y -= 18.0 * dt
+		node.position += v * dt
+		node.rotation += dbr[2] * dt
+		if node.position.y < 0.12:
+			node.position.y = 0.12
+			v = Vector3(v.x * 0.45, -v.y * 0.3, v.z * 0.45)
+			dbr[2] = dbr[2] * 0.5
+			if absf(v.y) < 0.8: dbr[3] = true
+		dbr[1] = v
 
 func build_stage():
 	## Festival stage where the four pieces are installed to light the verbena.
@@ -560,8 +808,8 @@ func dispensario(s:Dictionary):
 	flat_roof(xf, w + 0.3, d + 0.3, 4.22, col("5aa89a"), 3)
 	roof_cross(s.rect.get_center() + Vector2(-1.5, -0.8), 4.22, col("e8463c"), 1.4)
 	roof_sign("DISPENSARIO", s.rect.get_center() + Vector2(1.0, 2.2), 4.22, 4.2, col("5aa89a"))
-	var amb := xf * Kit.at(w * 0.5 + 1.8, 0, d * 0.5 - 1.2)
-	car(k, amb, col("fafafa"), col("e85d5d"))
+	var amb:Array = Map.site_car(1, Vector2(1, -1.2), 0.0)
+	car(k, Kit.rot(amb[0].x, 0, amb[0].y, amb[1]), col("fafafa"), col("e85d5d"))
 
 func economato(s:Dictionary):
 	var k := K(s.rect.get_center())
@@ -658,7 +906,8 @@ func comisaria(s:Dictionary):
 	k.box(xf * Kit.at(0.4, 4.5, 0), Vector3(0.5, 0.35, 0.5), Kit.glow(col("5a8aff"), 0.8), 0.12)
 	k.cylinder(xf * Kit.at(w * 0.5 + 1.0, 2.5, d * 0.5 + 0.5), 0.06, 0.06, 5.0, col("dddddd"), 6)
 	k.box(xf * Kit.at(w * 0.5 + 1.45, 4.5, d * 0.5 + 0.5), Vector3(0.9, 0.6, 0.03), col("f2c14e"), 0.0)
-	car(k, xf * Kit.rot(-w * 0.5 - 1.8, 0, d * 0.5 - 1.0, PI * 0.5), col("fafafa"), col("2f4f88"))
+	var patrol:Array = Map.site_car(5, Vector2(-1, -1.0), PI * 0.5)
+	car(k, Kit.rot(patrol[0].x, 0, patrol[0].y, patrol[1]), col("fafafa"), col("2f4f88"))
 
 func car(k:Kit, xf:Transform3D, body:Color, accent:Color):
 	k.box(xf * Kit.at(0, 0.55, 0), Vector3(1.7, 0.6, 3.2), body, 0.22, 0.25, 1)

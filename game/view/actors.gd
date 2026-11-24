@@ -29,6 +29,7 @@ var heroes := {}
 var horde := {}
 var structs := {}
 var loot_nodes := []
+var local_firing := false   # set by main from the local mouse button, ahead of the snapshot
 var beacons := []
 var drops := {}
 var bundles := {}
@@ -778,7 +779,7 @@ func build_static():
 		sp.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		n.add_child(sp)
 		n.position = Vector3(l.p.x, 0, l.p.y)
-		n.rotation.y = fmod(l.p.x * 1.7 + l.p.y, 1.0) - 0.5 + (PI * 0.5 if l.kind == 1 and absf(fmod(l.p.y, 24.0) - 12.0) < 3.0 else 0.0)
+		n.rotation.y = Map.loot_yaw(i)
 		add_child(n)
 		loot_nodes.append(n)
 	for i in Map.SITES.size():
@@ -1188,10 +1189,14 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		r.ground_vel = r.ground_vel.lerp(Vector2(vel.x, vel.z), 1.0 - exp(-12.0 * dt))
 		if r.ground_vel.length() > 12.0: r.ground_vel = r.ground_vel.normalized() * 12.0
 		var aim:Vector2 = local_aim if id == local_id and local_aim != Vector2.ZERO else p.aim
-		if p.fire: r.fire_t = 1.4
+		if p.fire or (id == local_id and local_firing) or r.swing > 0: r.fire_t = 0.9
 		r.fire_t = maxf(0.0, r.fire_t - dt)
-		var aiming:bool = p.st == 0 and (r.fire_t > 0 or r.ground_vel.length() < 0.6)
-		r.face(aim if p.st == 0 else r.ground_vel, dt)
+		var aiming:bool = p.st == 0 and r.fire_t > 0
+		# Walk facing where you go (forward with the camera shows your back);
+		# turn to the cursor only while shooting or swinging the pan.
+		if p.st != 0: r.face(r.ground_vel, dt)
+		elif aiming: r.face(aim, dt, 22.0)
+		elif r.ground_vel.length() > 0.5: r.face(r.ground_vel, dt, 10.0)
 		r.animate_hero(dt, t, r.ground_vel, aiming, p.fire, p.st, p.roll, p.rl > 0, p.use and p.hold != "")
 		r.flashlight.light_energy = (2.2 if p.st == 0 else 0.0) * smoothstep(0.3, 0.9, night_amount)
 		r.label.visible = id != local_id

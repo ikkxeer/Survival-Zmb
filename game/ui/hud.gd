@@ -22,12 +22,15 @@ var last_gun := -1
 var slots_t := 0.0
 var last_core := -1.0
 var house_shake := 0.0
+var over_t := 0.0          # seconds since the match ended (cinematic bars)
 var forecast_t := 8.0
 var last_phase := -1
 var last_wave := -1
 var indicators := []
 var keys := {}             # action -> key label, from the player's bindings
 var minimap_rect := Rect2()
+var house_tex:Texture2D     # 3D portraits rendered by game/ui/portrait.gd
+var mat_tex:Texture2D
 
 func _ready():
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -39,6 +42,7 @@ func feed(state:Dictionary, id:int, loc:Dictionary, dt:float):
 	local = loc
 	p = state.pl.get(id, {})
 	t += dt
+	over_t = over_t + dt if s.get("ph", -1) == P.OVER else 0.0
 	if p.is_empty(): return
 	if p.gun != last_gun:
 		if last_gun >= 0: slots_t = 2.2
@@ -82,6 +86,14 @@ func key(action:String, fallback:String) -> String:
 # ================================================================== drawing
 func _draw():
 	if s.is_empty() or p.is_empty(): return
+	if s.ph == P.OVER:
+		# the ending plays like a cut-scene: no HUD, cinema bars, just the banner
+		var k := smoothstep(0.0, 0.8, over_t)
+		var bar := size.y * 0.1 * k
+		draw_rect(Rect2(0, 0, size.x, bar), S.INK)
+		draw_rect(Rect2(0, size.y - bar, size.x, bar), S.INK)
+		draw_announce()
+		return
 	draw_world_marks()
 	draw_house()
 	draw_clock()
@@ -96,35 +108,68 @@ func _draw():
 
 # ------------------------------------------------------------------ house, materials, lanterns
 func draw_house():
-	var o := Vector2(24, 20) + Vector2(sin(t * 60.0), cos(t * 47.0)) * 4.0 * house_shake
+	## A round "photo" of the real house (rendered from its 3D model) framed like the
+	## day medallion: the ring is its strength, the ribbon says how it is doing.
+	var o := Vector2(24, 16) + Vector2(sin(t * 60.0), cos(t * 47.0)) * 4.0 * house_shake
 	var frac:float = s.core / maxf(1.0, s.cmax)
-	var hurt := house_shake > 0
-	draw_style_box(S.card(S.CARD, 22, S.CORAL if hurt else S.INK, 3), Rect2(o, Vector2(250, 58)))
-	S.icon(self, "house", o + Vector2(34, 30), 40)
 	var col := S.MINT if frac > 0.5 else (S.SUN if frac > 0.25 else S.CORAL)
-	S.pill(self, Rect2(o + Vector2(64, 23), Vector2(166, 16)), col, frac)
-	# materials chip
-	var m := o + Vector2(262, 6)
-	draw_style_box(S.card(S.CARD, 20, S.INK, 3), Rect2(m, Vector2(96, 46)))
-	S.icon(self, "plank", m + Vector2(28, 23), 34)
-	S.text(self, m + Vector2(50, 32), str(s.mat), 22, S.INK, "title", 600)
-	# four paper lanterns: the pieces of the verbena
+	var c := o + Vector2(54, 56)
+	var r := 44.0
+	var night:bool = s.ph == P.NIGHT
+	# ribbon behind the medallion: name and state of the house
+	var state_txt := "En pie" if frac > 0.66 else ("Tocada" if frac > 0.33 else "¡Se cae!")
+	if house_shake > 0 and frac <= 0.66: state_txt = "¡La atacan!"
+	var rib := Rect2(c + Vector2(r - 14, -36), Vector2(176, 40))
+	draw_style_box(S.card(S.PAPER, 12, S.INK, 3, 4), rib)
+	S.text(self, rib.position + Vector2(26, 18), "LA VERBENA", 13, S.INK_SOFT, "title", 600)
+	S.text(self, rib.position + Vector2(26, 35), state_txt, 16, col.darkened(0.25) if col != S.SUN else Color("c98a1a"), "body", 900)
+	S.text(self, rib.position + Vector2(rib.size.x - 52, 30), "%d%%" % roundi(frac * 100.0), 17, S.INK, "title", 600)
+	# materials: a pallet of planks on a little tag under the ribbon
+	var tag := Rect2(c + Vector2(r - 2, 10), Vector2(112, 40))
+	draw_style_box(S.card(S.CARD, 14, S.INK, 3, 4), tag)
+	if mat_tex: draw_texture_rect(mat_tex, Rect2(tag.position + Vector2(2, -14), Vector2(52, 52)), false)
+	else: S.icon(self, "plank", tag.position + Vector2(28, 20), 30)
+	S.text(self, tag.position + Vector2(56, 29), str(s.mat), 22, S.INK, "title", 600)
+	# the medallion
+	draw_circle(c + Vector2(0, 5), r + 6, Color(S.INK, 0.35))
+	draw_circle(c, r + 6, S.INK)
+	draw_circle(c, r + 3, S.CARD)
+	var sky := Color("3b3470") if night else Color("bfe3ff")
+	draw_circle(c, r - 5, sky)
+	# a strip of grass at the bottom of the frame
+	var ground := PackedVector2Array()
+	for i in 17:
+		var a := lerpf(0.2, PI - 0.2, i / 16.0)
+		ground.append(c + Vector2(cos(a), sin(a)) * (r - 5))
+	ground.append(c + Vector2(-(r - 5) * cos(0.2), (r - 5) * sin(0.2)))
+	draw_colored_polygon(ground, Color("4f8a4c") if night else Color("8fd06a"))
+	if night:
+		for i in 5: draw_circle(c + Vector2(-30 + i * 14, -22 + (i % 2) * 8), 1.4, Color(1, 1, 1, 0.8))
+	if house_tex:
+		var hs := 108.0
+		draw_texture_rect(house_tex, Rect2(c - Vector2(hs * 0.5, hs * 0.6), Vector2(hs, hs)), false)
+	else:
+		S.icon(self, "house", c, 52)
+	S.ring(self, c, r + 1, frac, col, 6.0, Color(S.INK, 0.12))
+	if house_shake > 0:
+		draw_arc(c, r + 10, 0, TAU, 40, Color(S.CORAL, house_shake * 2.0), 4.0, true)
+	# four paper lanterns hanging under it: the pieces of the verbena
 	var pcs:Array = s.get("pc", [])
 	if pcs.is_empty(): return
-	var a := o + Vector2(18, 70)
-	var b := o + Vector2(232, 70)
+	var la := c + Vector2(-r - 4, r + 16)
+	var lb := c + Vector2(r + 150, r + 16)
 	var pts := PackedVector2Array()
-	for i in 9: pts.append(a.lerp(b, i / 8.0) + Vector2(0, 10.0 * sin(PI * i / 8.0)))
+	for i in 9: pts.append(la.lerp(lb, i / 8.0) + Vector2(0, 8.0 * sin(PI * i / 8.0)))
 	draw_polyline(pts, Color(S.INK, 0.6), 2.0, true)
 	for i in pcs.size():
-		var c := a.lerp(b, (i + 0.5) / pcs.size()) + Vector2(0, 10.0 * sin(PI * (i + 0.5) / pcs.size()) + 16)
+		var lc := la.lerp(lb, (i + 0.5) / pcs.size()) + Vector2(0, 8.0 * sin(PI * (i + 0.5) / pcs.size()) + 15)
 		var st:int = pcs[i][0]
 		var tint := Color(Data.PIECES[i].color)
 		if st == 4: tint.a = 1.0
 		elif st == 2: tint.a = 1.0 if fmod(t, 0.8) < 0.4 else 0.2
 		else: tint.a = 0.2
-		draw_line(c + Vector2(0, -22), c + Vector2(0, -12), Color(S.INK, 0.6), 1.5, true)
-		S.icon(self, "bulb", c, 26, tint)
+		draw_line(lc + Vector2(0, -21), lc + Vector2(0, -11), Color(S.INK, 0.6), 1.5, true)
+		S.icon(self, "bulb", lc, 24, tint)
 
 # ------------------------------------------------------------------ clock medallion
 func draw_clock():
@@ -233,7 +278,7 @@ func tag(c:Vector2, value:String):
 func draw_team():
 	var ids:Array = s.pl.keys()
 	ids.sort()
-	var y := 140.0
+	var y := 190.0
 	for id in ids:
 		if id == me: continue
 		var q:Dictionary = s.pl[id]
@@ -261,7 +306,7 @@ func draw_notes():
 	if lines.is_empty(): return
 	var count := 0
 	for id in s.pl: if id != me: count += 1
-	var o := Vector2(24, 128 + count * 56)
+	var o := Vector2(24, 172 + count * 56)
 	var w := 300.0
 	var h := 40.0 + 26.0 * (lines.size() - 1)
 	draw_set_transform(o + Vector2(w * 0.5, h * 0.5), -0.02, Vector2.ONE)

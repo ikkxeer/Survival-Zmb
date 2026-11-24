@@ -63,6 +63,7 @@ var board_sig := ""
 var map_panel := PanelContainer.new()
 var map_info := Label.new()
 var minimap:Control
+var minimap_panel := PanelContainer.new()
 var bigmap:Control
 var pause := PanelContainer.new()
 var over := PanelContainer.new()
@@ -545,7 +546,7 @@ func build_hud():
 	anchor(orbit_reticle, 0.5, 0.5, Vector2.ZERO)
 	orbit_reticle.visible = false
 	# small map in a paper frame with bunting
-	var mmp := PanelContainer.new()
+	var mmp := minimap_panel
 	mmp.add_theme_stylebox_override("panel", paper_box(St.CARD, 22, 8))
 	mmp.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hud.add_child(mmp)
@@ -859,8 +860,10 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 		map_info.text = map_text(s)
 		bigmap.queue_redraw()
 	minimap.queue_redraw()
+	minimap_panel.visible = s.ph != P.OVER
 	over_wait = over_wait + dt if s.ph == P.OVER else 0.0
-	if s.ph == P.OVER and not over.visible and over_wait > (5.0 if s.get("vic", false) else 1.5):
+	var settle := 5.0 if s.get("vic", false) else (5.5 if s.get("core", 1.0) <= 0 else 1.5)
+	if s.ph == P.OVER and not over.visible and over_wait > settle:
 		over.visible = true
 		var won:bool = s.get("vic", false)
 		over_title.text = "¡La verbena está encendida!" if won else "Se acabó la verbena"

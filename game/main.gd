@@ -2,6 +2,7 @@ extends Node3D
 ## Orchestrates a session: menus, ENet networking, local input with movement
 ## prediction, the host simulation, camera, and routing of events to effects/audio/UI.
 
+const Portrait = preload("res://game/ui/portrait.gd")
 const Match = preload("res://game/match.gd")
 const Data = preload("res://game/data.gd")
 const Map = preload("res://game/map.gd")
@@ -45,6 +46,8 @@ var last_ev := 0
 var paused := false
 var local_pos := Vector2.INF
 var last_shot_key := ""
+var house_portrait
+var collapse_dust := 0.0     # seconds of dust and rumble while the house comes down
 var prev_pos := Vector2.INF   # local_pos one physics tick ago, to draw smoothly between ticks
 var local_aim := Vector2(0, 1)
 var cursor := Vector2.ZERO
@@ -104,6 +107,7 @@ func _ready():
 	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	post.add_child(screen)
 	add_child(ui)
+	make_portraits()
 	ui.launch.connect(start)
 	ui.leave.connect(stop.bind(""))
 	ui.resume.connect(func(): set_paused(false))
@@ -128,6 +132,19 @@ func _ready():
 	apply_settings(prefs.values)
 	ui.show_menu(true)
 	audio.set_music(2, 0.0)
+
+func make_portraits():
+	## Small renders of the real house and a pallet of materials for the HUD.
+	house_portrait = Portrait.new(224)
+	add_child(house_portrait)
+	for m in world.house_meshes(): house_portrait.add_mesh(m[0], m[1], world.toon)
+	house_portrait.frame(Vector3(0, 2.7, 0), 23.0, -28.0, -18.0)
+	var mats := Portrait.new(128)
+	add_child(mats)
+	mats.add_mesh(Portrait.materials_mesh(), Transform3D(), world.toon)
+	mats.frame(Vector3(0, 0.45, 0), 5.2, -35.0, -30.0)
+	ui.canvas.house_tex = house_portrait.get_texture()
+	ui.canvas.mat_tex = mats.get_texture()
 
 func make_crosshair() -> ImageTexture:
 	var img := Image.create(40, 40, false, Image.FORMAT_RGBA8)
@@ -275,6 +292,7 @@ func stop(reason:String):
 	lag_in.clear()
 	lag_out.clear()
 	actors.clear_all()
+	world.restore_house()
 	set_build(-1)
 	shop_open = false
 	map_open = false
@@ -574,6 +592,7 @@ func _physics_process(dt:float):
 		if prefs.pressed("use") and not shop_open: buttons |= 2
 		if roll_t > 0: buttons |= 4
 		if autopilot.has("buttons"): buttons = autopilot.buttons
+		actors.local_firing = buttons & 1 != 0 and me.st == 0
 		predict_fire(dt, me, buttons & 1 != 0)
 	net_clock -= dt
 	if mode == "join":
@@ -673,6 +692,7 @@ func on_state(s:Dictionary):
 			result_saved = false
 			last_ev = 0
 			actors.clear_all()
+			world.restore_house()
 			ui.over.visible = false
 			local_pos = Vector2.INF
 			fireworks = 0.0
@@ -805,7 +825,8 @@ func handle_event(type:String, d:Array, me:int):
 			ui.show_report(state.get("rep", []))
 		"over":
 			save_progress(true)
-			audio.play("down", null, 0, 0.7)
+			if state.get("core", 1.0) <= 0: house_falls()
+			else: audio.play("down", null, 0, 0.7)
 		"down":
 			audio.play("down", v3(d[0], d[1], 1), 0)
 		"revive":
@@ -916,6 +937,21 @@ func handle_event(type:String, d:Array, me:int):
 			fx.burst("stars", v3(0, -0.5, 0.2))
 			audio.play("build", v3(0, -0.5, 1), 0)
 
+func house_falls():
+	## Defeat because the house fell: it breaks apart on screen before the final card.
+	world.collapse_house()
+	collapse_dust = 2.6
+	var c := v3(Map.BASE_CENTER.x, Map.BASE_CENTER.y)
+	fx.explosion(c + Vector3(0, 0.5, 0), 3.0)
+	for i in 6: fx.burst("debris", c + Vector3(randf_range(-3, 3), randf_range(0.5, 3.5), randf_range(-2.5, 2.5)))
+	fx.shake(1.0)
+	fx.light(c + Vector3(0, 3, 0), Color("ffb35c"), 10.0, 0.5, 20.0)
+	audio.play("explosion", c, 4, 0.55)
+	audio.play("explosion", c, 0, 0.4)
+	audio.play("down", null, 0, 0.6)
+	camera.zoom_goal = maxf(camera.zoom_goal, 0.7)
+	ui.big("¡La casa ha caído!", "Los brotados han derribado la casa de la verbena", Color("ff6b6b"), 5.0)
+
 # ================================================================== frame
 func _process(dt:float):
 	age += dt
@@ -940,7 +976,21 @@ func _process(dt:float):
 	var lp := Vector3(drawn.x, 0, drawn.y) if drawn != Vector2.INF else Vector3.INF
 	actors.update(dt, age, s, lp, local_aim, night, s.ph == P.NIGHT and s.ev == 1)
 	# camera
-	if not p.is_empty() and local_pos != Vector2.INF:
+	world.update_collapse(dt)
+	world.house_glow(night)
+	if house_portrait and int(age * 0.5) != int((age - dt) * 0.5): house_portrait.refresh()
+	if world.collapse_t >= 0:
+		# the camera turns to the falling house and circles it slowly
+		cam_focus = cam_focus.lerp(Vector3(Map.BASE_CENTER.x, 0.5, Map.BASE_CENTER.y), 1.0 - exp(-3.0 * dt))
+		camera.yaw += dt * 0.12
+		if collapse_dust > 0:
+			collapse_dust -= dt
+			if randf() < dt * 14.0:
+				var at := Vector3(Map.BASE_CENTER.x + randf_range(-3.5, 3.5), randf_range(0.2, 2.0), Map.BASE_CENTER.y + randf_range(-3, 3))
+				fx.burst("puff", at)
+				if randf() < 0.4: fx.burst("dust", at)
+			fx.shake(dt * 0.6)
+	elif not p.is_empty() and local_pos != Vector2.INF:
 		var lead := (cursor - local_pos).limit_length(7.0) * 0.28 * camera.zoom_t
 		var target := Vector3(drawn.x + lead.x, 0, drawn.y + lead.y)
 		cam_focus = cam_focus.lerp(target, 1.0 - exp(-6.0 * dt))
