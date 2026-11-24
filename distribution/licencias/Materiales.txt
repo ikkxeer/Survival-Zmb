@@ -1,23 +1,33 @@
 LA ÚLTIMA VERBENA · PROCEDENCIA DE ESTA EDICIÓN DE PRUEBA
 
 Contenido del proyecto
-El escenario, los personajes, las animaciones y los efectos se generan desde
-game/art.gd y game/main.gd. Los iconos del plano se dibujan desde
-game/coop/tactical_map.gd. Las texturas de asfalto, hierba, adoquines y tejas
-y los shaders de superficie, cielo y contacto se crearon para este proyecto.
-Su incorporación se puede consultar en los cambios edc19db, 6ef51c1 y 7e6c5a2
-del repositorio https://github.com/ikkxeer/Survival-Zmb.
+Todo el contenido visual se genera por código al arrancar el juego:
+- Mallas de edificios, personajes, brotados, defensas, vegetación y objetos:
+  game/view/kit.gd, game/view/world.gd y game/view/actors.gd.
+- Sombreados de superficie, suelo, agua, cielo, contorno, efectos y pantalla:
+  game/shaders/*.gdshader.
+- Efectos de partículas e interfaz: game/view/fx.gd y game/interface.gd.
+No se incluyen texturas, imágenes ni modelos de terceros. Las texturas de la
+rama anterior (asfalto, hierba, adoquines y tejas) ya no forman parte del
+juego.
 
-El sonido del disparo se sintetiza durante la ejecución en game/main.gd.
-Esta compilación no incluye grabaciones musicales, muestras de audio externas,
-archivos de fuentes añadidos ni paquetes de modelos de terceros.
+Todo el sonido se sintetiza durante la ejecución en game/audio.gd: efectos de
+armas, brotados, explosiones, interfaz, ambiente y los tres bucles musicales
+(día, noche y combate), compuestos para este proyecto. No se incluyen
+grabaciones ni muestras externas.
+
+Tipografía: la interfaz pide una fuente redondeada instalada en el sistema
+(Nunito, Fredoka, Baloo 2, Varela Round, Quicksand, Comfortaa, Ubuntu o
+Noto Sans) y, si no existe, usa la fuente incluida con el motor. El paquete
+no contiene archivos de fuentes añadidos.
+
+Repositorio y cambios: https://github.com/ikkxeer/Survival-Zmb
 
 Motor y componentes
 El ejecutable utiliza la plantilla oficial estándar de Godot Engine 4.7.2
 para Windows x86_64. Godot se distribuye bajo la licencia MIT. Véase
 Godot-LICENSE.txt. Godot-COPYRIGHT.txt recoge los componentes de terceros,
 sus titulares y sus licencias, incluidos ENet y la fuente Noto Sans.
-El juego utiliza la tipografía de interfaz incluida con el motor.
 
 Los avisos se obtuvieron de la etiqueta 4.7.2-stable del motor.
 https://github.com/godotengine/godot/tree/4.7.2-stable

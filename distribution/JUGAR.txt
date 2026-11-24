@@ -2,14 +2,20 @@ LA ÚLTIMA VERBENA · EDICIÓN DE PRUEBA PARA WINDOWS x64
 
 Extrae todo el ZIP en una carpeta y abre LaUltimaVerbena.exe. El archivo
 LaUltimaVerbena.pck contiene el juego y debe estar al lado del ejecutable.
-El motor va incluido. Elige un rol y pulsa «Jugar en solitario».
+El motor va incluido. Escribe tu nombre, elige un oficio y pulsa
+«Jugar en solitario».
 
-Para jugar en la red local, una persona elige «Crear partida en red».
-Las demás abren esta misma compilación, escriben la dirección IP local del
-anfitrión y pulsan «Conectarse». El anfitrión utiliza el puerto UDP 24680.
+Para jugar en la red local, una persona elige «Crear partida en red»; su HUD
+muestra las direcciones IP del equipo. Las demás abren esta misma compilación,
+escriben esa IP y pulsan «Unirse», también con la partida empezada.
+El anfitrión utiliza el puerto UDP 24680.
 
 WASD mueve al personaje. Apunta con el ratón y dispara con el botón izquierdo.
-Arrastra con el botón derecho para girar la cámara. E recoge y repara.
-M abre el plano, G pide apoyo y F1 muestra los controles.
+La rueda acerca la cámara hasta la tercera persona; arrastra con el botón
+derecho para girarla. Un clic derecho corto da un sartenazo.
+E (mantener) rebusca, repara, reanima y libera. Q usa la habilidad del oficio.
+B abre la construcción, T la tienda junto a la casa y C conquista propiedades.
+M abre el plano (clic para señalar) y G pide apoyo. F1 muestra todos los
+controles. Las teclas se pueden cambiar en Ajustes y se guardan al salir.
 
 La carpeta licencias contiene los avisos del motor y sus componentes.
