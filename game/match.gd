@@ -11,6 +11,9 @@ const MAX_ENEMIES := 72
 const PLAYER_R := 0.36
 const BASE_SPEED := 5.0
 const EVENT_KEEP := 0.4
+const PING_DURATION := 8.0
+const PING_INTERVAL := 1.5
+const ALERT_TIME := 3.2
 
 var nav := Nav.new()
 var rng := RandomNumberGenerator.new()
@@ -49,10 +52,16 @@ var vigia_timer := 0.0
 var report := []
 var stats := {"kills":0, "built":0, "rescued":0, "nights":0}
 var buckets := {}
+var alerts := []          # per access (norte, este, sur, oeste): {hit, breach, house}
+var sector_damage := [0.0, 0.0, 0.0, 0.0]
+var site_hit := []
 
 func _init():
 	rng.randomize()
-	for i in Map.SITES.size(): sites.append({"claimed":false, "hp":0.0, "max":200.0})
+	for i in Map.SITES.size():
+		sites.append({"claimed":false, "hp":0.0, "max":200.0})
+		site_hit.append(0.0)
+	for i in 4: alerts.append({"hit":0.0, "breach":false, "house":0.0})
 	for l in Map.LOOT: loot.append(true)
 	for i in Map.SITES.size():
 		for g in (3 if i == 5 else 2): spawn_guard(i)
@@ -145,7 +154,7 @@ func join(id:int, role:int, name:String = "") -> bool:
 		"fire": false, "use": false, "roll": false, "ab": 0.0, "buff": 0.0, "med": 2 if role == 1 else 1,
 		"tr": 2, "kills": 0, "notice": "", "nt": 0.0, "hold": "", "ht": 0.0, "hm": 0.0, "hkey": "",
 		"prompt": "", "ready": false, "melee": 0.0, "heal": 0.0, "acc": 0.0, "last": time, "fix": 0,
-		"ping": 0.0, "dmg": 0.0, "flame": 0.0, "cursor": Vector2.ZERO,
+		"ping": null, "ping_left": 0.0, "dmg": 0.0, "flame": 0.0, "cursor": Vector2.ZERO,
 	}
 	players[id] = p
 	emit("join", [id])
@@ -209,9 +218,8 @@ func act(id:int, action:String, args:Array = []):
 	if action == "ready":
 		p.ready = not p.ready
 		return
-	if action == "ping" and args.size() > 0 and args[0] is Vector2 and p.ping <= 0:
-		p.ping = 0.6
-		emit("ping", [args[0].x, args[0].y, id])
+	if action == "ping":
+		mark(id, args[0] if args.size() > 0 else p.p)
 		return
 	if action == "medkit" and p.st == 1:
 		if p.med <= 0: return say(p, "No te quedan botiquines")
@@ -266,6 +274,23 @@ func act(id:int, action:String, args:Array = []):
 			emit("buy", [id])
 		"core_up": core_upgrade(p)
 
+func mark(id:int, point) -> bool:
+	## Team signal: lasts PING_DURATION, one every PING_INTERVAL. Fallen players mark where they lie.
+	if phase == P.OVER or not players.has(id): return false
+	if not (point is Vector2) or not (point as Vector2).is_finite(): return false
+	var p:Dictionary = players[id]
+	if p.ping_left > PING_DURATION - PING_INTERVAL: return false
+	p.ping = p.p if p.st != 0 else (point as Vector2).clamp(Map.BOUNDS.position, Map.BOUNDS.end)
+	p.ping_left = PING_DURATION
+	emit("ping", [p.ping.x, p.ping.y, id])
+	return true
+
+static func sector_of(at:Vector2) -> int:
+	## 0 norte, 1 este, 2 sur, 3 oeste, seen from the party house.
+	var d := at - Map.BASE_CENTER
+	if absf(d.x) > absf(d.y): return 1 if d.x > 0 else 3
+	return 2 if d.y > 0 else 0
+
 func start_reload(p:Dictionary):
 	var w:Dictionary = Data.WEAPONS[p.gun]
 	if p.rl > 0 or p.mag[p.gun] >= w.mag: return
@@ -306,6 +331,10 @@ func build(id:int, p:Dictionary, kind:int, cell:int):
 	nav.set_structure(cell, kind, hp)
 	stats.built += 1
 	give_xp(p, 2)
+	if def.block or kind == Data.S_WIRE:
+		var sec := sector_of(c)
+		alerts[sec].breach = false
+		alerts[sec].hit = 0.0
 	emit("build", [cell, kind])
 
 func upgrade(_id:int, p:Dictionary, cell:int):
@@ -338,6 +367,7 @@ func demolish(p:Dictionary, cell:int):
 func remove_structure(cell:int, broken:bool):
 	if not structures.has(cell): return
 	var k:int = structures[cell].k
+	if broken and (Data.STRUCTURES[k].block or k == Data.S_WIRE): alerts[sector_of(nav.center(cell))].breach = true
 	structures.erase(cell)
 	nav.clear_structure(cell)
 	emit("break" if broken else "remove", [cell, k])
@@ -593,7 +623,7 @@ func explode(at:Vector2, radius:float, dmg:float, owner:int, hostile:bool, struc
 		if c.distance_to(at) < radius + 0.5: damage_structure(cell, dmg * struct_mult)
 	for i in sites.size():
 		if sites[i].claimed and Map.SITES[i].beacon.distance_to(at) < radius + 0.5: damage_site(i, dmg * struct_mult)
-	if rect_distance(Map.BASE, at) < radius: damage_core(dmg * struct_mult * 0.6)
+	if rect_distance(Map.BASE, at) < radius: damage_core(dmg * struct_mult * 0.6, at)
 	for s in survivors:
 		if s.state == 1 and s.p.distance_to(at) < radius: s.hp -= dmg
 
@@ -601,6 +631,9 @@ func damage_structure(cell:int, dmg:float):
 	if not structures.has(cell): return
 	var s:Dictionary = structures[cell]
 	s.hp -= dmg
+	var sec := sector_of(nav.center(cell))
+	alerts[sec].hit = ALERT_TIME
+	if phase == P.NIGHT: sector_damage[sec] += dmg
 	emit("sdmg", [cell])
 	if s.k == Data.S_MINE:
 		trigger_mine(cell)
@@ -614,13 +647,18 @@ func trigger_mine(cell:int):
 	remove_structure(cell, true)
 	explode(nav.center(cell), 2.5, 115.0, s.owner, false, 0.0)
 
-func damage_core(dmg:float):
+func damage_core(dmg:float, from:Vector2 = Vector2.INF):
 	core = maxf(0.0, core - dmg)
+	if from.is_finite():
+		var sec := sector_of(from)
+		alerts[sec].house = ALERT_TIME
+		if phase == P.NIGHT: sector_damage[sec] += dmg
 	emit("core_hit", [])
 
 func damage_site(i:int, dmg:float):
 	if not sites[i].claimed: return
 	sites[i].hp -= dmg
+	site_hit[i] = ALERT_TIME
 	if sites[i].hp <= 0:
 		sites[i].claimed = false
 		sites[i].hp = 0.0
@@ -722,6 +760,7 @@ func start_night():
 	if night_event == 6:
 		queue.insert(mini(4, queue.size()), Data.BOSS)
 	night_total = queue.size()
+	sector_damage = [0.0, 0.0, 0.0, 0.0]
 	spawn_timer = 2.0
 	lightning_timer = 5.0
 	stats.nights += 1
@@ -781,6 +820,11 @@ func start_dawn():
 	if has_site(1): report.append("Dispensario: curas y botiquines")
 	if has_site(5): report.append("Comisaría: munición y tracas")
 	report.push_front("+%d materiales · +%d fichas" % [gain_mat, gain_coin])
+	var worst := 0
+	for i in 4: if sector_damage[i] > sector_damage[worst]: worst = i
+	if sector_damage[worst] > 0:
+		report.append("El acceso %s fue el más castigado (%d de daño)%s" % [Map.FRONT_NAMES[worst], int(sector_damage[worst]), " · ¡hay una brecha!" if alerts[worst].breach else ""])
+	report.append("Caja común: %d materiales" % materials)
 	for i in loot.size():
 		if not loot[i] and rng.randf() < 0.85: loot[i] = true
 	for i in sites.size():
@@ -875,7 +919,9 @@ func tick_players(dt:float):
 	for id in players:
 		var p:Dictionary = players[id]
 		p.nt = maxf(0, p.nt - dt)
-		p.ping = maxf(0, p.ping - dt)
+		if p.ping_left > 0:
+			p.ping_left -= dt
+			if p.ping_left <= 0: p.ping = null
 		p.dmg = maxf(0, p.dmg - dt)
 		p.ab = maxf(0, p.ab - dt)
 		p.buff = maxf(0, p.buff - dt)
@@ -1104,6 +1150,10 @@ func event_horde():
 
 # ------------------------------------------------------------------ world
 func tick_world(dt:float):
+	for a in alerts:
+		a.hit = maxf(0.0, a.hit - dt)
+		a.house = maxf(0.0, a.house - dt)
+	for i in site_hit.size(): site_hit[i] = maxf(0.0, site_hit[i] - dt)
 	for d in drops:
 		if d.t > 0:
 			d.t -= dt
@@ -1422,7 +1472,7 @@ func land_attack(e:Dictionary, def:Dictionary):
 		"struct":
 			damage_structure(t.cell, dmg * def.struct)
 		"site": damage_site(t.site, dmg * def.struct)
-		"core": damage_core(dmg * def.struct * 0.5)
+		"core": damage_core(dmg * def.struct * 0.5, e.p)
 		"slam": land_slam(e)
 	e.target = null
 
@@ -1490,7 +1540,7 @@ func land_slam(e:Dictionary):
 		if p.p.distance_to(e.p) < 3.6: hurt_player(p, 35.0, e.p)
 	for cell in structures.keys():
 		if nav.center(cell).distance_to(e.p) < 3.0: damage_structure(cell, 140.0)
-	if rect_distance(Map.BASE, e.p) < 3.0: damage_core(45.0)
+	if rect_distance(Map.BASE, e.p) < 3.0: damage_core(45.0, e.p)
 
 func tick_projectiles(dt:float):
 	for i in range(projectiles.size() - 1, -1, -1):
@@ -1505,7 +1555,7 @@ func tick_projectiles(dt:float):
 				if p.p.distance_to(at) < pr.r: hurt_player(p, pr.dmg, at)
 			var cell := nav.cell_of(at)
 			if structures.has(cell): damage_structure(cell, pr.dmg * 1.2)
-			if rect_distance(Map.BASE, at) < 0.8: damage_core(pr.dmg * 0.5)
+			if rect_distance(Map.BASE, at) < 0.8: damage_core(pr.dmg * 0.5, pr.from)
 			for s in survivors:
 				if s.state == 1 and s.p.distance_to(at) < pr.r: s.hp -= pr.dmg
 		else:
@@ -1556,7 +1606,7 @@ func snapshot() -> Dictionary:
 			"bleed":p.bleed, "coins":p.coins, "xp":p.xp, "lvl":p.lvl, "gun":p.gun, "guns":p.guns, "mag":p.mag, "res":p.res,
 			"rl":p.rl, "rlmax":p.rlmax, "ab":p.ab, "buff":p.buff, "med":p.med, "tr":p.tr, "kills":p.kills,
 			"notice":p.notice if p.nt > 0 else "", "hold":p.hold, "ht":p.ht, "hm":p.hm, "prompt":p.prompt, "ready":p.ready,
-			"roll":p.roll, "fix":p.fix, "dmg":p.dmg, "fire":p.fire and p.rl <= 0, "use":p.use}
+			"roll":p.roll, "fix":p.fix, "ping":p.ping, "ping_left":p.ping_left, "dmg":p.dmg, "fire":p.fire and p.rl <= 0, "use":p.use}
 	var si := []
 	for s in sites: si.append([s.claimed, s.hp, s.max])
 	var sv := []
@@ -1565,13 +1615,15 @@ func snapshot() -> Dictionary:
 	for d in drops: dr.append([d.id, d.p.x, d.p.y, d.t])
 	var sk := []
 	for s in strikes: sk.append([s.p.x, s.p.y, s.t])
+	var br := []
+	for a in alerts: br.append_array([a.hit, 1 if a.breach else 0, a.house])
 	var boss := []
 	for key in enemies:
 		if enemies[key].k == Data.BOSS: boss = [key, enemies[key].hp / enemies[key].max]
 	return {"ph":phase, "w":wave, "c":clock, "cl":phase_len, "tod":time_of_day(), "core":core, "cmax":core_max, "clvl":core_level,
 		"mat":materials, "ev":night_event, "wx":weather, "fr":fronts, "rem":queue.size() + night_alive(), "tot":night_total,
 		"pl":pl, "en":en, "st":st, "si":si, "lo":loot.duplicate(), "pr":pr, "sv":sv, "dr":dr, "cm":community.duplicate(),
-		"fx":events.duplicate(), "rep":report, "boss":boss, "sk":sk, "stats":stats, "time":time, "cc":claim_cost()}
+		"fx":events.duplicate(), "rep":report, "boss":boss, "sk":sk, "stats":stats, "time":time, "cc":claim_cost(), "br":br, "sh":site_hit.duplicate()}
 
 func load_structures(st:PackedInt32Array):
 	## Used by clients so local movement prediction collides with the same structures.

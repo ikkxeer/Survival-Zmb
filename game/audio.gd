@@ -16,6 +16,7 @@ var intensity := 0.0
 var rng := RandomNumberGenerator.new()
 var master := 1.0
 var music_volume := 0.7
+var sfx := 1.0
 
 func _ready():
 	rng.seed = 3
@@ -169,14 +170,14 @@ func play(name:String, at = null, volume:float = 0.0, pitch:float = 1.0):
 		p3i = (p3i + 1) % players3d.size()
 		p.stream = bank[name]
 		p.global_position = at
-		p.volume_db = volume + linear_to_db(maxf(master, 0.001))
+		p.volume_db = volume + linear_to_db(maxf(master * sfx, 0.001))
 		p.pitch_scale = pitch * rng.randf_range(0.95, 1.05)
 		p.play()
 	else:
 		var p:AudioStreamPlayer = players2d[p2i]
 		p2i = (p2i + 1) % players2d.size()
 		p.stream = bank[name]
-		p.volume_db = volume + linear_to_db(maxf(master, 0.001))
+		p.volume_db = volume + linear_to_db(maxf(master * sfx, 0.001))
 		p.pitch_scale = pitch
 		p.play()
 

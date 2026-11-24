@@ -10,6 +10,8 @@ const Actors = preload("res://game/view/actors.gd")
 const Fx = preload("res://game/view/fx.gd")
 const Audio = preload("res://game/audio.gd")
 const UI = preload("res://game/interface.gd")
+const CameraRig = preload("res://game/view/camera_rig.gd")
+const Settings = preload("res://game/settings.gd")
 const P := Data.Phase
 const PORT := 24680
 const SEND_RATE := 1.0 / 20.0
@@ -19,7 +21,8 @@ var actors := Actors.new()
 var fx := Fx.new()
 var audio := Audio.new()
 var ui := UI.new()
-var camera := Camera3D.new()
+var camera := CameraRig.new()
+var prefs := Settings.new()
 var listener := AudioListener3D.new()
 var screen := ColorRect.new()
 var screen_mat := ShaderMaterial.new()
@@ -52,7 +55,12 @@ var zap_sound_t := 0.0
 var heal_sound_t := 0.0
 var cam_focus := Vector3.ZERO
 var menu_t := 0.0
-var markers := []
+var rmb_down := false
+var rmb_t := 0
+var rmb_travel := 0.0
+var orbiting := false
+var saved_cursor := Vector2.ZERO
+var map_click := false
 var last_phase := -1
 var crosshair:ImageTexture
 
@@ -64,10 +72,8 @@ func _ready():
 	add_child(fx)
 	add_child(audio)
 	add_child(camera)
-	camera.fov = 40.0
-	camera.near = 0.5
-	camera.far = 220.0
 	camera.current = true
+	prefs.load_file()
 	add_child(listener)
 	listener.make_current()
 	var post := CanvasLayer.new()
@@ -82,7 +88,10 @@ func _ready():
 	ui.launch.connect(start)
 	ui.leave.connect(stop.bind(""))
 	ui.resume.connect(func(): set_paused(false))
-	ui.settings_changed.connect(apply_settings)
+	ui.prefs = prefs
+	ui.settings_changed.connect(func(v):
+		apply_settings(v)
+		prefs.save_file())
 	ui.action.connect(on_ui_action)
 	ui.build_pick.connect(func(k): set_build(k))
 	multiplayer.peer_disconnected.connect(func(id):
@@ -91,7 +100,8 @@ func _ready():
 	multiplayer.connection_failed.connect(stop.bind("No se pudo conectar con esa dirección."))
 	multiplayer.server_disconnected.connect(stop.bind("El anfitrión ha cerrado la partida."))
 	crosshair = make_crosshair()
-	apply_settings(ui.settings)
+	ui.sync_settings()
+	apply_settings(prefs.values)
 	ui.show_menu(true)
 	audio.set_music(2, 0.0)
 
@@ -153,6 +163,9 @@ func start(which:String, role:int, address:String, player_name:String):
 func stop(reason:String):
 	if mode == "": return
 	mode = ""
+	end_orbit()
+	camera.reset()
+	map_click = false
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
 		multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
@@ -214,7 +227,11 @@ func apply_settings(s:Dictionary):
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if s.fullscreen else DisplayServer.WINDOW_MODE_WINDOWED)
 	audio.master = s.volume
 	audio.music_volume = s.music
+	audio.sfx = s.sfx
 	fx.show_numbers = s.numbers
+	fx.bright = s.flashes
+	camera.sensitivity = s.sensitivity
+	get_tree().root.content_scale_factor = s.ui_scale
 
 func on_ui_action(name:String, args:Array):
 	if name == "ui_click":
@@ -227,6 +244,55 @@ func set_build(k:int):
 	build_kind = k
 	if k < 0: actors.show_ghost(-1, Vector3.ZERO, false)
 
+func _notification(what):
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT: end_orbit()
+
+func begin_orbit():
+	orbiting = true
+	ui.orbit_reticle.visible = true
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func end_orbit():
+	if not orbiting: return
+	orbiting = false
+	ui.orbit_reticle.visible = false
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	get_viewport().warp_mouse(saved_cursor)
+
+func _input(ev:InputEvent):
+	## Runs before the interface: map clicks and right-button orbit must win over shooting.
+	if mode == "" or state.is_empty() or paused: return
+	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT and not ev.pressed:
+		map_click = false
+	if map_open and ev is InputEventMouseButton and ev.pressed and ev.button_index == MOUSE_BUTTON_LEFT:
+		var w = ui.bigmap_world(ev.position)
+		if w != null:
+			send_action("ping", [w])
+			map_click = true
+			get_viewport().set_input_as_handled()
+		return
+	if ev is InputEventMouseMotion and rmb_down:
+		rmb_travel += ev.relative.length()
+		if not orbiting and rmb_travel > 8.0: begin_orbit()
+		if orbiting:
+			camera.orbit(ev.screen_relative)
+			get_viewport().set_input_as_handled()
+	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_RIGHT:
+		if ev.pressed:
+			rmb_down = true
+			rmb_travel = 0.0
+			rmb_t = Time.get_ticks_msec()
+			saved_cursor = ev.position
+		elif rmb_down:
+			rmb_down = false
+			if orbiting: end_orbit()
+			elif Time.get_ticks_msec() - rmb_t < 400: right_click()
+		get_viewport().set_input_as_handled()
+
+func right_click():
+	if build_kind >= 0: set_build(-1)
+	else: melee()
+
 func _unhandled_input(ev:InputEvent):
 	if mode == "" or state.is_empty(): return
 	if ev is InputEventKey and ev.pressed and not ev.echo:
@@ -234,16 +300,18 @@ func _unhandled_input(ev:InputEvent):
 	if ev is InputEventMouseButton and ev.pressed:
 		if paused: return
 		match ev.button_index:
-			MOUSE_BUTTON_WHEEL_UP: cycle_gun(-1)
-			MOUSE_BUTTON_WHEEL_DOWN: cycle_gun(1)
+			MOUSE_BUTTON_WHEEL_UP:
+				if build_kind >= 0: cycle_gun(-1)
+				else: camera.zoom(-1)
+			MOUSE_BUTTON_WHEEL_DOWN:
+				if build_kind >= 0: cycle_gun(1)
+				else: camera.zoom(1)
 			MOUSE_BUTTON_MIDDLE: send_action("ping", [cursor])
-			MOUSE_BUTTON_RIGHT:
-				if build_kind >= 0: set_build(-1)
-				else: melee()
 			MOUSE_BUTTON_LEFT:
 				if build_kind >= 0: place()
 
 func key(code:int):
+	if ui.capture_key(code): return
 	if code == KEY_ESCAPE:
 		if shop_open: return toggle_shop()
 		if map_open: return toggle_map()
@@ -259,28 +327,32 @@ func key(code:int):
 	if code == KEY_F1:
 		ui.toggle_panel(ui.help_panel)
 		return
-	if code == KEY_TAB: return toggle_map()
-	if code == KEY_T: return toggle_shop()
+	var act := prefs.action_for(code)
+	if code == KEY_TAB or act == "map": return toggle_map()
+	if act == "shop": return toggle_shop()
 	if shop_open: return
 	var me := my_state()
 	if me.is_empty(): return
+	if act == "ping":
+		send_action("ping", [me.p])
+		return
 	if build_kind >= 0 and code >= KEY_1 and code <= KEY_8:
 		set_build(code - KEY_1)
 		return
-	match code:
-		KEY_B: set_build(-1 if build_kind >= 0 else 0)
-		KEY_R: send_action("reload")
-		KEY_Q: send_action("ability")
-		KEY_G: send_action("grenade", [cursor])
-		KEY_H: send_action("medkit")
-		KEY_C: send_action("claim")
-		KEY_N: send_action("ready")
-		KEY_V: melee()
-		KEY_F:
+	match act:
+		"build": set_build(-1 if build_kind >= 0 else 0)
+		"reload": send_action("reload")
+		"ability": send_action("ability")
+		"grenade":
 			if build_kind >= 0: send_action("upgrade", [sim.nav.cell_of(cursor)])
-		KEY_X:
+			else: send_action("grenade", [cursor])
+		"medkit": send_action("medkit")
+		"claim": send_action("claim")
+		"ready": send_action("ready")
+		"melee": melee()
+		"demolish":
 			if build_kind >= 0: send_action("demolish", [sim.nav.cell_of(cursor)])
-		KEY_SPACE: start_roll()
+		"roll": start_roll()
 	if build_kind < 0 and code >= KEY_1 and code <= KEY_7:
 		var g := code - KEY_1
 		if me.guns.has(g): send_action("switch", [g])
@@ -336,9 +408,8 @@ func place():
 
 func move_input() -> Vector2:
 	if paused or shop_open: return Vector2.ZERO
-	var v := Vector2(int(Input.is_physical_key_pressed(KEY_D)) - int(Input.is_physical_key_pressed(KEY_A)),
-		int(Input.is_physical_key_pressed(KEY_S)) - int(Input.is_physical_key_pressed(KEY_W)))
-	return v.normalized()
+	var v := Vector2(int(prefs.pressed("right")) - int(prefs.pressed("left")), int(prefs.pressed("down")) - int(prefs.pressed("up")))
+	return camera.movement(v.normalized())
 
 func my_state() -> Dictionary:
 	if state.is_empty() or not state.pl.has(my_id()): return {}
@@ -353,8 +424,8 @@ func _physics_process(dt:float):
 		local_move(dt, me)
 		var mouse := get_viewport().get_mouse_position()
 		var over_ui := ui.shop.visible or ui.map_panel.visible or paused or ui.build_bar.get_global_rect().has_point(mouse) and build_kind >= 0
-		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and build_kind < 0 and not over_ui: buttons |= 1
-		if Input.is_physical_key_pressed(KEY_E) and not shop_open: buttons |= 2
+		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and build_kind < 0 and not over_ui and not map_click: buttons |= 1
+		if prefs.pressed("use") and not shop_open: buttons |= 2
 		if roll_t > 0: buttons |= 4
 		predict_fire(dt, me, buttons & 1 != 0)
 	net_clock -= dt
@@ -384,7 +455,7 @@ func local_move(dt:float, me:Dictionary):
 	roll_cd -= dt
 	var dir := move_input()
 	var speed := sim.player_speed(me)
-	var sprint:bool = Input.is_physical_key_pressed(KEY_SHIFT) and dir != Vector2.ZERO and stamina > 0.05 and me.st == 0
+	var sprint:bool = prefs.pressed("sprint") and dir != Vector2.ZERO and stamina > 0.05 and me.st == 0
 	if sprint:
 		speed *= 1.35
 		stamina = maxf(0.0, stamina - dt * 0.32)
@@ -397,11 +468,14 @@ func local_move(dt:float, me:Dictionary):
 	var cell := sim.nav.cell_of(local_pos)
 	if cell >= 0 and sim.nav.skind[cell] >= 0 and Data.STRUCTURES[sim.nav.skind[cell]].block: vel *= 0.5
 	local_pos = sim.nav.move(local_pos, vel * dt, Match.PLAYER_R, 0).clamp(Map.BOUNDS.position, Map.BOUNDS.end)
-	var mouse := get_viewport().get_mouse_position()
-	var hit = Plane(Vector3.UP, 1.0).intersects_ray(camera.project_ray_origin(mouse), camera.project_ray_normal(mouse))
+	var mouse := get_viewport().get_visible_rect().size * 0.5 if orbiting else get_viewport().get_mouse_position()
+	var hit = camera.aim_point(mouse, 1.0)
 	if hit != null:
 		cursor = Vector2(hit.x, hit.z)
-		if cursor.distance_to(local_pos) > 0.3: local_aim = (cursor - local_pos).normalized()
+	else:
+		var ray := camera.project_ray_normal(mouse)
+		cursor = local_pos + Vector2(ray.x, ray.z).normalized() * 12.0
+	if cursor.distance_to(local_pos) > 0.3: local_aim = (cursor - local_pos).normalized()
 
 func predict_fire(dt:float, me:Dictionary, firing:bool):
 	## Clients play their own muzzle flash and sound at once; the host decides the hits.
@@ -586,13 +660,12 @@ func handle_event(type:String, d:Array, me:int):
 			var col := Color(actors.SLOT_COLORS[state.pl[d[2]].slot % 4]) if state.pl.has(d[2]) else Color.WHITE
 			fx.ring(v3(d[0], d[1]), col, 0.3, 2.5, 1.2)
 			fx.ring(v3(d[0], d[1]), col, 2.0, 2.0, 5.0, true)
-			markers.append([Vector2(d[0], d[1]), col, 6.0, state.pl[d[2]].name if state.pl.has(d[2]) else ""])
 			audio.play("click", null, 0, 0.6)
 		"warn":
 			fx.ring(v3(d[0], d[1]), Color("cfe4ff"), 4.0, 4.0, 1.0, true)
 		"bolt":
 			fx.bolt(v3(d[0], d[1]))
-			world.lightning()
+			if prefs.values.flashes: world.lightning()
 			audio.play("thunder", null, 0)
 		"survivor": audio.play("alarm", v3(d[0], d[1], 1), -6, 1.3)
 		"drop": audio.play("coin", null, -2, 0.7)
@@ -624,15 +697,15 @@ func _process(dt:float):
 	actors.update(dt, age, s, lp, local_aim, night, s.ph == P.NIGHT and s.ev == 1)
 	# camera
 	if not p.is_empty() and local_pos != Vector2.INF:
-		var lead := (cursor - local_pos).limit_length(7.0) * 0.28
+		var lead := (cursor - local_pos).limit_length(7.0) * 0.28 * camera.zoom_t
 		var target := Vector3(local_pos.x + lead.x, 0, local_pos.y + lead.y)
 		cam_focus = cam_focus.lerp(target, 1.0 - exp(-6.0 * dt))
 	var shake := Vector3.ZERO
 	if ui.settings.shake and fx.trauma > 0:
 		var tr := fx.trauma * fx.trauma
 		shake = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * tr * 0.7
-	camera.position = cam_focus + Vector3(0, 17.0, 13.5) + shake
-	camera.look_at(cam_focus + Vector3(0, 0, -0.5) + shake * 0.5)
+	camera.follow(cam_focus, dt, shake)
+	if actors.heroes.has(me): actors.heroes[me].visible = camera.boom > 1.2
 	listener.global_position = cam_focus + Vector3(0, 8, 4)
 	listener.global_basis = camera.global_basis
 	# audio
@@ -648,7 +721,7 @@ func _process(dt:float):
 		if z.position.distance_to(cam_focus) < 18: audio.play("groan%d" % randi_range(0, 2), z.position + Vector3(0, 1.5, 0), -10, randf_range(0.85, 1.2))
 	# post
 	if not p.is_empty():
-		screen_mat.set_shader_parameter("hurt", clampf(p.dmg * 2.0, 0.0, 0.6) + (0.25 if p.hp < p.hpmax * 0.3 and p.st == 0 else 0.0) * (0.5 + 0.5 * sin(age * 6.0)))
+		screen_mat.set_shader_parameter("hurt", (1.0 if prefs.values.flashes else 0.4) * clampf(p.dmg * 2.0, 0.0, 0.6) + (0.25 if p.hp < p.hpmax * 0.3 and p.st == 0 else 0.0) * (0.5 + 0.5 * sin(age * 6.0)))
 		screen_mat.set_shader_parameter("down", 1.0 if p.st != 0 else 0.0)
 	screen_mat.set_shader_parameter("vignette", 0.3 + 0.25 * night)
 	# build preview
@@ -673,11 +746,7 @@ func _process(dt:float):
 		elif not sim.in_territory(c):
 			hint = "Fuera de tu territorio: construye cerca de la casa o de una propiedad conquistada"
 		local.build_hint = hint + "\nClic: colocar · 1–8 o rueda: elegir · Clic derecho / B: salir"
-	ui.mm_data = {"me": local_pos if local_pos != Vector2.INF else Vector2.ZERO, "indicators": indicators(s, me)}
-	ui.markers = markers
-	for i in range(markers.size() - 1, -1, -1):
-		markers[i][2] -= dt
-		if markers[i][2] <= 0: markers.remove_at(i)
+	ui.mm_data = {"yaw": camera.yaw, "me": local_pos if local_pos != Vector2.INF else Vector2.ZERO, "indicators": indicators(s, me)}
 	ui.render(s, me, local, dt)
 
 func client_cost(p:Dictionary, kind:int) -> int:
@@ -700,7 +769,12 @@ func indicators(s:Dictionary, me:int) -> Array:
 	for sv in s.sv:
 		if sv[4] == 0: add.call(v3(sv[1], sv[2], 2.0), Color("ffd166"), "Vecino")
 	for d in s.dr: add.call(v3(d[1], d[2], 1.0), Color("4cc9f0"), "Suministros")
-	for m in markers: add.call(v3(m[0].x, m[0].y, 0.5), m[1], m[3])
+	for id in s.pl:
+		var q:Dictionary = s.pl[id]
+		if q.ping == null: continue
+		var dist := roundi(Vector2(local_pos.x, local_pos.y).distance_to(q.ping)) if local_pos != Vector2.INF else 0
+		var col := Color("ff6b6b") if q.st != 0 else Color(actors.SLOT_COLORS[q.slot % 4])
+		add.call(v3(q.ping.x, q.ping.y, 1.7), col, "%s · %d m" % [Data.ROLES[q.role].name if id != me else "Tú", dist])
 	if s.boss.size() > 0 and actors.horde.has(s.boss[0]): add.call(actors.horde[s.boss[0]].position + Vector3(0, 3, 0), Color("c45ad8"), "Gigantón")
 	return out
 

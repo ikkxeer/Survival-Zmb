@@ -1,0 +1,39 @@
+name: Fallo en una partida
+description: Describe un problema al abrir la descarga o jugar en solitario o en equipo.
+title: "[Fallo] "
+body:
+  - type: input
+    id: build
+    attributes:
+      label: ¿Qué versión abriste?
+      description: Pega el nombre de la descarga, el identificador de la candidata o el commit.
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: ¿Dónde ocurrió?
+      options:
+        - Instalación o arranque
+        - Solitario
+        - Cooperativo como anfitrión
+        - Cooperativo como invitado
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: ¿Qué hiciste y qué ocurrió?
+      description: Incluye lo que esperabas ver y si pudiste repetirlo o continuar jugando.
+    validations:
+      required: true
+  - type: input
+    id: context
+    attributes:
+      label: Contexto de la partida
+      placeholder: "Ejemplo: noche 2, tres jugadores, al reparar la entrada sur"
+  - type: input
+    id: platform
+    attributes:
+      label: Equipo
+      placeholder: "Versión de Windows y, si es un fallo visual, GPU y resolución"

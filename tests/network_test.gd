@@ -2,13 +2,14 @@ extends SceneTree
 ## Replication check with real ENet processes. One host and up to three clients:
 ##   godot --headless -s tests/network_test.gd -- --host
 ##   godot --headless -s tests/network_test.gd          (x3, within 15 s)
-## Each client builds a barricade; everyone must see all of them and the client predictions.
+## Every player sends a support signal and each client builds a barricade; all processes must see them.
 const Data = preload("res://game/data.gd")
 var game
 var elapsed := 0.0
 var host:bool
 var expected := 4
 var built := false
+var pinged := false
 var done := false
 
 func _initialize():
@@ -32,6 +33,11 @@ func _process(dt):
 	var s:Dictionary = game.state
 	if s.is_empty() or s.pl.size() != expected: return false
 	var me:int = game.my_id()
+	if not pinged:
+		pinged = true
+		game.send_action("ping", [s.pl[me].p])
+	for q in s.pl.values():
+		if q.ping == null: return false
 	if not host and not built:
 		built = true
 		var slot:int = s.pl[me].slot
@@ -41,6 +47,6 @@ func _process(dt):
 	var walls:int = s.st.size() / 8
 	if walls >= expected - 1:
 		done = true
-		print("%s ve %d barricadas y %d vecinos" % ["Anfitrión" if host else "Cliente", walls, s.pl.size()])
+		print("%s ve %d barricadas, %d vecinos y %d señales" % ["Anfitrión" if host else "Cliente", walls, s.pl.size(), s.pl.values().filter(func(q): return q.ping != null).size()])
 		create_timer(2.0 if host else 0.5).timeout.connect(func(): quit(0))
 	return false

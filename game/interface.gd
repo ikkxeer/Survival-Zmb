@@ -32,7 +32,15 @@ var address := LineEdit.new()
 var status := Label.new()
 var settings_panel := PanelContainer.new()
 var help_panel := PanelContainer.new()
-var settings := {"quality":2, "fullscreen":false, "volume":0.8, "music":0.6, "shake":true, "numbers":true}
+var settings := {"quality":2, "fullscreen":false, "volume":0.8, "music":0.6, "sfx":1.0, "shake":true, "flashes":true, "numbers":true, "sensitivity":1.0, "ui_scale":1.0}
+var prefs
+var settings_list := VBoxContainer.new()
+var bind_buttons := {}
+var waiting_bind := ""
+var help_text:Label
+var orbit_reticle := Label.new()
+var alert_box := PanelContainer.new()
+var alert_label := Label.new()
 
 var hud := Control.new()
 var banner := Label.new()
@@ -83,7 +91,6 @@ var overlay:Control
 var help_hint := Label.new()
 var prompt_box:VBoxContainer
 var ready_label := Label.new()
-var markers := []
 var last_state := {}
 var my_id := 0
 var build_kind := -1
@@ -332,39 +339,100 @@ func toggle_panel(p:Control):
 	var show := not p.visible
 	for q in [settings_panel, help_panel]: q.visible = false
 	p.visible = show
+	if show: p.move_to_front()
+	waiting_bind = ""
 
 # ================================================================== settings & help
 func build_settings():
 	root.add_child(settings_panel)
 	settings_panel.visible = false
 	settings_panel.add_theme_stylebox_override("panel", box(Color(NAVY, 0.96), 20, 22))
-	settings_panel.custom_minimum_size = Vector2(520, 0)
+	settings_panel.custom_minimum_size = Vector2(620, 0)
 	anchor(settings_panel, 0.5, 0.5, Vector2.ZERO)
-	var col := vbox(settings_panel, 12)
+	var col := vbox(settings_panel, 10)
 	label(col, "Ajustes", 30, YELLOW, 6)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 560)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	col.add_child(scroll)
+	settings_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	settings_list.add_theme_constant_override("separation", 10)
+	scroll.add_child(settings_list)
+	button(col, "Cerrar", func(): settings_panel.hide())
+
+func sync_settings():
+	## Rebuild the settings controls from the saved preferences.
+	if prefs != null: settings = prefs.values
+	for c in settings_list.get_children(): c.queue_free()
+	bind_buttons.clear()
+	var col := settings_list
+	label(col, "Imagen", 20, SKY)
 	var q := OptionButton.new()
 	for n in ["Baja (portátiles)", "Media", "Alta", "Ultra (niebla volumétrica y desenfoque)"]: q.add_item(n)
 	q.selected = settings.quality
 	q.item_selected.connect(func(i): set_setting("quality", i))
 	row_with(col, "Calidad gráfica", q)
 	var fs := CheckButton.new()
+	fs.button_pressed = settings.fullscreen
 	fs.toggled.connect(func(v): set_setting("fullscreen", v))
 	row_with(col, "Pantalla completa", fs)
-	for item in [["volume", "Volumen general"], ["music", "Música"]]:
-		var s := HSlider.new()
-		s.min_value = 0
-		s.max_value = 1
-		s.step = 0.05
-		s.value = settings[item[0]]
-		s.custom_minimum_size = Vector2(220, 24)
-		s.value_changed.connect(func(v): set_setting(item[0], v))
-		row_with(col, item[1], s)
-	for item in [["shake", "Sacudidas de cámara"], ["numbers", "Números de daño"]]:
+	label(col, "Sonido", 20, SKY)
+	for item in [["volume", "Volumen general", 0.0, 1.0], ["sfx", "Efectos", 0.0, 1.0], ["music", "Música", 0.0, 1.0]]:
+		slider_row(col, item[0], item[1], item[2], item[3], 0.05)
+	label(col, "Comodidad y accesibilidad", 20, SKY)
+	slider_row(col, "sensitivity", "Sensibilidad de la cámara", 0.3, 2.5, 0.1)
+	slider_row(col, "ui_scale", "Tamaño de la interfaz", 0.8, 1.4, 0.05)
+	for item in [["shake", "Sacudidas de cámara"], ["flashes", "Destellos y relámpagos"], ["numbers", "Números de daño"]]:
 		var c := CheckButton.new()
 		c.button_pressed = settings[item[0]]
 		c.toggled.connect(func(v): set_setting(item[0], v))
 		row_with(col, item[1], c)
-	button(col, "Cerrar", func(): settings_panel.hide())
+	label(col, "Controles (clic y pulsa una tecla)", 20, SKY)
+	if prefs != null:
+		for a in prefs.ACTIONS:
+			var b := Button.new()
+			b.custom_minimum_size = Vector2(150, 34)
+			b.focus_mode = Control.FOCUS_NONE
+			b.text = prefs.key_name(a[0])
+			b.pressed.connect(func():
+				waiting_bind = a[0]
+				refresh_binds())
+			row_with(col, a[1], b)
+			bind_buttons[a[0]] = b
+		button(col, "Restaurar teclas", func():
+			prefs.reset_binds()
+			refresh_binds()
+			settings_changed.emit(settings), 36)
+	refresh_help()
+
+func slider_row(col:Control, key:String, text:String, lo:float, hi:float, step:float):
+	var s := HSlider.new()
+	s.min_value = lo
+	s.max_value = hi
+	s.step = step
+	s.value = settings[key]
+	s.custom_minimum_size = Vector2(220, 24)
+	s.value_changed.connect(func(v): set_setting(key, v))
+	row_with(col, text, s)
+
+func refresh_binds():
+	for k in bind_buttons:
+		bind_buttons[k].text = "Pulsa una tecla…" if waiting_bind == k else prefs.key_name(k)
+	refresh_help()
+
+func capture_key(code:int) -> bool:
+	## While a binding is being edited, the next key goes to it (Esc cancels).
+	if waiting_bind == "": return false
+	if code != KEY_ESCAPE:
+		var swapped:String = prefs.rebind(waiting_bind, code)
+		if swapped != "": say("«%s» pasa a %s" % [swapped, prefs.key_name(swapped)], YELLOW)
+	waiting_bind = ""
+	refresh_binds()
+	settings_changed.emit(settings)
+	return true
+
+func k(action:String) -> String:
+	return prefs.key_name(action) if prefs != null else "?"
 
 func row_with(parent:Control, text:String, ctl:Control):
 	var r := hbox(parent, 12)
@@ -384,22 +452,30 @@ func build_help():
 	help_panel.custom_minimum_size = Vector2(860, 0)
 	var col := vbox(help_panel, 10)
 	label(col, "Cómo se juega", 30, YELLOW, 6)
-	var text := label(col, "", 16)
-	text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	text.custom_minimum_size.x = 810
-	text.text = """De día rebusca materiales y fichas, rescata vecinos, conquista propiedades y prepara defensas alrededor de la casa de la verbena. De noche los brotados atacan por los frentes anunciados: aguanta hasta que no quede ninguno. Si cae la casa o todo el equipo, se acaba la fiesta.
-
-WASD moverse · Ratón apuntar · Clic izquierdo disparar · Clic derecho o V sartenazo · Espacio voltereta · Mayús correr
-R recargar · 1–7 o rueda cambiar de arma · E (mantener) rebuscar, reparar, reanimar o liberar · Q habilidad del oficio
-G lanzar traca · H botiquín · B modo construcción (1–8 elige, clic coloca, F mejora, X desmonta) · T tienda en la casa
-C conquistar propiedad · Tab mapa del barrio · Clic central marcar un punto al equipo · N listo para la noche · Esc pausa
-
-Materiales: compartidos por todo el equipo. Fichas: personales, para armas, mejoras y objetos.
-Cada propiedad conquistada aporta una ventaja al amanecer, pero los brotados también irán a por su estandarte.
-Barricada y alambrada se saltan; bobina, torreta y foco necesitan corriente durante un apagón (generador o Gasolinera)."""
+	help_text = label(col, "", 16)
+	help_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	help_text.custom_minimum_size.x = 810
 	button(col, "Cerrar", func(): help_panel.hide())
 
 # ================================================================== HUD
+func refresh_help():
+	if help_text == null: return
+	help_text.text = """De día rebusca materiales y fichas, rescata vecinos, conquista propiedades y prepara defensas alrededor de la casa de la verbena. De noche los brotados atacan por los frentes anunciados: aguanta hasta que no quede ninguno. Si cae la casa o todo el equipo, se acaba la fiesta.
+
+%s%s%s%s moverse · Ratón apuntar · Clic izquierdo disparar · %s voltereta · %s correr · Rueda acercar o alejar la cámara
+Arrastra con el botón derecho para girar la cámara · Clic derecho corto o %s sartenazo · %s recargar · 1–7 cambiar de arma
+%s (mantener) rebuscar, reparar, reanimar o liberar · %s habilidad del oficio · %s traca · %s botiquín · %s tienda en la casa
+%s construir (1–8 o rueda elige, clic coloca, %s mejora, %s desmonta) · %s conquistar · %s o Tab plano (clic en él para señalar)
+%s pedir apoyo en tu posición (también si has caído) · Clic central señalar el punto del cursor · %s listo para la noche · Esc pausa
+
+Materiales: compartidos por todo el equipo. Fichas: personales, para armas, mejoras y objetos.
+Cada propiedad conquistada aporta una ventaja al amanecer, pero los brotados también irán a por su estandarte.
+Barricada y alambrada se saltan; bobina, torreta y foco necesitan corriente durante un apagón (generador o Gasolinera).
+Si una defensa cae, el aviso de brecha indica el acceso hasta que construyáis otra en ese lado.""" % [
+		k("up"), k("left"), k("down"), k("right"), k("roll"), k("sprint"), k("melee"), k("reload"), k("use"), k("ability"),
+		k("grenade"), k("medkit"), k("shop"), k("build"), k("grenade"), k("demolish"), k("claim"), k("map"), k("ping"), k("ready")]
+	help_hint.text = "F1 ayuda · %s plano · %s apoyo · Esc pausa" % [k("map"), k("ping")]
+
 func build_hud():
 	root.add_child(hud)
 	hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -440,6 +516,14 @@ func build_hud():
 	ready_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ready_label.add_theme_font_size_override("font_size", 15)
 	ready_label.add_theme_constant_override("outline_size", 6)
+	hud.add_child(orbit_reticle)
+	orbit_reticle.text = "+"
+	orbit_reticle.add_theme_font_size_override("font_size", 34)
+	orbit_reticle.add_theme_constant_override("outline_size", 8)
+	orbit_reticle.add_theme_color_override("font_outline_color", Color(0.08, 0.06, 0.12, 0.95))
+	orbit_reticle.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	anchor(orbit_reticle, 0.5, 0.5, Vector2.ZERO)
+	orbit_reticle.visible = false
 	# top left: the house and shared stock
 	var tl := panel(hud, Color(NAVY, 0.88), 16, 12)
 	tl.position = Vector2(16, 14)
@@ -453,9 +537,17 @@ func build_hud():
 	base_bar.add_theme_stylebox_override("fill", box(Color("ffb35c"), 8, 0))
 	tlc.add_child(res_label)
 	res_label.add_theme_font_size_override("font_size", 16)
+	hud.add_child(alert_box)
+	alert_box.add_theme_stylebox_override("panel", box(Color("5a1f2e"), 12, 10, CORAL, 2))
+	alert_box.position = Vector2(16, 128)
+	alert_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	alert_box.add_child(alert_label)
+	alert_label.add_theme_font_size_override("font_size", 17)
+	alert_label.add_theme_color_override("font_color", Color("ffd0c8"))
+	alert_box.visible = false
 	# team list
 	hud.add_child(team_box)
-	team_box.position = Vector2(16, 150)
+	team_box.position = Vector2(16, 178)
 	team_box.add_theme_constant_override("separation", 6)
 	team_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# message feed
@@ -566,6 +658,7 @@ func build_hud():
 	anchor(mmp, 1.0, 0.0, Vector2(-16, 14))
 	minimap = Control.new()
 	minimap.custom_minimum_size = Vector2(250, 222)
+	minimap.clip_contents = true
 	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	minimap.draw.connect(func(): draw_map(minimap, false))
 	mmp.add_child(minimap)
@@ -700,6 +793,7 @@ func build_map():
 	var row := hbox(map_panel, 18)
 	bigmap = Control.new()
 	bigmap.custom_minimum_size = Vector2(700, 620)
+	bigmap.clip_contents = true
 	bigmap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bigmap.draw.connect(func(): draw_map(bigmap, true))
 	row.add_child(bigmap)
@@ -828,6 +922,10 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 	var claimed := 0
 	for si in s.si: if si[0]: claimed += 1
 	res_label.text = "🪵 Materiales %d   🏳 Territorio %d/6   👥 Comunidad %d" % [s.mat, claimed, s.cm.size()]
+	var warn := alert_text(s)
+	alert_box.visible = warn != "" and s.ph != P.OVER
+	alert_label.text = warn
+	if warn != "": alert_box.modulate.a = 0.75 + 0.25 * sin(Time.get_ticks_msec() * 0.012)
 	# team
 	var ids:Array = s.pl.keys()
 	ids.sort()
@@ -947,13 +1045,39 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 		for q in s.pl.values(): lines.append("%s (%s, nivel %d): %d derribos" % [q.name, Data.ROLES[q.role].name, q.lvl, q.kills])
 		over_text.text = "\n".join(lines)
 
+func alert_text(s:Dictionary) -> String:
+	## Most urgent warning first: the house, then open breaches, then defences under attack.
+	var lines := []
+	var br:Array = s.get("br", [])
+	for i in range(0, br.size(), 3):
+		if br[i + 2] > 0: lines.append("⚠ ¡Golpean la casa por el %s!" % Map.FRONT_NAMES[i / 3])
+	for i in range(0, br.size(), 3):
+		if br[i + 1] > 0: lines.append("⚠ Brecha al %s: reconstruid una defensa" % Map.FRONT_NAMES[i / 3])
+	for i in range(0, br.size(), 3):
+		if br[i] > 0 and br[i + 1] == 0: lines.append("Defensa del %s bajo ataque" % Map.FRONT_NAMES[i / 3])
+	var sh:Array = s.get("sh", [])
+	for i in sh.size():
+		if sh[i] > 0: lines.append("Atacan el estandarte de %s" % Data.SITES[i].name)
+	return "\n".join(lines.slice(0, 3))
+
+func bigmap_world(pos:Vector2):
+	## World point under a screen position on the big map, or null outside it.
+	if not map_panel.visible: return null
+	var r := bigmap.get_global_rect()
+	if not r.has_point(pos): return null
+	var f := (pos - r.position) / r.size
+	return Vector2(-37, -33) + f * Vector2(74, 66)
+
 func map_text(s:Dictionary) -> String:
 	var lines := []
 	for i in Data.SITES.size():
 		var si:Array = s.si[i]
 		lines.append("%s %s\n   %s" % ["🏳" if si[0] else "·", Data.SITES[i].name + (" (%d%%)" % int(100.0 * si[1] / si[2]) if si[0] else ""), Data.SITES[i].bonus])
 	lines.append("")
-	lines.append("Conquistar cuesta %d materiales (C junto al estandarte, de día y sin brotados cerca)." % s.cc)
+	lines.append("Conquistar cuesta %d materiales (%s junto al estandarte, de día y sin brotados cerca)." % [s.cc, k("claim")])
+	lines.append("")
+	lines.append("Norte arriba · ◇ estandarte · • brotado · ✚ compañero caído")
+	lines.append("Clic en el plano para señalar · %s pedir apoyo · %s para cerrar" % [k("ping"), k("map")])
 	if s.cm.size() > 0:
 		var names := []
 		for k in s.cm: names.append(Data.SURVIVORS[k].name)
@@ -1011,16 +1135,33 @@ func draw_map(c:Control, big:bool):
 		c.draw_circle(world_to_map(c, Vector2(en[i + 2], en[i + 3]), big), (5.0 if kind == 7 else 2.2) * (1.4 if big else 1.0), Color("ff4d6d") if int(en[i + 6]) & 4 == 0 else Color("b07a8a"))
 	for sv in s.sv: c.draw_string(ThemeDB.fallback_font, world_to_map(c, Vector2(sv[1], sv[2]), big) - Vector2(3, -6), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, YELLOW)
 	for d in s.dr: c.draw_circle(world_to_map(c, Vector2(d[1], d[2]), big), 5.0, Color("4cc9f0"))
-	for m in markers:
-		c.draw_arc(world_to_map(c, m[0], big), 7.0, 0, TAU, 16, m[1], 2.0)
+	var br:Array = s.get("br", [])
+	var bc := world_to_map(c, Map.BASE_CENTER, big)
+	for i in range(0, br.size(), 3):
+		if br[i] > 0 or br[i + 1] > 0 or br[i + 2] > 0:
+			var mid:float = [-PI * 0.5, 0.0, PI * 0.5, PI][i / 3]
+			var col := CORAL if br[i + 1] > 0 or br[i + 2] > 0 else Color("ffb35c")
+			c.draw_arc(bc, Map.BASE_BUILD_RADIUS * sc.x, mid - 0.6, mid + 0.6, 16, col, 4.0)
+	for pid in s.pl:
+		var q:Dictionary = s.pl[pid]
+		if q.ping == null: continue
+		var pm := world_to_map(c, q.ping, big)
+		var col := CORAL if q.st != 0 else Color(SLOT_COLORS[q.slot % 4])
+		c.draw_arc(pm, 9.0, 0, TAU, 20, col, 2.5)
+		c.draw_colored_polygon(PackedVector2Array([pm + Vector2(0, -4), pm + Vector2(4, 0), pm + Vector2(0, 4), pm + Vector2(-4, 0)]), col)
 	for pid in s.pl:
 		var q:Dictionary = s.pl[pid]
 		var pos := world_to_map(c, q.p, big)
 		var col := Color(SLOT_COLORS[q.slot % 4])
 		c.draw_circle(pos, 6.0 if pid == my_id else 4.5, Color(0.1, 0.08, 0.14))
 		c.draw_circle(pos, 4.5 if pid == my_id else 3.5, col if q.st == 0 else CORAL)
+		if q.st != 0:
+			c.draw_line(pos - Vector2(5, 5), pos + Vector2(5, 5), CORAL, 2.5)
+			c.draw_line(pos - Vector2(5, -5), pos + Vector2(5, -5), CORAL, 2.5)
 		if pid == my_id:
 			c.draw_line(pos, pos + q.aim * 12.0, col, 2.0)
+			var view := Vector2(-sin(mm_data.get("yaw", 0.0)), -cos(mm_data.get("yaw", 0.0)))
+			c.draw_line(pos, pos + view * 22.0, Color(1, 1, 1, 0.5), 1.5)
 	c.draw_rect(Rect2(Vector2.ZERO, c.size), Color(1, 1, 1, 0.25), false, 2.0)
 
 func draw_overlay():
@@ -1033,10 +1174,14 @@ func draw_overlay():
 		if onscreen:
 			overlay.draw_circle(sp + Vector2(0, -6), 7.0, Color(0.1, 0.08, 0.14, 0.8))
 			overlay.draw_circle(sp + Vector2(0, -6), 5.0, col)
+			if text != "":
+				var w := ThemeDB.fallback_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x
+				overlay.draw_rect(Rect2(sp + Vector2(-w * 0.5 - 6, 6), Vector2(w + 12, 20)), Color(0.1, 0.08, 0.14, 0.8))
+				overlay.draw_string(ThemeDB.fallback_font, sp + Vector2(-w * 0.5, 21), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, col.lightened(0.3))
 			continue
 		var center := vp * 0.5
 		var dir := (sp - center).normalized()
 		var edge := center + dir * minf(absf((vp.x * 0.5 - 50) / maxf(0.001, absf(dir.x))), absf((vp.y * 0.5 - 50) / maxf(0.001, absf(dir.y))))
 		var perp := Vector2(-dir.y, dir.x)
 		overlay.draw_colored_polygon(PackedVector2Array([edge + dir * 18, edge - dir * 6 + perp * 12, edge - dir * 6 - perp * 12]), col)
-		overlay.draw_string(ThemeDB.fallback_font, edge - dir * 30 - Vector2(40, -6), text, HORIZONTAL_ALIGNMENT_CENTER, 80, 14, Color.WHITE)
+		overlay.draw_string(ThemeDB.fallback_font, edge - dir * 34 - Vector2(80, -6), text, HORIZONTAL_ALIGNMENT_CENTER, 160, 14, Color.WHITE)

@@ -1029,7 +1029,7 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		r.face(aim if p.st == 0 else Vector2(vel.x, vel.z), dt)
 		r.animate_hero(dt, t, moving, aiming, p.fire, p.st, p.roll, p.rl > 0, p.use and p.hold != "")
 		r.flashlight.light_energy = (2.2 if p.st == 0 else 0.0) * smoothstep(0.3, 0.9, night_amount)
-		r.label.modulate.a = 0.0 if id == local_id else 1.0
+		r.label.visible = id != local_id
 		if p.dmg > 0.25: r.hit_flash = 0.7
 	for key in horde:
 		var z:Rig = horde[key]

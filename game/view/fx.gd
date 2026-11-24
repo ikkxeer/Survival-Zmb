@@ -19,6 +19,7 @@ var pools := {}
 var pool_i := {}
 var trauma := 0.0
 var show_numbers := true
+var bright := true     # accessibility: when false, lights and blasts are toned down
 var live := []   # [node, age, life, kind, data]
 
 func _ready():
@@ -277,6 +278,7 @@ func light(at:Vector3, c:Color, energy:float, life:float = 0.08, rng:float = 6.0
 	lights[light_i][1] = life
 	light_i = (light_i + 1) % lights.size()
 	l.global_position = at
+	if not bright: energy *= 0.25
 	l.light_color = c
 	l.light_energy = energy
 	l.omni_range = rng
@@ -383,7 +385,7 @@ func explosion(at:Vector3, radius:float):
 	sm.radius = 0.5
 	sm.height = 1.0
 	mi.mesh = sm
-	mi.material_override = mat_fx(Color("ffcf7a"), 3.0)
+	mi.material_override = mat_fx(Color("ffcf7a"), 3.0 if bright else 0.8)
 	mi.position = at + Vector3(0, 0.4, 0)
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(mi)

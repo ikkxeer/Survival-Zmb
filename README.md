@@ -16,15 +16,24 @@ Para jugar en red, una persona pulsa **Crear partida en red**. El HUD muestra su
 
 | Acción | Control |
 | --- | --- |
-| Moverse · correr · voltereta | WASD · Mayús · Espacio |
-| Apuntar y disparar · sartenazo | Ratón y clic izquierdo · clic derecho o V |
-| Recargar · cambiar de arma | R · 1–7 o rueda |
+| Moverse · correr · voltereta | WASD (según la cámara) · Mayús · Espacio |
+| Apuntar y disparar · sartenazo | Ratón y clic izquierdo · clic derecho corto o V |
+| Acercar o alejar la cámara (de vista táctica a tercera persona) | Rueda del ratón |
+| Girar la cámara | Arrastra con el botón derecho |
+| Recargar · cambiar de arma | R · 1–7 |
 | Rebuscar, reparar, reanimar, liberar, fabricar | Mantener E |
-| Habilidad del oficio · traca · botiquín | Q · G · H |
+| Habilidad del oficio · traca · botiquín | Q · F · H |
 | Modo construcción | B. Luego 1–8 o rueda elige, clic coloca, F mejora, X desmonta y clic derecho sale |
 | Tienda (junto a la casa) · conquistar propiedad | T · C |
-| Mapa del barrio · marcar un punto al equipo | Tab · clic central |
+| Plano del barrio (norte arriba) · señalar un destino | M o Tab · clic en el plano o clic central en el mundo |
+| Pedir apoyo en tu posición, también al caer | G |
 | Listo para la noche · ayuda · pausa | N · F1 · Esc |
+
+Todas las teclas se cambian en **Ajustes → Controles** y se guardan en `user://ajustes.cfg` junto con la sensibilidad de cámara, los volúmenes (general, efectos y música), el tamaño de la interfaz y las opciones de accesibilidad (sacudidas, destellos y números de daño). La ayuda (F1) muestra siempre las teclas elegidas.
+
+**Coordinación.** Las señales duran ocho segundos, se pueden enviar una cada segundo y medio, aparecen en el mundo con el oficio y la distancia y en el plano y el minimapa. El aviso de brecha indica qué acceso (norte, este, sur u oeste) recibe daño, si se ha perdido una defensa o si golpean la casa, y resalta el mismo lado en los mapas. Reconstruir una defensa en ese lado despeja la brecha.
+
+[Lista de prioridades y criterios de prueba](TODO.md) · [Distribución para Windows](distribution/DISTRIBUCION.md)
 
 ## El ciclo de una partida
 
@@ -144,7 +153,9 @@ Todo se genera en código, sin texturas ni modelos externos, y el audio también
 | `game/map.gd` | Trazado del barrio alineado a la cuadrícula de navegación. |
 | `game/nav.gd` | Cuadrícula, colisiones, rayos y campos de flujo (Dijkstra con cola de cubos, reconstrucción diferida). |
 | `game/match.gd` | Simulación autoritativa: fases, IA, combate, economía, territorio y eventos. Genera instantáneas compactas y eventos con número de serie. |
-| `game/main.gd` | Sesión ENet, entradas, predicción local del movimiento, cámara y reparto de eventos a efectos, audio e interfaz. |
+| `game/main.gd` | Sesión ENet, entradas, predicción local del movimiento y reparto de eventos a efectos, audio e interfaz. |
+| `game/view/camera_rig.gd` | Cámara continua de vista táctica a tercera persona, giro, zoom y distancia a las fachadas. |
+| `game/settings.gd` | Preferencias y controles reasignables con guardado versionado y escritura segura. |
 | `game/view/world.gd` | Barrio, vegetación, decoración, luces, ciclo de día y clima. |
 | `game/view/actors.gd`, `rig.gd` | Héroes, brotados, defensas, botín, estandartes, globos, supervivientes y su animación. |
 | `game/view/fx.gd` | Efectos con reservas de objetos reutilizables. |
@@ -166,16 +177,23 @@ godot --headless -s tests/soak_test.gd
 ```
 
 ```bash
+godot --headless -s tests/camera_test.gd
+```
+
+```bash
+godot --headless -s tests/coop_test.gd
+```
+
+```bash
 godot --headless -s tests/network_test.gd -- --host
 ```
 
 - `match_test.gd` comprueba 29 reglas: construcción, rutas alrededor de muros, rebuscar, tienda, disparo y recarga, conquista, reanimación, habilidades, ciclo de fases, derribadores y derrotas.
 - `soak_test.gd` hace que cuatro bots jueguen varias noches y mide el coste de cada paso de simulación y el tamaño de las instantáneas.
-- `network_test.gd` levanta el anfitrión. Lanza tres veces `godot --headless -s tests/network_test.gd` en otras terminales en los 15 segundos siguientes: cada cliente construye una barricada y todos los procesos deben ver las tres.
+- `camera_test.gd` comprueba el movimiento relativo a la cámara girada, los límites de giro y zoom, la parada ante las fachadas y que el puntero coincide con el plano de tiro.
+- `coop_test.gd` comprueba el plano (proyección, clic para señalar sin disparar), la frecuencia, los límites y la caducidad de las señales, las brechas y su limpieza, y la petición de ayuda al caer.
+- `network_test.gd` levanta el anfitrión. Lanza tres veces `godot --headless -s tests/network_test.gd` en otras terminales en los 15 segundos siguientes: todos envían una señal, cada cliente construye una barricada y los cuatro procesos deben ver las tres barricadas y las cuatro señales.
 
 ## Siguientes pasos
 
-1. Interiores visitables y rutas por patios, misiones de rescate encadenadas y más jefes.
-2. Progresión persistente entre partidas, personalización de vecinos y desbloqueos.
-3. Servidor de emparejamiento o integración con Steam para jugar por Internet sin abrir puertos.
-4. Modelos, animaciones y sonido de autor sobre la misma arquitectura, manteniendo el estilo.
+Las prioridades, con sus criterios de prueba, están en [TODO.md](TODO.md).
