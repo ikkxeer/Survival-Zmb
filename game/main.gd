@@ -853,6 +853,10 @@ func handle_event(type:String, d:Array, me:int):
 			audio.play("claim", null, 2)
 			audio.play("dawn", null, 0)
 			ui.big("¡LA VERBENA ESTÁ ENCENDIDA!", "Habéis salvado el barrio", Color("ffd166"), 4.5)
+		"found":
+			fx.ring(v3(d[0], d[1]), Color("9ff6ff"), 0.5, 8.0, 1.0)
+			fx.burst("stars", v3(d[0], d[1], 0.2))
+			audio.play("claim", null, -4, 1.4)
 		"assign":
 			audio.play("coin", null, -6, 0.9)
 			ui.refresh_board()
@@ -1015,7 +1019,10 @@ func indicators(s:Dictionary, me:int) -> Array:
 			if not s.si[i][0] and (site < 0 or Map.SITES[i].beacon.distance_to(local_pos) < Map.SITES[site].beacon.distance_to(local_pos)): site = i
 		if site >= 0: add.call(v3(Map.SITES[site].beacon.x, Map.SITES[site].beacon.y, 3.5), Color(Data.SITES[site].color), "%s · arriesgado" % Data.SITES[site].name)
 	for j in s.get("jobs", []):
-		if j[5] != 1: continue
+		if j[5] != 1 or not j[12]: continue
+		if j[1] == "relevo" and j[9] == me:
+			add.call(v3(Map.RELAY.x, Map.RELAY.y, 1.8), Color("9ff6ff"), "Cuadro eléctrico")
+			continue
 		var jd := roundi(Vector2(j[3], j[4]).distance_to(local_pos)) if local_pos != Vector2.INF else 0
 		if j[1] == "transporte" and j[9] == me: add.call(v3(Map.PORCH.x, Map.PORCH.y, 1.5), Color("9ff6c8"), "Porche")
 		elif j[1] != "transporte" or j[9] < 0: add.call(v3(j[3], j[4], 1.6), Color("9ff6c8"), "📋 %s · %d m" % [Data.JOBS[j[1]].name, jd])

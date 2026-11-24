@@ -1180,6 +1180,11 @@ func jobs_text(s:Dictionary, p:Dictionary) -> String:
 		var extra := ""
 		if j[1] == "defensa": extra = " · %d/%d s" % [int(j[8]), int(Data.JOB_DEFENSE_TIME)]
 		if j[1] == "transporte" and j[9] >= 0: extra = " · de camino al porche"
+		if j[1] == "relevo":
+			if not j[12]:
+				lines.append("📋 Relevo eléctrico en algún lugar de %s · sin localizar (la exploradora lo encuentra con Q)" % j[11])
+				continue
+			extra = " · llévalo al cuadro de la casa" if j[9] >= 0 else " · localizado"
 		lines.append("📋 %s en %s · %d m%s" % [Data.JOBS[j[1]].name, j[11], d, extra])
 	return "\n".join(lines)
 
@@ -1201,6 +1206,7 @@ func refresh_board():
 		var title := "%s %s · %s" % ["Encargo corto:" if j[2] == "corto" else "Encargo ambicioso:", Data.JOBS[j[1]].name.to_lower(), j[11]]
 		label(info, title, 19, YELLOW if j[2] == "corto" else Color("ff9a8a"))
 		var d := roundi(p.p.distance_to(Vector2(j[3], j[4])))
+		if not j[12]: d = roundi(p.p.distance_to(Vector2(j[3], j[4])) / 10.0) * 10
 		var how:String = Data.JOBS[j[1]].desc + (" durante %d s" % int(Data.JOB_DEFENSE_TIME) if j[1] == "defensa" else "")
 		var l := label(info, "%s. A %d m · riesgo %s · recompensa +%d materiales y +%d fichas para todos" % [how, d, j[10], j[6], j[7]], 14, Color("f0e2cc"))
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1382,7 +1388,7 @@ func draw_map(c:Control, big:bool):
 	var stage_pos := world_to_map(c, Map.STAGE, big)
 	c.draw_rect(Rect2(stage_pos - Vector2(9, 4), Vector2(18, 8)), Color("e8665a"))
 	for j in s.get("jobs", []):
-		if j[5] != 1: continue
+		if j[5] != 1 or not j[12]: continue
 		var jm := world_to_map(c, Vector2(j[3], j[4]), big)
 		c.draw_rect(Rect2(jm - Vector2(5, 5), Vector2(10, 10)), Color("9ff6c8"))
 		if big: c.draw_string(ThemeDB.fallback_font, jm + Vector2(8, 4), "Encargo", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("9ff6c8"))

@@ -73,7 +73,8 @@ var victory := false
 var match_id := 0
 var jobs := []            # today's offers: {id,kind,size,p,state(0 offered,1 accepted,2 done,3 failed),mat,coins,progress,carrier,risk,area}
 var last_jobs := []
-var pending := {}         # players from a checkpoint waiting to reconnect, by name
+var pending := {}
+var relay := false        # an installed relay: guaranteed power and faster turrets         # players from a checkpoint waiting to reconnect, by name
 const KEEP = ["role", "coins", "xp", "lvl", "hpmax", "guns", "mag", "res", "med", "tr", "kills", "helped", "rank"]
 
 func _init():
@@ -144,7 +145,7 @@ func max_reserve(p:Dictionary, gun:int) -> int:
 	return int(r * (1.5 if p.role == 2 else 1.0))
 
 func powered(cell:int) -> bool:
-	if night_event != 1 or phase != P.NIGHT or has_site(4): return true
+	if night_event != 1 or phase != P.NIGHT or has_site(4) or relay: return true
 	var c := nav.center(cell)
 	for k in structures:
 		if structures[k].k == Data.S_GEN and nav.center(k).distance_to(c) <= 9.0: return true
@@ -211,7 +212,7 @@ func to_save() -> Dictionary:
 		var x:Dictionary = structures[cell]
 		st[cell] = {"k":x.k, "lvl":x.lvl, "hp":x.hp, "max":x.max, "owner":x.owner}
 	return {"wave":wave, "core":core, "core_max":core_max, "core_level":core_level, "materials":materials,
-		"players":pl, "structures":st, "sites":sites.duplicate(true), "loot":loot.duplicate(), "community":community.duplicate(), "posts":posts.duplicate(), "variant":variant,
+		"players":pl, "structures":st, "sites":sites.duplicate(true), "loot":loot.duplicate(), "community":community.duplicate(), "posts":posts.duplicate(), "variant":variant, "relay":relay,
 		"pieces":pieces.map(func(pc): return {"state":3 if pc.state == 2 else pc.state, "p":pc.p}), "stats":stats.duplicate(),
 		"night_event":night_event, "weather":weather, "fronts":fronts.duplicate()}
 
@@ -234,6 +235,7 @@ func from_save(d:Dictionary):
 	community = d.community.duplicate()
 	posts = d.get("posts", community.map(func(_k): return -1)).duplicate()
 	variant = d.get("variant", 0)
+	relay = d.get("relay", false)
 	for i in mini(pieces.size(), d.pieces.size()):
 		pieces[i].state = d.pieces[i].state
 		pieces[i].p = d.pieces[i].p
@@ -688,6 +690,9 @@ func ability(id:int, p:Dictionary):
 			p.buff = 6.0
 		3:
 			p.buff = 5.0
+			for j in jobs:
+				if j.kind == "relevo" and j.state == 1 and not j.found and j.p.distance_to(p.p) < 25.0:
+					reveal(j, p)
 
 func melee(id:int, p:Dictionary):
 	if p.melee > 0: return
@@ -945,10 +950,25 @@ func make_jobs():
 	## One short job near the plaza and one ambitious job far away. Destinations must be
 	## reachable, rewards useful, and a job never repeats yesterday's kind and place.
 	last_jobs = jobs.map(func(j): return [j.kind, j.area])
+	# an accepted relay is kept until it is installed: it can be done over several visits
+	var keep := jobs.filter(func(j): return j.kind == "relevo" and j.state == 1)
 	jobs.clear()
+	jobs.append_array(keep)
+	if keep.size() > 0:
+		var near:Array = []
+		for attempt in 40:
+			var at := Map.BASE_CENTER + Vector2.from_angle(rng.randf() * TAU) * rng.randf_range(7.0, 13.0)
+			at = Vector2(floorf(at.x) + 0.5, floorf(at.y) + 0.5)
+			var c := nav.cell_of(at)
+			if c < 0 or nav.solid[c] or nav.blocked_cell(at, 0.5, 0) != -1: continue
+			serial += 1
+			jobs.append({"id":serial, "kind":"busqueda", "size":"corto", "p":at, "state":0, "progress":0.0, "carrier":-1, "found":true, "mat":5, "coins":3, "risk":"bajo", "area":Map.landmark(at), "spawned":0})
+			break
+		return
 	for size in ["corto", "ambicioso"]:
 		for attempt in 40:
 			var kind:String = ["busqueda", "transporte", "defensa"][rng.randi_range(0, 2)]
+			if size == "ambicioso" and wave >= 2 and not relay and rng.randf() < 0.35: kind = "relevo"
 			if size == "corto" and kind == "defensa" and wave < 2: kind = "busqueda"
 			var dist := rng.randf_range(7.0, 13.0) if size == "corto" else rng.randf_range(19.0, 33.0)
 			var at := Map.BASE_CENTER + Vector2.from_angle(rng.randf() * TAU) * dist
@@ -964,7 +984,7 @@ func make_jobs():
 			var big:bool = size == "ambicioso"
 			var risk := "bajo" if dist < 14 else ("medio" if dist < 25 else "alto")
 			if kind == "defensa": risk = "medio" if not big else "alto"
-			jobs.append({"id":serial, "kind":kind, "size":size, "p":at, "state":0, "progress":0.0, "carrier":-1,
+			jobs.append({"id":serial, "kind":kind, "size":size, "p":at, "state":0, "progress":0.0, "carrier":-1, "found":kind != "relevo",
 				"mat":(rng.randi_range(4, 6) if not big else rng.randi_range(10, 14)) + (3 if kind == "defensa" else 0),
 				"coins":(3 if not big else 7) + (2 if kind == "defensa" else 0), "risk":risk, "area":area, "spawned":0})
 			break
@@ -1000,9 +1020,21 @@ func finish_job(j:Dictionary, ok:bool, why:String = ""):
 	emit("job", [j.id, j.state])
 	log_line({"evento":"encargo_cumplido" if ok else "encargo_fallido", "tipo":j.kind, "zona":j.area, "motivo":why, "t_dia":snappedf(phase_len - clock, 0.1)})
 
+func reveal(j:Dictionary, p:Dictionary):
+	j.found = true
+	emit("found", [j.p.x, j.p.y])
+	announce("¡%s ha localizado el relevo eléctrico! Está marcado para todos" % p.name)
+	log_line({"evento":"relevo_localizado", "por":p.name, "oficio":Data.ROLES[p.role].name})
+
 func tick_jobs(dt:float):
 	for j in jobs:
 		if j.state != 1: continue
+		if j.kind == "relevo" and not j.found:
+			for q in players.values():
+				if q.st == 0 and q.p.distance_to(j.p) < 4.0: reveal(j, q)
+		if j.kind == "relevo" and j.carrier >= 0:
+			if players.has(j.carrier): j.p = players[j.carrier].p
+			else: j.carrier = -1
 		if j.kind == "transporte" and j.carrier >= 0:
 			if players.has(j.carrier): j.p = players[j.carrier].p
 			else: j.carrier = -1
@@ -1041,7 +1073,7 @@ func pick_event() -> int:
 
 func start_night():
 	for j in jobs:
-		if j.state == 1: finish_job(j, false, "caduca al anochecer")
+		if j.state == 1 and j.kind != "relevo": finish_job(j, false, "caduca al anochecer")
 	phase = P.NIGHT
 	clock = 0.0
 	for p in players.values(): p.ready = false
@@ -1426,6 +1458,11 @@ func interact(id:int, p:Dictionary, dt:float):
 			if p.ht >= p.hm:
 				p.hkey = ""
 				p.cargo = -1
+				if target.job.kind == "relevo":
+					relay = true
+					target.job.carrier = -1
+					target.job.p = Map.RELAY
+					log_line({"evento":"relevo_instalado", "por":p.name, "oficio":Data.ROLES[p.role].name})
 				finish_job(target.job, true)
 		"bundle":
 			if p.ht >= p.hm:
@@ -1509,6 +1546,11 @@ func find_use_target(id:int, p:Dictionary) -> Dictionary:
 			return {"type":"job_load", "key":"jl%d" % j.id, "label":"Cargando la caja", "time":0.8, "job":j, "prompt":"Mantén E: cargar la caja del encargo"}
 		if j.kind == "transporte" and j.carrier == id and Map.PORCH.distance_to(p.p) < 2.6:
 			return {"type":"job_deliver", "key":"jd%d" % j.id, "label":"Entregando", "time":0.8, "job":j, "prompt":"Mantén E: entregar la caja"}
+		if j.kind == "relevo" and j.found and j.carrier < 0 and p.cargo < 0 and p.carry < 0 and j.p.distance_to(p.p) < 2.0:
+			return {"type":"job_load", "key":"jl%d" % j.id, "label":"Desenganchando el relevo", "time":1.0, "job":j, "prompt":"Mantén E: cargar con el relevo eléctrico"}
+		if j.kind == "relevo" and j.carrier == id and Map.RELAY.distance_to(p.p) < 2.6:
+			var t := 1.5 if p.role == 0 else 5.0
+			return {"type":"job_deliver", "key":"jd%d" % j.id, "label":"Instalando el relevo", "time":t, "job":j, "prompt":"Mantén E: instalar el relevo en el cuadro (%s)" % ("rápido, eres ingeniera" if p.role == 0 else "lento: la ingeniera lo haría en 1,5 s")}
 	for b in bundles:
 		if b.owner != id and b.p.distance_to(p.p) < 2.0:
 			var who:String = players[b.owner].name if players.has(b.owner) else "un vecino"
@@ -1736,7 +1778,7 @@ func tick_structures(dt:float):
 					var e:Dictionary = enemies[best]
 					var dir:Vector2 = (e.p - c).normalized()
 					s.aim = dir.angle()
-					s.cool = 0.36 * (0.78 if near_generator(cell) else 1.0)
+					s.cool = 0.36 * (0.78 if near_generator(cell) else 1.0) * (0.85 if relay else 1.0)
 					emit("shot", [-100 - cell, 7, c.x + dir.x * 0.4, c.y + dir.y * 0.4, e.p.x, e.p.y])
 					damage_enemy(best, 11.0 + 4.0 * s.lvl, -100 - cell, dir, 0.15)
 			Data.S_BENCH:
@@ -2101,7 +2143,7 @@ func snapshot() -> Dictionary:
 	return {"ph":phase, "w":wave, "c":clock, "cl":phase_len, "tod":time_of_day(), "core":core, "cmax":core_max, "clvl":core_level,
 		"mat":materials, "ev":night_event, "wx":weather, "fr":fronts, "rem":remaining(), "rs":respite, "as":[assault_index, assault_count], "bu":bundles.map(func(b): return [b.id, b.p.x, b.p.y, b.owner]), "tot":night_total,
 		"pl":pl, "en":en, "st":st, "si":si, "lo":loot.duplicate(), "pr":pr, "sv":sv, "dr":dr, "cm":community.duplicate(), "cp":posts.duplicate(), "var":variant,
-		"fx":events.duplicate(), "rep":report, "boss":boss, "sk":sk, "stats":stats, "time":time, "cc":claim_cost(), "br":br, "pc":pieces.map(func(pc): return [pc.state, pc.p.x, pc.p.y, pc.carrier]), "fin":finale_t if finale else -1.0, "vic":victory, "mid":match_id, "jobs":jobs.map(func(j): return [j.id, j.kind, j.size, j.p.x, j.p.y, j.state, j.mat, j.coins, j.progress, j.carrier, j.risk, j.area]), "sh":site_hit.duplicate()}
+		"fx":events.duplicate(), "rep":report, "boss":boss, "sk":sk, "stats":stats, "time":time, "cc":claim_cost(), "br":br, "pc":pieces.map(func(pc): return [pc.state, pc.p.x, pc.p.y, pc.carrier]), "fin":finale_t if finale else -1.0, "vic":victory, "mid":match_id, "jobs":jobs.map(func(j): return [j.id, j.kind, j.size, j.p.x, j.p.y, j.state, j.mat, j.coins, j.progress, j.carrier, j.risk, j.area, j.get("found", true)]), "relay":relay, "sh":site_hit.duplicate()}
 
 func load_structures(st:PackedInt32Array):
 	## Used by clients so local movement prediction collides with the same structures.

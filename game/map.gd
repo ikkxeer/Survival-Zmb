@@ -14,6 +14,7 @@ const PLAYER_SPAWN := Vector2(0, 4.5)
 const SHOP_RADIUS := 7.5
 const BELL := Vector2(-4.8, 3.4)                # plaza bell: ring it to bring the night forward
 const PORCH := Vector2(1.8, 3.4)                 # where supply bundles are left
+const RELAY := Vector2(-3.6, -4.0)               # electric panel where a found relay is installed
 const BOARD := Vector2(7.2, 3.4)                # noticeboard with the day's jobs
 const LANDMARKS = [
 	["la plaza", Vector2(0, 0)], ["el parque", Vector2(0, -22)], ["el aparcamiento", Vector2(0, 17)],

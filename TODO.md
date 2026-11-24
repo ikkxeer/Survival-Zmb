@@ -91,7 +91,13 @@ Primero probar este ritmo durante tres noches con los cuatro puestos actuales. P
   - Verificado en `tests/decisions_test.gd`.
 - [x] **Variar los encargos con reglas sencillas.** El generador alterna búsqueda, transporte y defensa con destinos alcanzables según la navegación, recompensas útiles y sin repetir tipo y lugar del día anterior. `jobs_test` genera diez partidas de seis días (60 días) y no encuentra destinos inaccesibles, recompensas inútiles ni encargos idénticos consecutivos.
 - [x] **Diseñar una recuperación tras una mala noche.** Si el amanecer llega con menos de 8 materiales, un globo deja reservas (14–18 materiales) junto a la plaza: es una salida corta. Si el equipo va bien, no hay ayuda extra, así que ahorrar sigue teniendo sentido. Verificado en `match_test`.
-- [ ] **Crear combinaciones entre roles.** Probar al explorador localizando un relevo de energía y al ingeniero instalándolo mientras otro cubre el regreso. El mismo objetivo debe poder completarse solo, en varias visitas.
+- [x] **Crear combinaciones entre roles.** Encargo «Relevo eléctrico»:
+  - El tablón solo indica la zona. La habilidad de la exploradora (Q) lo localiza a 25 m y lo marca para todos; sin ella hay que acercarse a menos de 4 m buscando a pie.
+  - Quien lo lleva va más despacio y lo suelta si cae, así que alguien tiene que cubrir el regreso.
+  - En el cuadro junto a la casa, la ingeniera lo instala en 1,5 s y los demás en 5 s.
+  - Recompensa: corriente garantizada en los apagones y torretas un 15 % más rápidas el resto de la partida.
+  - No caduca al anochecer y se mantiene en el tablón hasta instalarse, así que también se completa en solitario en varias visitas.
+  - Verificado en `tests/jobs_test.gd`. Falta la prueba con un grupo.
 - [x] **Diversificar las compras.** `godot --headless -s tests/strategy_compare.gd` juega las tres primeras noches con dos bots y el mismo presupuesto (24 fichas cada uno y 18 materiales) en ocho semillas. Resultado en la rama integrada:
 
   | Estrategia | Sobreviven | Casa al final | Mejor en |

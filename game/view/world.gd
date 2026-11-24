@@ -394,6 +394,13 @@ func build_base():
 	k.box(Kit.at(b.x, 0.08, b.y), Vector3(1.4, 0.16, 0.8), col("cfc5b8"), 0.04)
 	label_at("CAMPANA", Vector3(b.x, 3.25, b.y), 0.004, Color("fff2c9"), true)
 	build_stage()
+	# electric panel where a relay can be installed
+	var rp:Vector2 = Map.RELAY
+	k.box(Kit.at(rp.x, 0.75, rp.y), Vector3(0.9, 1.5, 0.5), col("8f9fb5"), 0.06, 0.25)
+	k.box(Kit.at(rp.x, 0.95, rp.y + 0.26), Vector3(0.7, 0.8, 0.03), col("5a6a80"), 0.03)
+	k.box(Kit.at(rp.x, 1.1, rp.y + 0.28), Vector3(0.3, 0.3, 0.02), col("ffd166"), 0.0)
+	k.box(Kit.at(rp.x, 1.55, rp.y), Vector3(1.0, 0.1, 0.6), col("5a6a80"), 0.03)
+	label_at("CUADRO", Vector3(rp.x, 2.0, rp.y), 0.0035, Color("fff2c9"), true)
 	# jobs noticeboard
 	var bd:Vector2 = Map.BOARD
 	for side in [-0.7, 0.7]: k.box(Kit.at(bd.x + side, 0.9, bd.y), Vector3(0.12, 1.8, 0.12), col("8b5e3c"), 0.03)

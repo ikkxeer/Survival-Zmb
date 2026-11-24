@@ -1089,19 +1089,23 @@ func apply(s:Dictionary, me:int):
 	# jobs: search markers, crates to carry, zones to hold
 	var job_seen := {}
 	for j in s.get("jobs", []):
-		if j[5] != 1: continue
+		if j[5] != 1 or not j[12]: continue
 		job_seen[j[0]] = true
 		if not job_nodes.has(j[0]):
 			var n := Node3D.new()
 			var mi := MeshInstance3D.new()
 			mi.name = "Mesh"
-			mi.material_override = toon_char if j[1] == "transporte" else glow_mat
+			mi.material_override = toon_char if j[1] in ["transporte", "relevo"] else glow_mat
 			mi.mesh = cached("job_" + j[1], func(k:Kit):
 				match j[1]:
 					"transporte":
 						k.box(Kit.at(0, 0.35, 0), Vector3(0.8, 0.7, 0.7), C("d49a5c"), 0.06, 0.25)
 						k.box(Kit.at(0, 0.71, 0), Vector3(0.82, 0.06, 0.72), C("8b5e3c"), 0.02)
 						k.box(Kit.at(0, 0.35, 0.36), Vector3(0.3, 0.3, 0.02), C("4cc9f0"), 0.0)
+					"relevo":
+						k.box(Kit.at(0, 0.35, 0), Vector3(0.6, 0.7, 0.45), C("8f9fb5"), 0.06, 0.25)
+						for q in 2: k.cylinder(Kit.at(-0.12 + q * 0.24, 0.85, 0), 0.07, 0.07, 0.3, C("e0a63a"), 8)
+						k.sphere(Kit.at(0, 0.4, 0.24), Vector3(0.1, 0.1, 0.04), Kit.glow(C("9ff6ff")), 8, 4)
 					"busqueda":
 						k.box(Kit.rot(0, 1.4, 0, PI * 0.25, PI * 0.25), Vector3(0.3, 0.3, 0.3), Kit.glow(C("9ff6c8")), 0.08)
 						k.cylinder(Kit.at(0, 0.6, 0), 0.03, 0.03, 1.2, Kit.glow(C("9ff6c8")), 6)
@@ -1267,7 +1271,7 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		if not n.has_meta("info"): continue
 		var j:Array = n.get_meta("info")
 		var target := Vector3(j[3], 0, j[4])
-		if j[1] == "transporte" and heroes.has(j[9]): target = heroes[j[9]].position + Vector3(0, 2.0, 0)
+		if j[1] in ["transporte", "relevo"] and heroes.has(j[9]): target = heroes[j[9]].position + Vector3(0, 2.0, 0)
 		n.position = n.position.lerp(target, 1.0 - exp(-14.0 * dt)) if n.position.distance_to(target) < 6.0 else target
 		if j[1] == "busqueda": n.rotation.y = t * 1.5
 		if j[1] == "defensa": n.rotation.y = t * 0.3

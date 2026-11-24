@@ -47,7 +47,7 @@ func _initialize():
 	check(bad_reach == 0, "Todos los destinos son alcanzables")
 	check(bad_reward == 0, "Todas las recompensas son útiles")
 	check(repeats == 0, "Ningún encargo repite tipo y lugar del día anterior")
-	check(kinds.size() == 3, "Aparecen búsquedas, transportes y defensas")
+	check(kinds.has("busqueda") and kinds.has("transporte") and kinds.has("defensa") and kinds.has("relevo"), "Aparecen búsquedas, transportes, defensas y relevos")
 	# --- playing the jobs
 	var g := Game.new()
 	g.join(1, 3, "Noa")
@@ -105,5 +105,51 @@ func _initialize():
 	g.clock = 0.0
 	g.tick(0.05)
 	check(g.phase == P.NIGHT and expire.state == 3, "Los encargos pendientes caducan al anochecer")
+	# --- electric relay: explorer finds, engineer installs, or one player over several visits
+	var r := Game.new()
+	r.join(1, 3, "Noa")
+	r.join(2, 0, "Ana")
+	r.enemies.clear()
+	var relay := {"id":950, "kind":"relevo", "size":"ambicioso", "p":Vector2(-20.5, 26.5), "state":1, "progress":0.0, "carrier":-1, "found":false, "mat":12, "coins":7, "risk":"alto", "area":"el Almacén", "spawned":0}
+	r.jobs = [relay]
+	check(not r.snapshot().jobs[0][12], "El relevo empieza sin localizar y no se marca")
+	var noa:Dictionary = r.players[1]
+	var ana:Dictionary = r.players[2]
+	noa.p = relay.p + Vector2(18, 0)
+	r.act(1, "ability")
+	check(relay.found, "La habilidad de la exploradora localiza el relevo a distancia")
+	ana.p = relay.p
+	hold(r, 2, 40)
+	check(ana.cargo == 950 and relay.carrier == 2, "Se carga con el relevo")
+	ana.p = Map.RELAY + Vector2(0, 1.5)
+	r.tick(0.05)
+	hold(r, 2, 50)
+	check(r.relay and relay.state == 2, "La ingeniera lo instala en 1,5 s")
+	r.night_event = 1
+	r.phase = P.NIGHT
+	check(r.powered(r.nav.cell_of(Vector2(5.5, 5.5))), "Con el relevo hay corriente durante el apagón")
+	var solo := Game.new()
+	solo.join(1, 2, "Iker")
+	solo.enemies.clear()
+	var relay2 := {"id":951, "kind":"relevo", "size":"ambicioso", "p":Vector2(24.5, 27.5), "state":1, "progress":0.0, "carrier":-1, "found":false, "mat":12, "coins":7, "risk":"alto", "area":"las casas", "spawned":0}
+	solo.jobs = [relay2]
+	var ik:Dictionary = solo.players[1]
+	ik.p = relay2.p + Vector2(3, 0)
+	solo.tick(0.05)
+	check(relay2.found, "Sin exploradora se encuentra buscando a pie")
+	solo.start_night()
+	check(relay2.state == 1, "El relevo no caduca al anochecer: se puede terminar otro día")
+	solo.wave = 2
+	solo.make_jobs()
+	check(solo.jobs.has(relay2) and solo.jobs.size() == 2, "Al día siguiente sigue en el tablón junto a un encargo corto")
+	solo.phase = P.PREP
+	ik.p = relay2.p
+	hold(solo, 1, 40)
+	ik.p = Map.RELAY + Vector2(0, 1.5)
+	solo.tick(0.05)
+	hold(solo, 1, 50)
+	check(not solo.relay, "Quien no es ingeniera tarda más en instalarlo")
+	hold(solo, 1, 160)
+	check(solo.relay, "...pero también puede instalarlo")
 	print("%d fallos" % failed)
 	quit(1 if failed else 0)

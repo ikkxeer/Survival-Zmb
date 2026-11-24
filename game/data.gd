@@ -118,6 +118,7 @@ const JOBS = {
 	"busqueda": {"name":"Búsqueda", "verb":"Busca", "desc":"Rebusca en el punto marcado"},
 	"transporte": {"name":"Transporte", "verb":"Trae", "desc":"Carga la caja marcada y llévala al porche"},
 	"defensa": {"name":"Defensa", "verb":"Aguanta", "desc":"Quédate en la zona marcada mientras llegan brotados"},
+	"relevo": {"name":"Relevo eléctrico", "verb":"Encuentra", "desc":"Un relevo perdido: la exploradora lo localiza con Q (o búscalo a pie) y la ingeniera lo instala rápido en el cuadro junto a la casa. Da corriente garantizada y torretas más rápidas"},
 }
 const JOB_DEFENSE_TIME := 25.0
 # Optional rule sets, chosen before the match, that change routes and construction.
