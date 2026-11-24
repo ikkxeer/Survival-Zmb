@@ -6,6 +6,8 @@ const PORT := 24680
 var art := Art.new()
 var ui := UI.new()
 var camera := preload("res://game/street_camera.gd").new()
+var tactical := preload("res://game/coop/tactical_map.gd").new()
+var map_click := false
 var orbiting := false
 var saved_cursor := Vector2.ZERO
 var orbit_reticle := Label.new()
@@ -86,6 +88,8 @@ func _ready():
 	dusk.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	dusk.color = Color.TRANSPARENT
 	add_child(ui)
+	ui.add_child(tactical)
+	tactical.camera = camera
 	ui.hud.add_sibling(orbit_reticle)
 	orbit_reticle.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	orbit_reticle.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -147,6 +151,8 @@ func start(which:String,role:int,address:String):
 	apply_state(state)
 
 func stop(reason:String):
+	tactical.reset()
+	map_click = false
 	end_orbit()
 	camera.overview()
 	mode = ""
@@ -187,6 +193,14 @@ func receive(payload:PackedByteArray):
 		state = bytes_to_var(payload.decompress_dynamic(262144,FileAccess.COMPRESSION_DEFLATE))
 		apply_state(state)
 
+func send_marker(point:Vector2):
+	if mode == "join": request_marker.rpc_id(1,point)
+	elif mode in ["solo","host"]: sim.mark(1,point)
+
+@rpc("any_peer","reliable")
+func request_marker(point:Vector2):
+	if mode == "host": sim.mark(multiplayer.get_remote_sender_id(),point)
+
 func end_orbit():
 	if orbiting:
 		orbiting = false
@@ -199,6 +213,14 @@ func _notification(what):
 
 func _input(ev:InputEvent):
 	if mode == "": return
+	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_LEFT and not ev.pressed:
+		map_click = false
+	if not orbiting and ev is InputEventMouseButton and tactical.covers(ev.position):
+		if ev.button_index == MOUSE_BUTTON_LEFT: map_click = ev.pressed
+		if ev.button_index == MOUSE_BUTTON_LEFT and ev.pressed and tactical.plot().has_point(ev.position):
+			send_marker(tactical.world_point(ev.position))
+		get_viewport().set_input_as_handled()
+		return
 	if ev is InputEventMouseButton and ev.button_index == MOUSE_BUTTON_RIGHT:
 		if ev.pressed:
 			saved_cursor = ev.position
@@ -214,6 +236,13 @@ func _input(ev:InputEvent):
 
 func _unhandled_key_input(ev:InputEvent):
 	if mode == "" or not (ev is InputEventKey and ev.pressed and not ev.echo): return
+	if not state.is_empty() and state.players.has(multiplayer.get_unique_id()):
+		if ev.keycode == KEY_M:
+			end_orbit()
+			tactical.expanded = not tactical.expanded
+			tactical.queue_redraw()
+		elif ev.keycode == KEY_G:
+			send_marker(state.players[multiplayer.get_unique_id()].p)
 	if ev.keycode == KEY_F1: ui.help = not ui.help
 	var mapping := {KEY_E:"use",KEY_C:"claim",KEY_R:"upgrade",KEY_B:"wall",KEY_T:"coil",KEY_1:"0",KEY_2:"1",KEY_3:"2"}
 	if mapping.has(ev.keycode) and not state.is_empty():
@@ -231,7 +260,7 @@ func _physics_process(dt):
 	var aim:Vector2 = Vector2(ray.x,ray.z) if hit == null else Vector2(hit.x,hit.z)-p.p
 	var move := Vector2(int(Input.is_physical_key_pressed(KEY_D))-int(Input.is_physical_key_pressed(KEY_A)),int(Input.is_physical_key_pressed(KEY_S))-int(Input.is_physical_key_pressed(KEY_W)))
 	move = camera.movement(move)
-	var shoot := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not ui.quit.get_global_rect().has_point(cursor)
+	var shoot := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not map_click and not tactical.covers(cursor) and not ui.quit.get_global_rect().has_point(cursor)
 	net_clock -= dt
 	if mode != "join":
 		sim.drive(1,move,aim,shoot)
@@ -284,6 +313,7 @@ func apply_state(s:Dictionary):
 		sound.pitch_scale = [1.1,0.75,1.35,1.6][s.shots[0][2]]
 		sound.play()
 	ui.render(s,multiplayer.get_unique_id())
+	tactical.update_state(s,multiplayer.get_unique_id())
 
 func _process(dt):
 	age += dt

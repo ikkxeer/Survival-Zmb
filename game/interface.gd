@@ -118,7 +118,7 @@ func render(s:Dictionary,id:int):
 	if s.phase == "Fin": msg.text = "La verbena ha terminado. Llegasteis a la oleada %d." % s.wave
 	var ctl = preload("res://game/match.gd")
 	var tool:String = ctl.WEAPONS[p.gun]
-	guide.text = "%s   ·   %s   ·   F1 controles" % [ctl.ROLES[p.role],tool]
+	guide.text = "%s   ·   %s   ·   M plano   ·   G apoyo   ·   F1 controles" % [ctl.ROLES[p.role],tool]
 	if help:
 		guide.text += "   ·   C conquistar (8 materiales)   ·   R reforzar (4)"
 		guide.text += "\nWASD moverse   ·   Izq. disparar   ·   Arrastra con der. para girar   ·   Rueda zoom   ·   E recoger, reparar o reanimar"
