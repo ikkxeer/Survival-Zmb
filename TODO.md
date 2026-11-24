@@ -19,6 +19,9 @@ Objetivo de la próxima versión: que un grupo pueda descargar el juego, entrar 
   - Comprobado con `camera_test`, `coop_test`, `match_test` y `network_test` (anfitrión y tres clientes con señales y barricadas), y con capturas del plano abierto y de la tercera persona. Falta repetirlo a mano con ratón y teclado.
 - [x] **Empaquetar Windows x64.** Perfil de exportación release, instrucciones de juego y avisos del motor incluidos en el ZIP. Dos instancias del ejecutable descomprimido bajo Wine se conectaron por bucle local y mostraron Equipo 2/4. [Procedimiento de exportación](distribution/DISTRIBUCION.md)
 - [ ] **Entregar un ZIP de Windows.** Preparar una exportación reproducible y abrirla en un PC sin Godot instalado. Dos equipos deben poder crear y unirse a una partida con esa misma descarga.
+  - Exportación reproducible de la rama integrada: `python distribution/obtener_plantilla.py`, que descarga solo la plantilla de Windows (109 MB en lugar de 1,2 GB), y después `python distribution/empaquetar.py`. Genera un ZIP de 38 MB en 15 s.
+  - Su PCK arranca y construye el barrio con el motor de Linux.
+  - Falta abrirlo en dos PC Windows sin Godot y conectarlos.
 - [x] **Sostener una sesión de tres noches.** `python tests/run_session.py --jugadores 1|2|4` lanza un anfitrión y clientes reales por ENet con bots y el tiempo a ×4. Con cuatro, un cliente tiene 150 ms de latencia simulada (`--latencia=ms`) y otro sale a mitad de la segunda noche. Al tercer amanecer todos los procesos comparan vida de la casa, materiales, defensas, jugadores y fichas de cada uno.
   - Resultado: coherentes con uno, dos y cuatro jugadores, y el equipo sigue jugando tras la salida.
   - La prueba destapó un fallo real que ya está corregido: una torreta podía consultar un brotado que había caído antes en el mismo paso.
