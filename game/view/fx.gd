@@ -7,6 +7,8 @@ const Data = preload("res://game/data.gd")
 var fx_shader:Shader = load("res://game/shaders/fx.gdshader")
 var soft_shader:Shader = load("res://game/shaders/soft.gdshader")
 var tracers := []
+var slugs := []      # projectile cores
+var trails := []     # tapered glow behind each projectile
 var flashes := []
 var lights := []
 var light_i := 0
@@ -33,6 +35,23 @@ func _ready():
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(mi)
 		tracers.append(mi)
+	var core := SphereMesh.new()
+	core.radius = 0.5
+	core.height = 1.0
+	core.radial_segments = 10
+	core.rings = 6
+	var cone_kit := Kit.new()
+	cone_kit.cylinder(Kit.rot(0, 0, 0.5, 0.0, PI * 0.5), 0.5, 0.0, 1.0, Color.WHITE, 10, false)
+	var cone := cone_kit.commit()
+	for i in 72:
+		for pair in [[slugs, core, 4.0], [trails, cone, 1.6]]:
+			var mi := MeshInstance3D.new()
+			mi.mesh = pair[1]
+			mi.material_override = mat_fx(Color("ffe08a"), pair[2])
+			mi.visible = false
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(mi)
+			(pair[0] as Array).append(mi)
 	var star := Kit.new()
 	# muzzle flash: a bright core, a forward spike and four petals around the barrel
 	star.sphere(Kit.at(0, 0, 0.05), Vector3(0.14, 0.14, 0.2), Color.WHITE, 8, 5)
@@ -391,16 +410,20 @@ func tracer(a:Vector3, b:Vector3, c:Color, width:float = 0.06, life:float = 0.08
 	live.append([mi, 0.0, life, "tracer", null])
 
 func bullet(a:Vector3, b:Vector3, c:Color, width:float, speed:float, streak:float):
-	## A short glowing streak that travels from the muzzle to the impact point,
-	## leaving a faint fading line behind: reads as a real round, not a laser.
+	## A real-looking projectile: a bright rounded slug flying from the muzzle to the
+	## impact point at a visible speed, with a short tapered glow behind it.
 	var d := a.distance_to(b)
 	if d < 0.05: return
-	var mi:MeshInstance3D = tracers.pop_front()
-	tracers.append(mi)
-	mi.visible = true
-	(mi.material_override as ShaderMaterial).set_shader_parameter("color", c)
-	mi.set_instance_shader_parameter("fade", 1.0)
-	live.append([mi, 0.0, d / speed + 0.02, "bullet", [a, b, d, width, streak]])
+	var slug:MeshInstance3D = slugs.pop_front()
+	slugs.append(slug)
+	var trail:MeshInstance3D = trails.pop_front()
+	trails.append(trail)
+	(slug.material_override as ShaderMaterial).set_shader_parameter("color", c.lerp(Color.WHITE, 0.55))
+	(trail.material_override as ShaderMaterial).set_shader_parameter("color", c)
+	for mi in [slug, trail]:
+		mi.set_instance_shader_parameter("fade", 1.0)
+		mi.visible = false   # placed by the first update, never shown at a stale spot
+	live.append([slug, 0.0, d / speed, "bullet", [a, b, d, width, streak, trail]])
 
 func muzzle(at:Vector3, c:Color, size:float = 1.0, dir:Vector3 = Vector3.ZERO):
 	var mi:MeshInstance3D = flashes.pop_front()
@@ -481,19 +504,15 @@ func gun_color(g:int) -> Color:
 func shot(owner:int, g:int, a:Vector3, b:Vector3, local:bool, hit:int = -1, first:bool = true):
 	var c := gun_color(g)
 	var dir := (b - a).normalized()
-	if g == 7:
-		tracer(a, b, c, 0.05, 0.07)
-	elif g != 5:
-		# width, speed (m/s) and streak length per weapon: pistol, shotgun, smg, rifle, sniper
-		var spec:Array = [[0.06, 60.0, 1.8], [0.05, 55.0, 1.1], [0.05, 70.0, 1.5], [0.065, 80.0, 2.4], [0.09, 120.0, 4.5], [0.0, 0.0, 0.0], [0.0, 0.0, 0.0]][clampi(g, 0, 6)]
-		bullet(a, b, c, spec[0], spec[1], spec[2])
+	# width, speed (m/s) and glow length: pistol, shotgun, smg, rifle, sniper, launcher, flame, turret
+	var spec:Array = [[0.06, 46.0, 0.9], [0.05, 40.0, 0.6], [0.05, 52.0, 0.8], [0.06, 62.0, 1.2], [0.08, 95.0, 2.2], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.065, 46.0, 0.9]][clampi(g, 0, 7)]
+	if g != 5 and g != 6: bullet(a, b, c, spec[0], spec[1], spec[2])
 	if first and owner != -999:
 		muzzle(a + dir * 0.08, c, 1.4 if g in [1, 4, 5] else 0.9, dir)
 		burst("smoke", a + dir * 0.2, dir)
 		if g in [0, 2, 3, 4] and owner > 0: burst("casing", a - dir * 0.25 + Vector3(0, 0.05, 0), dir.cross(Vector3.UP) * -1.0)
 	if g != 5 and a.distance_to(b) > 0.5:
-		var delay := a.distance_to(b) / 90.0
-		live.append([null, 0.0, delay, "impact", [b, dir, hit == 1]])
+		live.append([null, 0.0, a.distance_to(b) / spec[1], "impact", [b, dir, hit == 1]])
 	if local and first:
 		shake([0.06, 0.2, 0.04, 0.07, 0.26, 0.2, 0.0, 0.0][clampi(g, 0, 7)])
 
@@ -547,6 +566,9 @@ func _process(dt:float):
 		if f >= 1.0:
 			if e[3] == "impact":
 				impact(e[4][0], e[4][1], e[4][2])
+			elif e[3] == "bullet":
+				node.visible = false
+				(e[4][5] as Node3D).visible = false
 			elif e[3] in ["blast", "bolt"]: node.queue_free()
 			else: node.visible = false
 			live.remove_at(i)
@@ -557,11 +579,17 @@ func _process(dt:float):
 				var a:Vector3 = d[0]
 				var b:Vector3 = d[1]
 				var dist:float = d[2]
-				var head_d := minf(dist, dist * f * 1.05)
-				var tail_d := maxf(0.0, head_d - float(d[4]))
-				var len := maxf(0.05, head_d - tail_d)
+				var w:float = d[3]
+				var trail:MeshInstance3D = d[5]
+				var head_d := dist * f
 				var dir := (b - a) / dist
-				node.global_transform = Transform3D(Basis.looking_at(dir, Vector3.UP).scaled(Vector3(d[3], d[3], len)), a + dir * (tail_d + len * 0.5))
+				var head := a + dir * head_d
+				var look := Basis.looking_at(dir, Vector3.UP) if absf(dir.y) < 0.99 else Basis()
+				node.visible = true
+				node.global_transform = Transform3D(look.scaled(Vector3(w * 1.6, w * 1.6, w * 3.2)), head)
+				var tl := minf(float(d[4]), head_d)
+				trail.visible = tl > 0.05
+				if trail.visible: trail.global_transform = Transform3D(look.scaled(Vector3(w * 1.5, w * 1.5, tl)), head)
 			"tracer", "flash", "bolt":
 				(node as GeometryInstance3D).set_instance_shader_parameter("fade", 1.0 - f)
 			"ring":

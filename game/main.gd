@@ -593,6 +593,7 @@ func _physics_process(dt:float):
 		if roll_t > 0: buttons |= 4
 		if autopilot.has("buttons"): buttons = autopilot.buttons
 		actors.local_firing = buttons & 1 != 0 and me.st == 0
+		actors.local_rolling = roll_t > 0
 		predict_fire(dt, me, buttons & 1 != 0)
 	net_clock -= dt
 	if mode == "join":

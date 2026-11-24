@@ -29,6 +29,7 @@ var heroes := {}
 var horde := {}
 var structs := {}
 var loot_nodes := []
+var local_rolling := false   # the local dodge, ahead of the snapshot
 var local_firing := false   # set by main from the local mouse button, ahead of the snapshot
 var beacons := []
 var drops := {}
@@ -1194,10 +1195,12 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		var aiming:bool = p.st == 0 and r.fire_t > 0
 		# Walk facing where you go (forward with the camera shows your back);
 		# turn to the cursor only while shooting or swinging the pan.
+		var rolling:bool = local_rolling if id == local_id else p.roll
 		if p.st != 0: r.face(r.ground_vel, dt)
+		elif rolling: r.face(r.ground_vel, dt, 30.0)
 		elif aiming: r.face(aim, dt, 22.0)
 		elif r.ground_vel.length() > 0.5: r.face(r.ground_vel, dt, 10.0)
-		r.animate_hero(dt, t, r.ground_vel, aiming, p.fire, p.st, p.roll, p.rl > 0, p.use and p.hold != "")
+		r.animate_hero(dt, t, r.ground_vel, aiming, p.fire, p.st, rolling, p.rl > 0, p.use and p.hold != "")
 		r.flashlight.light_energy = (2.2 if p.st == 0 else 0.0) * smoothstep(0.3, 0.9, night_amount)
 		r.label.visible = id != local_id
 		if p.dmg > 0.25: r.hit_flash = 0.7

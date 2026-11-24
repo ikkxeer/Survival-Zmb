@@ -41,6 +41,7 @@ var fire_t := 0.0                # keeps the weapon raised for a moment after sh
 var hip_y := 0.0
 var gun_home := Vector3.ZERO
 var move_amt := 0.0
+const ROLL_TIME := 0.34          # matches the dodge length in main.gd
 var bar_t := 0.0                 # health bar shows for a moment after a hit
 
 func setup_pivots(shoulder_y:float, shoulder_x:float, hip_y:float, hip_x:float, neck_y:float):
@@ -117,13 +118,22 @@ func animate_hero(dt:float, t:float, vel:Vector2, aiming:bool, firing:bool, stat
 	gun.visible = gun_kind >= 0 and not rolling
 	head.rotation.x = 0.0
 	if rolling:
+		# one clean forward roll around the body's middle, tucked into a ball, with a little hop
 		roll_t += dt
-		body.rotation = Vector3(roll_t * TAU / 0.34, 0, 0)
-		body.position = Vector3(0, 0.45, 0)
-		leg_l.rotation = Vector3(-1.2, 0, 0)
-		leg_r.rotation = Vector3(-1.2, 0, 0)
+		var k := clampf(roll_t / ROLL_TIME, 0.0, 1.0)
+		var turn := TAU * (k * k * (3.0 - 2.0 * k))
+		var mid := 0.85
+		var tuck := sin(PI * k)
+		var spin := Basis(Vector3.RIGHT, turn).scaled(Vector3.ONE * (1.0 - 0.22 * tuck))
+		body.transform = Transform3D(spin, Vector3(0, mid + 0.25 * tuck - 0.3 * tuck, 0) + spin * Vector3(0, -mid, 0))
+		leg_l.rotation = Vector3(-1.4 * tuck, 0, 0)
+		leg_r.rotation = Vector3(-1.4 * tuck, 0, 0)
+		arm_l.rotation = Vector3(-2.2 * tuck, 0, 0.3)
+		arm_r.rotation = Vector3(-2.2 * tuck, 0, -0.3)
+		head.rotation.x = 0.5 * tuck
 		return
 	roll_t = 0.0
+	body.scale = Vector3.ONE
 	# movement in the character's own frame: forward/back and sideways
 	var fwd_dir := Vector2(sin(yaw), cos(yaw))
 	var right_dir := Vector2(cos(yaw), -sin(yaw))
