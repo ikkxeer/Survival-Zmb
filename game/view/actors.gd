@@ -362,8 +362,11 @@ func zombie_parts(kind:int, variant:int) -> Dictionary:
 			torso.sphere(Kit.at(0, 1.12, -0.2), Vector3(0.3, 0.16, 0.16), C(["f28a5a", "e86a9a", "5a9ae8"][variant % 3]).darkened(0.1), 10, 6)
 			torso.box(Kit.at(0, 0.66, 0), Vector3(0.52, 0.2, 0.38), pants, 0.09)
 			head_base(head, skin, true, 0.92)
+			var hood := C(["f28a5a", "e86a9a", "5a9ae8"][variant % 3]).darkened(0.05)
+			head.sphere(Kit.at(0, 0.42, -0.08), Vector3(0.42, 0.36, 0.4), hood, 14, 8)
+			head.cylinder(Kit.rot(0, 0.72, -0.28, 0, -0.9), 0.16, 0.02, 0.5, hood, 10)
 			for i in 3:
-				extra.box(Kit.rot(-0.1 + i * 0.1, 0.78, -0.05, 0, 0, -0.3 + i * 0.3), Vector3(0.04, 0.35, 0.04), C("6cc05a"), 0.015)
+				extra.box(Kit.rot(-0.1 + i * 0.1, 0.78, 0.15, 0, 0.4, -0.3 + i * 0.3), Vector3(0.04, 0.3, 0.04), C("6cc05a"), 0.015)
 		2:
 			torso.box(Kit.at(0, 0.88, 0), Vector3(0.74, 0.6, 0.52), shirt, 0.22, 0.25, 2)
 			torso.box(Kit.at(0, 0.64, 0), Vector3(0.7, 0.24, 0.5), pants, 0.1)

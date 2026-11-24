@@ -29,6 +29,7 @@ var profile := Profile.new()
 var xp_saved := 0          # experience of this match already written to the profile
 var result_saved := false
 var saved_wave := 0
+var persist := true        # tests set Engine meta "sin_guardar" so they never touch real saves
 var listener := AudioListener3D.new()
 var screen := ColorRect.new()
 var screen_mat := ShaderMaterial.new()
@@ -87,8 +88,9 @@ func _ready():
 	add_child(audio)
 	add_child(camera)
 	camera.current = true
+	persist = not Engine.has_meta("sin_guardar")
 	prefs.load_file()
-	profile.load_file()
+	if persist: profile.load_file()
 	add_child(listener)
 	listener.make_current()
 	var post := CanvasLayer.new()
@@ -153,7 +155,7 @@ func start(which:String, role:int, address:String, player_name:String):
 		if resume.players.has(player_name): role = resume.players[player_name].role
 	chosen_role = role
 	chosen_name = player_name
-	if player_name != "":
+	if player_name != "" and persist:
 		prefs.values.name = player_name
 		prefs.save_file()
 	if which != "solo":
@@ -205,6 +207,7 @@ func start(which:String, role:int, address:String, player_name:String):
 
 func open_journal():
 	## Host-side session log (JSON lines) for playtests: routes, breaches, waits and dawns.
+	if not persist: return
 	DirAccess.make_dir_recursive_absolute("user://registros")
 	var stamp := Time.get_datetime_string_from_system().replace(":", "").replace("-", "").replace("T", "-")
 	journal_file = FileAccess.open("user://registros/partida-%s.jsonl" % stamp, FileAccess.WRITE)
@@ -251,7 +254,7 @@ func save_progress(final:bool):
 		profile.matches += 1
 		if state.get("vic", false): profile.wins += 1
 		profile.best_night = maxi(profile.best_night, state.get("w", 1))
-	profile.save_file()
+	if persist: profile.save_file()
 	ui.refresh_profile()
 
 func stop(reason:String):
@@ -585,10 +588,10 @@ func _physics_process(dt:float):
 		saved_wave = sim.wave
 		var data := sim.to_save()
 		data["mode"] = mode
-		Checkpoint.write(data)
+		if persist: Checkpoint.write(data)
 	elif sim.phase == P.OVER and saved_wave >= 0:
 		saved_wave = -1
-		Checkpoint.clear()
+		if persist: Checkpoint.clear()
 	var snap := sim.snapshot()
 	if mode == "host" and net_clock <= 0:
 		net_clock = SEND_RATE

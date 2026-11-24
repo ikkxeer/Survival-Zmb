@@ -19,6 +19,7 @@ func key(code:int) -> InputEventKey:
 	return e
 
 func _initialize():
+	Engine.set_meta("sin_guardar", true)
 	call_deferred("run")
 
 func run():

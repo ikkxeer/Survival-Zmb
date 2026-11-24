@@ -11,6 +11,7 @@ func check(ok:bool, detail:String):
 	else: print("ok  ", detail)
 
 func _initialize():
+	Engine.set_meta("sin_guardar", true)
 	call_deferred("run")
 
 func run():

@@ -7,6 +7,7 @@ var host := false
 var fake := ""
 var t := 0.0
 func _initialize():
+	Engine.set_meta("sin_guardar", true)
 	for a in OS.get_cmdline_user_args():
 		if a == "--host": host = true
 		if a.begins_with("--version="): fake = a.substr(10)

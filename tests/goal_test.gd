@@ -20,6 +20,7 @@ func hold(g, id:int, frames:int):
 	g.tick(1.0 / 30.0)
 
 func _initialize():
+	Engine.set_meta("sin_guardar", true)
 	call_deferred("run")
 
 func run():

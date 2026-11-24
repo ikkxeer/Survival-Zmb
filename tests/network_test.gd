@@ -13,6 +13,7 @@ var pinged := false
 var done := false
 
 func _initialize():
+	Engine.set_meta("sin_guardar", true)
 	call_deferred("launch")
 
 func launch():

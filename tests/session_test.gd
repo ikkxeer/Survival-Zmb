@@ -17,6 +17,7 @@ var done := false
 var seeded := false
 
 func _initialize():
+	Engine.set_meta("sin_guardar", true)
 	for a in OS.get_cmdline_user_args():
 		if a == "--host": host = true
 		if a.begins_with("--salir-noche="): leave_night = int(a.substr(14))

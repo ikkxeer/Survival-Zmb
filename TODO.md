@@ -103,7 +103,12 @@ Primero probar este ritmo durante tres noches con los cuatro puestos actuales. P
 Coordinar estos puntos con la rama de gráficos y jugabilidad. Revisar primero lo que ya resuelve su versión integrada.
 
 - [ ] **Crear una escena de referencia artística.** Pulir el trayecto del porche al taller con un personaje, un brotado, escaparates y guirnaldas. Aprobar el tratamiento de materiales, iluminación y proporciones en capturas de día y de noche antes de extenderlo al barrio.
-- [ ] **Reconocer el peligro por la silueta.** Diferenciar corredor, grandullón y enemigo común por postura, movimiento y preparación del ataque. Probar su identificación al anochecer y en una captura en escala de grises.
+- [x] **Reconocer el peligro por la silueta.** Comprobado con capturas al anochecer en color y en escala de grises de los siete brotados en fila:
+  - El común camina con los brazos por delante.
+  - El corredor ahora va agachado, con la capucha puntiaguda y los brazos hacia atrás. Antes se confundía con el común estando quieto.
+  - El grandullón (Cabezudo) lleva un sombrero de seta enorme.
+  - Al preparar un golpe, todos levantan los brazos, y el petardero parpadea en rojo.
+  - Falta la prueba de identificación con jugadores.
 - [x] **Animar las interacciones importantes.**
   - Las piezas y las cajas se llevan sobre la cabeza.
   - Reparar, reanimar y rebuscar tienen una animación de manos con barra de progreso y sonido.
@@ -135,6 +140,8 @@ Coordinar estos puntos con la rama de gráficos y jugabilidad. Revisar primero l
   - Verificado en `tests/checkpoint_test.gd`.
 - [ ] **Fijar requisitos de PC a partir de mediciones.** Elegir equipos mínimo y recomendado, resolución y objetivo de fluidez tras medir la candidata. Publicar los ajustes usados y repetir el recorrido más exigente antes de etiquetar la versión.
 - [ ] **Probar textos y menús en la distribución real.** Revisar tildes, textos largos, escalado de Windows y navegación por teclado en cada idioma anunciado. Llegar desde el arranque hasta una partida y regresar al menú en la resolución mínima admitida.
+  - Revisado en la rama integrada a 1280 × 720, la ventana por defecto: menú, HUD con la barra de construcción y tienda caben sin solaparse y con tildes. Se corrigieron paneles que crecían con textos largos.
+  - Hay un ajuste de tamaño de interfaz. Falta Windows con escalado del sistema y la navegación solo con teclado.
 - [x] **Inventariar la edición basada en c897f26.** Revisados recursos del juego, sonido sintetizado, fuente del motor y plantilla estándar. El paquete incluye el [inventario de procedencia](distribution/licencias/Materiales.txt) y las licencias oficiales del motor y sus dependencias.
 - [ ] **Auditar los derechos de los materiales.** Inventariar música, fuentes, modelos, texturas y dependencias con su procedencia, licencia y créditos. Verificar el permiso de distribución comercial para cada elemento incluido en el paquete.
 - [ ] **Preparar una demo representativa.** Incluir una salida al barrio, una decisión de construcción y un asalto con cierre propio. Probar si alguien que termina la demo puede explicar qué ofrece la partida completa y qué le apetecería intentar después.

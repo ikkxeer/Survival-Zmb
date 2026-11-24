@@ -20,6 +20,7 @@ var rows := []
 var last := 0
 
 func _initialize():
+	Engine.set_meta("sin_guardar", true)
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--calidades="):
 			qualities = []

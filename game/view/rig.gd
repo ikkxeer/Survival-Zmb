@@ -163,11 +163,11 @@ func animate_zombie(dt:float, t:float, moving:float, flags:int):
 		arm_r.rotation.x = -0.2
 		return
 	var lean_fwd := 0.18
-	if kind == 1: lean_fwd = 0.42
+	if kind == 1: lean_fwd = 0.85  # runners: crouched sprinters, readable even when still
 	if kind == 4: lean_fwd = 0.6
 	var shake_v := (sin(t * 60.0) * 0.06) if stunned else 0.0
 	body.position = Vector3(shake_v, absf(s) * 0.07 * moving + (0.55 + 0.3 * absf(sin(t * 6.0)) if climbing else 0.0), 0)
-	body.rotation = Vector3(lean_fwd * (0.4 + moving * 0.6), 0, sway * 0.12 + shake_v)
+	body.rotation = Vector3(lean_fwd * ((0.75 + moving * 0.25) if kind == 1 else (0.4 + moving * 0.6)), 0, sway * 0.12 + shake_v)
 	head.rotation = Vector3(0.1 + sin(t * 1.7 + position.z) * 0.1, sin(t * 0.9 + position.x) * 0.2, sway * 0.18)
 	leg_l.rotation.x = s * 0.6 * moving
 	leg_r.rotation.x = -s * 0.6 * moving
@@ -179,6 +179,10 @@ func animate_zombie(dt:float, t:float, moving:float, flags:int):
 		arm_l.rotation.x = lerpf(-2.6, -0.8, k) if windup else -0.6
 		arm_r.rotation.x = arm_l.rotation.x
 		body.rotation.x = -0.15 if windup else 0.35
+	elif kind == 1:
+		# arms swept back, the opposite of the shambling reach of a common brotado
+		arm_l.rotation.x = 1.0 + sin(phase) * 0.3
+		arm_r.rotation.x = 1.0 - sin(phase) * 0.3
 	else:
 		arm_l.rotation.x = reach + arm_bob
 		arm_r.rotation.x = reach - arm_bob
