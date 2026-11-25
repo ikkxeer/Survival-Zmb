@@ -78,7 +78,7 @@ const STRUCTURES = [
 	{"name":"Bobina", "cost":6, "hp":[70.0,110.0,160.0], "up":[5,7], "block":true, "vault":false, "electric":true,
 		"desc":"Descarga eléctrica en cadena. Se apaga en un apagón sin generador.", "key":"3"},
 	{"name":"Torreta", "cost":9, "hp":[90.0,140.0,200.0], "up":[6,8], "block":true, "vault":false, "electric":true,
-		"desc":"Dispara sola a lo que entre en su radio.", "key":"4"},
+		"desc":"Dispara sola a lo que entre en su radio. Pon otra encima para hacerla doble y triple.", "key":"4"},
 	{"name":"Generador", "cost":8, "hp":[150.0,220.0], "up":[6], "block":true, "vault":false, "electric":false,
 		"desc":"Mantiene la corriente en un apagón y acelera las torretas cercanas.", "key":"5"},
 	{"name":"Foco", "cost":4, "hp":[60.0,90.0], "up":[3], "block":true, "vault":false, "electric":true,

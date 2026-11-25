@@ -39,7 +39,8 @@ def main():
     results, ok = {}, True
     for name, proc in procs.items():
         out, _ = proc.communicate(timeout=1200)
-        lines = [l for l in out.splitlines() if l.startswith(("RESUMEN", "SALIDA", "ERROR", "SCRIPT ERROR"))]
+        # Los avisos de recursos de vídeo sin liberar al cerrar el renderizador de pruebas son ruido, no fallos.
+        lines = [l for l in out.splitlines() if l.startswith(("RESUMEN", "SALIDA", "ERROR", "SCRIPT ERROR")) and "leaked at exit" not in l]
         for l in lines:
             print(f"[{name}] {l}")
         for l in lines:

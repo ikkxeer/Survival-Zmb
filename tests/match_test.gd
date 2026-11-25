@@ -69,6 +69,19 @@ func _initialize():
 	for i in 120: zwalker = g.nav.move(zwalker, Vector2(0, 4.0) / 60.0, 0.38, 1)
 	check(zwalker.y < car_c.y - Map.CAR_HALF.y, "Los brotados tampoco atraviesan coches")
 	check(g.nav.ray(car_c + Vector2(-5, 0), Vector2.RIGHT, 10.0) < 4.5, "Las balas chocan con los coches")
+	# --- stacked turrets
+	g.materials = 100
+	var tc:int = g.nav.cell_of(Vector2(0.5, 8.5))
+	g.players[1].p = Vector2(0.5, 6.0)
+	g.act(1, "build", [Data.S_TURRET, tc])
+	check(g.structures[tc].lvl == 0, "Una torreta nueva es simple")
+	g.act(1, "build", [Data.S_TURRET, tc])
+	check(g.structures[tc].lvl == 1, "Otra torreta encima la hace doble")
+	g.act(1, "build", [Data.S_TURRET, tc])
+	var mat_before:int = g.materials
+	g.act(1, "build", [Data.S_TURRET, tc])
+	check(g.structures[tc].lvl == 2 and g.materials == mat_before, "La tercera la hace triple y no pasa de ahí")
+	g.demolish(g.players[1], tc)
 	# --- shop and weapons
 	p.p = Map.PLAYER_SPAWN
 	p.coins = 40

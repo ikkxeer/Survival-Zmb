@@ -159,6 +159,8 @@ Todo se genera en código, sin texturas ni modelos externos, y el audio también
 
 **Defensas.** Cada defensa tiene su propio aspecto: barricadas con sacos terreros y banderín (tablones, tablones reforzados y chapa con remaches), alambrada de espino en caballos de frisa, bobina tipo Tesla con aisladores de porcelana, torreta con escudo y sacos, generador con ruedas y bidón, banco de taller con panel de herramientas y mina de petardos. El foco es un mástil con un proyector que ilumina toda la zona donde deslumbra (marcada en el suelo de noche) y gira para seguir al brotado más cercano. La cabeza de la torreta apunta al blanco en cada disparo y el proyectil sale del cañón con una estela larga para que se vea hacia dónde va.
 
+**Torretas apilables.** Si con la torreta elegida haces clic sobre una torreta ya construida, se le coloca otra encima: doble y, con una tercera, triple (máximo). Cada torreta apilada dispara por su cuenta, cada una a su propio blanco si hay varios, y sube la vida y el alcance. Las barricadas son ahora mucho más altas (1,9 m, y 2,1 m las de chapa) y se siguen pudiendo saltar.
+
 **Rebuscar.** Al mantener E junto a un coche o un contenedor, el personaje se gira hacia él, se inclina y revuelve con las dos manos; el maletero o la tapa se abren, el coche se balancea y salen volando latas, tornillos y trapos.
 
 **El Gigantón.** Un gigante de feria reventado desde dentro: piel podrida, raíces por piernas, espinas en la espalda, fauces con colmillos, cuatro ojos rojos que brillan, un brazo con garras y otro acabado en un garrote con clavos.

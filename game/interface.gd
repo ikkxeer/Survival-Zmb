@@ -81,6 +81,14 @@ var my_id := 0
 var build_kind := -1
 var mm_data := {}
 
+func _exit_tree():
+	## Let go of the viewport textures so the renderer can free them at exit.
+	if book_view: book_view.texture = null
+	St._fonts.clear()
+	if book3d:
+		book3d.map_mat.albedo_texture = null
+		book3d.map_mat.emission_texture = null
+
 func _ready():
 	layer = 5
 	build_theme()

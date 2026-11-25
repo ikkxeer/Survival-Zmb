@@ -487,6 +487,8 @@ func finish_reload(p:Dictionary):
 func build(id:int, p:Dictionary, kind:int, cell:int):
 	if kind < 0 or kind >= Data.STRUCTURES.size(): return
 	var c := nav.center(cell)
+	if kind == Data.S_TURRET and structures.has(cell) and structures[cell].k == Data.S_TURRET:
+		return upgrade(id, p, cell)
 	if cell < 0 or not nav.is_free_for_build(cell): return say(p, "Ahí no se puede construir")
 	if not in_territory(c): return say(p, "Solo puedes construir en tu territorio")
 	if p.p.distance_to(c) > 9.5: return say(p, "Acércate más para construir")
@@ -1808,21 +1810,23 @@ func tick_structures(dt:float):
 			Data.S_TURRET:
 				if not s.on or s.cool > 0: continue
 				var reach:float = 9.0 + s.lvl
-				var best := -1
-				var bd := reach
+				var cands := []
 				for key in near_enemies(c, reach):
 					var e:Dictionary = enemies[key]
 					var d:float = e.p.distance_to(c)
-					if d < bd and nav.clear_line(c, e.p):
-						bd = d
-						best = key
-				if best >= 0:
-					var e:Dictionary = enemies[best]
-					var dir:Vector2 = (e.p - c).normalized()
-					s.aim = dir.angle()
+					if d < reach and nav.clear_line(c, e.p): cands.append([d, key])
+				if cands.size() > 0:
+					cands.sort_custom(func(x, y): return x[0] < y[0])
 					s.cool = 0.36 * (0.78 if near_generator(cell) else 1.0) * (0.85 if relay else 1.0)
-					emit("shot", [-100 - cell, 7, c.x + dir.x * 0.4, c.y + dir.y * 0.4, e.p.x, e.p.y])
-					damage_enemy(best, 11.0 + 4.0 * s.lvl, -100 - cell, dir, 0.15)
+					# every stacked turret fires, each at its own target when there are several
+					for h in mini(s.lvl + 1, 3):
+						var pick:Array = cands[h % cands.size()]
+						if not enemies.has(pick[1]): continue
+						var e:Dictionary = enemies[pick[1]]
+						var dir:Vector2 = (e.p - c).normalized()
+						if h == 0: s.aim = dir.angle()
+						emit("shot", [-100 - cell, 7, c.x + dir.x * 0.4, c.y + dir.y * 0.4, e.p.x, e.p.y, h])
+						damage_enemy(pick[1], 11.0 + 2.0 * s.lvl, -100 - cell, dir, 0.15)
 			Data.S_BENCH:
 				var rate:float = 3.0 + 1.5 * s.lvl
 				for other in structures:
