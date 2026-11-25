@@ -36,7 +36,7 @@ func run():
 	await process_frame
 	var site:Vector2 = Map.SITES[1].beacon
 	var r:Rect2 = ui.bigmap.get_global_rect()
-	var pixel:Vector2 = r.position + (site - Vector2(-37, -33)) / Vector2(74, 66) * r.size
+	var pixel:Vector2 = r.position + ui.map3d.project(true, Vector3(site.x, 0.0, site.y))
 	var back = ui.bigmap_world(pixel)
 	check(back != null and back.distance_to(site) < 0.01, "Proyección de las propiedades en el plano")
 	var click := InputEventMouseButton.new()
