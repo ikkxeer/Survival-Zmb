@@ -179,6 +179,7 @@ Todo se genera en código, sin texturas ni modelos externos, y el audio también
 | `game/view/fx.gd` | Efectos con reservas de objetos reutilizables. |
 | `game/audio.gd` | Síntesis de efectos y música renderizada en un hilo de trabajo. |
 | `game/interface.gd` | Menú, ajustes, ayuda, minimapa, mapa, tienda, construcción, pausa y final, con el tema de papel y tinta. |
+| `game/ui/book3d.gd` | El libro 3D del plano: tapa de cuero con dorados, lomo, bloque de hojas que se hunde en el pliegue, hojas que se pasan y el plano impreso en las páginas. Toda la animación de apertura depende de un único valor (`open`) y la cámara se mueve con él. |
 | `game/ui/map3d.gd` | Maqueta 3D del barrio para el plano y el minimapa: edificios con volumen, árboles, coches y tus defensas sobre una losa, vistos con cámara inclinada. El minimapa te sigue y gira con la cámara; los marcadores se dibujan encima proyectándolos con la misma cámara. |
 | `game/ui/hud.gd`, `game/ui/style.gd`, `game/ui/portrait.gd` | HUD dibujado por código (medallón del día, retrato 3D de la casa con su anillo de resistencia, palé de materiales, farolillos, insignia del oficio, arma, avisos sobre la cabeza), la paleta, fuentes e iconos comunes, y los retratos renderizados con los modelos del juego. |
 

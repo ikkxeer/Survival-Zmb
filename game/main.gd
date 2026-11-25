@@ -534,6 +534,7 @@ func toggle_shop():
 func toggle_map():
 	map_open = not map_open
 	ui.map_panel.visible = map_open
+	if map_open: audio.play("swing", null, -4, 0.5)
 
 func cycle_gun(d:int):
 	if build_kind >= 0:

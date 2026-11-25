@@ -14,6 +14,7 @@ const Data = preload("res://game/data.gd")
 const Map = preload("res://game/map.gd")
 const P := Data.Phase
 const St = preload("res://game/ui/style.gd")
+const Book3D = preload("res://game/ui/book3d.gd")
 const Map3D = preload("res://game/ui/map3d.gd")
 const HUD = preload("res://game/ui/hud.gd")
 
@@ -760,130 +761,70 @@ func sell_value(p:Dictionary, g:int) -> int:
 	return spent / 2
 
 const BOOK := Vector2(1040, 668)
-const BOOK_MAP := Rect2(52, 42, 936, 540)
-var book:Control
-var book_flip := 1.0
-var book_tween:Tween
-var book_overlay:Control
+const BOOK_MAP := Rect2(0, 0, 936, 540)
+var book3d
+var book_view:TextureRect
+var map_surface:SubViewport
+var close_button:Button
 
 func build_map():
-	## The map lives in an open book: leather cover, page stacks, a gutter crease,
-	## a ribbon bookmark and a close button. Opening it turns a page.
+	## The map is a real 3D book. The 2D map (3D terrain plus markers) is drawn in
+	## its own viewport and printed onto the open pages; opening plays a short
+	## cinematic: the book drops in, the cover swings open and pages turn.
 	hud.add_child(map_panel)
 	map_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	anchor(map_panel, 0.5, 0.5, Vector2(0, 0))
-	book = Control.new()
-	book.custom_minimum_size = BOOK
-	book.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	book.draw.connect(draw_book)
-	map_panel.add_child(book)
+	book3d = Book3D.new(Vector2i(BOOK))
+	add_child(book3d)
+	book_view = TextureRect.new()
+	book_view.custom_minimum_size = BOOK
+	book_view.texture = book3d.get_texture()
+	book_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	book_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	map_panel.add_child(book_view)
+	map_surface = SubViewport.new()
+	map_surface.size = Vector2i(BOOK_MAP.size * 1.5)
+	map_surface.size_2d_override = Vector2i(BOOK_MAP.size)
+	map_surface.size_2d_override_stretch = true
+	map_surface.transparent_bg = false
+	map_surface.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(map_surface)
 	bigmap = Control.new()
-	bigmap.position = BOOK_MAP.position
 	bigmap.size = BOOK_MAP.size
-	bigmap.clip_contents = true
 	bigmap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bigmap.draw.connect(func(): draw_map(bigmap, true))
-	book.add_child(bigmap)
+	map_surface.add_child(bigmap)
 	map3d.set_sizes(map3d.mini_size, BOOK_MAP.size)
-	book_overlay = Control.new()
-	book_overlay.size = BOOK
-	book_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	book_overlay.draw.connect(draw_book_overlay)
-	book.add_child(book_overlay)
-	var close := Button.new()
-	close.text = "✕"
-	close.focus_mode = Control.FOCUS_NONE
-	close.custom_minimum_size = Vector2(46, 46)
-	close.position = Vector2(BOOK.x - 40, -6)
-	close.size = Vector2(46, 46)
-	close.tooltip_text = "Cerrar el plano"
+	book3d.set_map_texture(map_surface.get_texture())
+	close_button = Button.new()
+	close_button.text = "✕"
+	close_button.focus_mode = Control.FOCUS_NONE
+	close_button.custom_minimum_size = Vector2(48, 48)
+	close_button.size = Vector2(48, 48)
+	close_button.position = Vector2(BOOK.x - 124, 96)
+	close_button.tooltip_text = "Cerrar el plano"
 	for st in ["normal", "hover", "pressed"]:
-		var sb := St.card(St.CORAL if st != "hover" else St.CORAL.lightened(0.2), 23, St.INK, 3, 4 if st != "pressed" else 1)
-		close.add_theme_stylebox_override(st, sb)
-	close.add_theme_font_override("font", St.font("title", 700))
-	close.add_theme_font_size_override("font_size", 26)
-	for c in ["font_color", "font_hover_color", "font_pressed_color"]: close.add_theme_color_override(c, Color.WHITE)
-	close.pressed.connect(func():
+		close_button.add_theme_stylebox_override(st, St.card(St.CORAL if st != "hover" else St.CORAL.lightened(0.2), 24, St.INK, 3, 4 if st != "pressed" else 1))
+	close_button.add_theme_font_override("font", St.font("title", 700))
+	close_button.add_theme_font_size_override("font_size", 26)
+	for c in ["font_color", "font_hover_color", "font_pressed_color"]: close_button.add_theme_color_override(c, Color.WHITE)
+	close_button.pressed.connect(func():
 		action.emit("ui_click", [])
 		close_map.emit())
-	book.add_child(close)
+	close_button.modulate.a = 0.0
+	book_view.add_child(close_button)
 	map_panel.visibility_changed.connect(func():
-		if not map_panel.visible: return
-		map_panel.pivot_offset = BOOK * 0.5
-		if book_tween: book_tween.kill()
-		book_flip = 0.0
-		map_panel.scale = Vector2(0.88, 0.88)
-		book_tween = create_tween().set_parallel(true)
-		book_tween.tween_property(map_panel, "scale", Vector2.ONE, 0.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		book_tween.tween_method(func(v:float):
-			book_flip = v
-			bigmap.modulate.a = clampf((v - 0.25) * 2.0, 0.0, 1.0)
-			book_overlay.queue_redraw(), 0.0, 1.0, 0.8).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT))
+		if map_panel.visible:
+			map_surface.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+			close_button.modulate.a = 0.0
+			book3d.play_open()
+		else:
+			map_surface.render_target_update_mode = SubViewport.UPDATE_DISABLED
+			book3d.stop())
 	map_panel.visible = false
 
-func draw_book():
-	var W := BOOK.x
-	var H := BOOK.y
-	# soft shadow under the book
-	for i in 6: book.draw_style_box(St.card(Color(St.INK, 0.07), 40, Color(0, 0, 0, 0), 0, 0), Rect2(Vector2(10 - i * 3, 22 - i * 2), Vector2(W - 20 + i * 6, H - 12 + i * 4)))
-	# leather cover with a gold line and corner caps
-	book.draw_style_box(St.card(Color("6b3f2a"), 26, St.INK, 4, 0), Rect2(Vector2(0, 0), Vector2(W, H - 14)))
-	book.draw_style_box(St.card(Color("8a5638"), 22, Color("d9b03a"), 2, 0), Rect2(Vector2(8, 8), Vector2(W - 16, H - 30)))
-	for corner in [Vector2(6, 6), Vector2(W - 34, 6), Vector2(6, H - 48), Vector2(W - 34, H - 48)]:
-		book.draw_style_box(St.card(Color("d9b03a"), 10, St.INK, 2, 0), Rect2(corner, Vector2(28, 28)))
-	# page block: stacked sheets show thickness along the bottom and sides
-	var px := 22.0
-	var top := 22.0
-	var pw := W - 44.0
-	var ph := H - 60.0
-	for i in 6:
-		var o := (5 - i) * 2.5
-		book.draw_style_box(St.card(Color("e8dcc0").darkened(0.04 * i), 10, Color(St.INK, 0.5), 1, 0), Rect2(Vector2(px + o * 0.4, top + o), Vector2(pw - o * 0.8, ph + 4)))
-	var left := Rect2(Vector2(px, top), Vector2(pw * 0.5, ph))
-	var right := Rect2(Vector2(px + pw * 0.5, top), Vector2(pw * 0.5, ph))
-	book.draw_style_box(St.card(St.PAPER, 12, St.INK, 2, 0), left)
-	book.draw_style_box(St.card(St.PAPER, 12, St.INK, 2, 0), right)
-	# paper shading towards the gutter
-	for i in 36:
-		var a := 0.16 * (1.0 - i / 36.0)
-		book.draw_rect(Rect2(px + pw * 0.5 - i * 2.0 - 2, top + 3, 2, ph - 6), Color(St.INK, a * 0.5))
-		book.draw_rect(Rect2(px + pw * 0.5 + i * 2.0, top + 3, 2, ph - 6), Color(St.INK, a * 0.5))
-	# ribbon bookmark hanging out of the bottom
-	var rx := W * 0.5 + 120.0
-	book.draw_colored_polygon(PackedVector2Array([Vector2(rx, top + ph - 4), Vector2(rx + 34, top + ph - 4), Vector2(rx + 34, H - 2), Vector2(rx + 17, H - 14), Vector2(rx, H - 2)]), St.CORAL)
-	book.draw_polyline(PackedVector2Array([Vector2(rx, top + ph - 4), Vector2(rx, H - 2), Vector2(rx + 17, H - 14), Vector2(rx + 34, H - 2), Vector2(rx + 34, top + ph - 4)]), St.INK, 2.0, true)
-	# title plaque on the cover, top centre
-	var tw := St.text_width("El barrio", 22, "title", 650) + 56
-	book.draw_style_box(St.card(Color("d9b03a"), 12, St.INK, 3, 3), Rect2(Vector2(W * 0.5 - tw * 0.5, -12), Vector2(tw, 36)))
-	St.text(book, Vector2(W * 0.5 - tw * 0.5, 15), "El barrio", 22, St.INK, "title", 650, HORIZONTAL_ALIGNMENT_CENTER, tw)
-
-func draw_book_overlay():
-	var W := BOOK.x
-	var H := BOOK.y
-	var r := BOOK_MAP
-	# frame round the map and the crease running through the gutter
-	book_overlay.draw_rect(r.grow(2), St.INK, false, 3.0)
-	var mid := r.position.x + r.size.x * 0.5
-	for i in 26:
-		var a := 0.22 * pow(1.0 - i / 26.0, 2.0)
-		book_overlay.draw_rect(Rect2(mid - i * 1.6 - 1.6, r.position.y, 1.6, r.size.y), Color(St.INK, a))
-		book_overlay.draw_rect(Rect2(mid + i * 1.6, r.position.y, 1.6, r.size.y), Color(St.INK, a * 0.7))
-	book_overlay.draw_line(Vector2(mid, r.position.y), Vector2(mid, r.end.y), Color(St.INK, 0.35), 2.0)
-	# page turning: a leaf hinged at the gutter swings from right to left
-	if book_flip < 1.0:
-		var ang := PI * clampf(book_flip / 0.8, 0.0, 1.0)
-		var wid := cos(ang) * (W - 44.0) * 0.5
-		var spine := W * 0.5
-		var lift := sin(ang) * 22.0
-		var y0 := 22.0
-		var y1 := H - 38.0
-		var tipx := spine + wid
-		var shade := 0.5 + 0.5 * absf(cos(ang))
-		var leaf := PackedVector2Array([Vector2(spine, y0), Vector2(tipx, y0 - lift), Vector2(tipx, y1 + lift), Vector2(spine, y1)])
-		book_overlay.draw_colored_polygon(leaf, St.PAPER.darkened(0.12 * (1.0 - shade)))
-		leaf.append(leaf[0])
-		book_overlay.draw_polyline(leaf, St.INK, 2.0, true)
-		book_overlay.draw_rect(Rect2(minf(spine, tipx), y0, absf(wid), y1 - y0), Color(0, 0, 0, 0))
+func book_rect() -> Rect2:
+	return book_view.get_global_rect()
 
 func build_pause():
 	root.add_child(pause)
@@ -969,6 +910,7 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 	if shop.visible: refresh_shop()
 	if map_panel.visible:
 		bigmap.queue_redraw()
+		close_button.modulate.a = clampf((book3d.open - 0.9) * 10.0, 0.0, 1.0)
 	map3d.update(s, mm_data.get("me", Vector2.ZERO), mm_data.get("yaw", 0.0), minimap_panel.visible, map_panel.visible)
 	minimap.queue_redraw()
 	minimap_panel.visible = s.ph != P.OVER
@@ -1152,9 +1094,11 @@ func weakest_access(s:Dictionary) -> String:
 func bigmap_world(pos:Vector2):
 	## World point under a screen position on the big map, or null outside it.
 	if not map_panel.visible: return null
-	var r := bigmap.get_global_rect()
+	var r := book_rect()
 	if not r.has_point(pos): return null
-	return map3d.ground_at(true, pos - r.position)
+	if not book3d.is_open(): return null
+	var m = book3d.screen_to_map(pos - r.position, BOOK_MAP.size)
+	return null if m == null else map3d.ground_at(true, m)
 
 func map_text(s:Dictionary) -> String:
 	var lines := []
