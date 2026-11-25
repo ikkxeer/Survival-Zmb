@@ -37,6 +37,9 @@ var settings := {"quality":2, "fullscreen":false, "volume":0.8, "music":0.6, "sf
 var prefs
 var profile
 var hero:VBoxContainer
+var festoon:Control
+var menu_clock := 0.0
+var hero_rest := Vector2.ZERO
 var choices:HBoxContainer
 var modal_shade := ColorRect.new()
 var utility:HBoxContainer
@@ -112,6 +115,12 @@ func _ready():
 	build_pause()
 	build_over()
 	hud.hide()
+
+func _process(delta:float):
+	if not menu.visible or menu_panel.visible: return
+	menu_clock += delta
+	hero.position = hero_rest + Vector2(0,sin(menu_clock*0.75)*2.0)
+	festoon.queue_redraw()
 
 # ================================================================== theme
 func box(c:Color, radius:int = 14, margin:int = 12, border:Color = Color(0, 0, 0, 0), bw:int = 0) -> StyleBoxFlat:
@@ -281,27 +290,59 @@ func build_menu():
 	menu.add_child(tint)
 	tint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
+	festoon = Control.new()
+	festoon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	festoon.draw.connect(draw_title_doodle)
+	menu.add_child(festoon)
+	festoon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hero = vbox(menu, 8)
+	hero.alignment = BoxContainer.ALIGNMENT_CENTER
 	var emblem := Control.new()
-	emblem.custom_minimum_size = Vector2(145,46)
+	emblem.custom_minimum_size = Vector2(260,42)
+	emblem.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hero.add_child(emblem)
-	emblem.draw.connect(func(): St.bunting(emblem,Vector2(0,5),Vector2(140,1),5,10,17,1))
-	var lockup := vbox(hero,-20)
-	title(lockup, "La última", St.PAPER, 50)
-	title(lockup, "Verbena", St.SUN, 116)
-	label(hero, "Defiende tu barrio hasta el amanecer.", 23, St.PAPER)
+	emblem.draw.connect(func(): St.bunting(emblem,Vector2(8,6),Vector2(emblem.size.x-8,4),11,8,13,1))
+	var lockup := vbox(hero,-19)
+	lockup.alignment = BoxContainer.ALIGNMENT_CENTER
+	var title_top := title(lockup, "La última", St.PAPER, 48)
+	title_top.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var title_main := title(lockup, "Verbena", St.SUN, 108)
+	title_main.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_main.add_theme_constant_override("outline_size",5)
+	title_main.add_theme_color_override("font_outline_color",St.INK)
+	var strapline := label(hero, "La noche es larga. El barrio resiste unido.", 21, St.PAPER)
+	strapline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	strapline.add_theme_font_override("font",St.font("body",800))
+	strapline.add_theme_constant_override("outline_size",3)
+	strapline.add_theme_color_override("font_outline_color",St.INK)
+	var promise := hbox(hero,8)
+	promise.alignment = BoxContainer.ALIGNMENT_CENTER
+	for item in [["moon","DE DÍA, PREPÁRATE"],["house","DE NOCHE, DEFIENDE"]]:
+		var badge := hbox(promise,4)
+		var mark := Control.new()
+		mark.custom_minimum_size = Vector2(26,28)
+		badge.add_child(mark)
+		mark.draw.connect(func(): St.icon(mark,item[0],mark.size*0.5,19,Color.WHITE))
+		var copy := label(badge,item[1],12,St.INK)
+		copy.add_theme_font_override("font",St.font("title",600))
+		copy.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	var gap := Control.new()
-	gap.custom_minimum_size.y = 12
+	gap.custom_minimum_size.y = 5
 	hero.add_child(gap)
 	continue_button = button(hero,"",func(): emit_launch("continue"),50)
 	continue_button.hide()
 	continue_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	continue_button.custom_minimum_size.x = 370
+	continue_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	continue_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	choices = hbox(hero,12)
+	choices = hbox(hero,14)
+	choices.alignment = BoxContainer.ALIGNMENT_CENTER
 	solo_entry = mode_button(choices,"En solitario","Jugar por tu cuenta","house","solo",St.SUN)
 	coop_entry = mode_button(choices,"Cooperativo","Crear o unirse · 1–4","bulb","host",St.PAPER)
+	for entry in [solo_entry,coop_entry]:
+		entry.custom_minimum_size = Vector2(254,82)
+	solo_entry.add_theme_stylebox_override("normal",box(St.SUN,18,14,St.INK,3))
 
 	utility = hbox(menu,10)
 	for item in [["Cómo jugar",help_panel],["Ajustes",settings_panel]]:
@@ -404,6 +445,20 @@ func build_menu():
 		control.add_theme_stylebox_override("focus",ring)
 	layout_menu()
 
+func draw_title_doodle():
+	var center := festoon.size.x*0.5
+	var y := 94.0
+	var sway := sin(menu_clock*0.7)*3.0
+	for side in [-1.0,1.0]:
+		var pos := Vector2(center+side*235,y+sway)
+		St.icon(festoon,"bulb",pos,23,Color(St.SUN,0.8))
+		festoon.draw_arc(pos,20,0,TAU,24,Color(St.PAPER,0.48),1.2,true)
+	for i in 6:
+		var side := -1.0 if i%2==0 else 1.0
+		var x := center+side*(170+(i/2)*43)
+		var twinkle := 1.4+absf(sin(menu_clock*1.6+i))*1.8
+		festoon.draw_circle(Vector2(x,154+(i%3)*24),twinkle,Color(St.PAPER,0.8))
+
 func mode_button(parent:Control, caption:String, subtitle:String, icon_name:String, mode:String, fill:Color) -> Button:
 	var b := button(parent,"",open_setup.bind(mode),76)
 	b.custom_minimum_size.x = 232
@@ -425,8 +480,12 @@ func layout_menu():
 	var compact := w < 1080
 	hero.visible = not menu_panel.visible or not compact
 	choices.visible = not menu_panel.visible
-	hero.position = Vector2(margin,maxf(18,(h-hero.get_combined_minimum_size().y)*0.48))
-	utility.position = Vector2(margin,h-utility.get_combined_minimum_size().y-24)
+	var hero_width := minf(810,w-48)
+	hero.size = Vector2(hero_width,h-220)
+	hero.position = Vector2((w-hero_width)*0.5,clampf((h-hero.get_combined_minimum_size().y)*0.43,145,h*0.42))
+	hero_rest = hero.position
+	festoon.queue_redraw()
+	utility.position = Vector2((w-utility.get_combined_minimum_size().x)*0.5,h-utility.get_combined_minimum_size().y-25)
 	var panel_width := minf(528,w-2*margin)
 	var panel_height := minf(setup_content.get_combined_minimum_size().y + 50,h-100)
 	menu_panel.custom_minimum_size = Vector2(panel_width,panel_height)
