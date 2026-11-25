@@ -281,6 +281,11 @@ func build_menu():
 	menu.add_child(tint)
 	tint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
+	var festoon := Control.new()
+	festoon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	festoon.draw.connect(func(): draw_title_doodle(festoon))
+	menu.add_child(festoon)
+	festoon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	hero = vbox(menu, 8)
 	var emblem := Control.new()
 	emblem.custom_minimum_size = Vector2(145,46)
@@ -290,7 +295,11 @@ func build_menu():
 	var lockup := vbox(hero,-20)
 	title(lockup, "La última", St.PAPER, 50)
 	title(lockup, "Verbena", St.SUN, 116)
-	label(hero, "Defiende tu barrio hasta el amanecer.", 23, St.PAPER)
+	var strapline := label(hero, "Defiende tu barrio hasta el amanecer.", 23, St.PAPER)
+	strapline.add_theme_font_override("font",St.font("body",800))
+	strapline.add_theme_color_override("font_shadow_color",St.INK)
+	strapline.add_theme_constant_override("shadow_offset_x",2)
+	strapline.add_theme_constant_override("shadow_offset_y",2)
 	var gap := Control.new()
 	gap.custom_minimum_size.y = 12
 	hero.add_child(gap)
@@ -301,6 +310,7 @@ func build_menu():
 	continue_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	choices = hbox(hero,12)
 	solo_entry = mode_button(choices,"En solitario","Jugar por tu cuenta","house","solo",St.SUN)
+	solo_entry.add_theme_stylebox_override("normal",box(St.SUN,18,14,St.INK,3))
 	coop_entry = mode_button(choices,"Cooperativo","Crear o unirse · 1–4","bulb","host",St.PAPER)
 
 	utility = hbox(menu,10)
@@ -403,6 +413,22 @@ func build_menu():
 	for control in menu.find_children("*","BaseButton",true,false):
 		control.add_theme_stylebox_override("focus",ring)
 	layout_menu()
+
+func draw_title_doodle(canvas:Control):
+	var w := canvas.size.x
+	var h := canvas.size.y
+	St.bunting(canvas,Vector2(w*0.39,12),Vector2(w-34,5),13,25,19,3)
+	# Chalk-style festival chalk marks frame the illuminated village.
+	var chalk := Color(St.PAPER,0.72)
+	for i in 5:
+		var x := w*0.64+i*25
+		canvas.draw_line(Vector2(x,h-58),Vector2(x+8,h-68),chalk,2.0,true)
+		canvas.draw_circle(Vector2(x+10,h-71),2.0,St.SUN)
+	var moon := Vector2(w-86,114)
+	St.icon(canvas,"moon",moon,55,Color.WHITE)
+	canvas.draw_arc(moon,41,0.2,2.1,32,Color(St.SUN,0.7),1.6,true)
+	St.icon(canvas,"traca",Vector2(w-67,180),22,Color.WHITE)
+	St.icon(canvas,"heart",Vector2(w-145,154),17,Color(St.PINK,0.9))
 
 func mode_button(parent:Control, caption:String, subtitle:String, icon_name:String, mode:String, fill:Color) -> Button:
 	var b := button(parent,"",open_setup.bind(mode),76)
