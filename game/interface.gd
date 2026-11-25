@@ -35,7 +35,23 @@ var help_panel := PanelContainer.new()
 var settings := {"quality":2, "fullscreen":false, "volume":0.8, "music":0.6, "sfx":1.0, "shake":true, "flashes":true, "numbers":false, "sensitivity":1.0, "ui_scale":1.0}
 var prefs
 var profile
-var rank_labels := []
+var hero:VBoxContainer
+var choices:HBoxContainer
+var modal_shade := ColorRect.new()
+var utility:HBoxContainer
+var solo_entry:Button
+var coop_entry:Button
+var menu_scroll:ScrollContainer
+var setup_content:VBoxContainer
+var setup_title:Label
+var network_tabs:HBoxContainer
+var rules_row:HBoxContainer
+var join_row:VBoxContainer
+var start_button:Button
+var setup_mode := "solo"
+var role_ability:Label
+var role_rank:Label
+var role_desc:Label
 var record_label:Label
 var continue_button:Button
 var variant := 0
@@ -88,6 +104,8 @@ func _ready():
 	build_hud()
 	build_settings()
 	build_help()
+	settings_panel.visibility_changed.connect(sync_menu_modal)
+	help_panel.visibility_changed.connect(sync_menu_modal)
 	build_pause()
 	build_over()
 	hud.hide()
@@ -248,148 +266,255 @@ func build_menu():
 	root.add_child(menu)
 	menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	menu.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var deco := Control.new()
-	deco.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	deco.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	deco.draw.connect(func(): draw_bunting(deco))
-	menu.add_child(deco)
-	var title_box := vbox(menu, 0)
-	title_box.position = Vector2(64, 58)
-	var tag := label(title_box, "COOPERATIVO · 1–4 VECINOS", 18, St.SUN, 8)
-	tag.add_theme_font_override("font", St.font("title", 600))
-	var t := title(title_box, "La última verbena", St.PAPER, 76)
-	t.add_theme_constant_override("outline_size", 22)
-	t.add_theme_color_override("font_outline_color", St.INK)
-	label(title_box, "Las guirnaldas siguen encendidas. Al anochecer llegan los brotados.", 20, St.PAPER, 9)
+	var tint := TextureRect.new()
+	var gradient := Gradient.new()
+	gradient.colors = PackedColorArray([Color("231931ed"), Color("281e387a"), Color("241b320c")])
+	gradient.offsets = PackedFloat32Array([0.0,0.43,1.0])
+	var wash := GradientTexture2D.new()
+	wash.gradient = gradient
+	tint.texture = wash
+	tint.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	menu.add_child(tint)
+	tint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	hero = vbox(menu, 8)
+	var emblem := Control.new()
+	emblem.custom_minimum_size = Vector2(145,46)
+	emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hero.add_child(emblem)
+	emblem.draw.connect(func(): St.bunting(emblem,Vector2(0,5),Vector2(140,1),5,10,17,1))
+	var lockup := vbox(hero,-20)
+	title(lockup, "La última", St.PAPER, 50)
+	title(lockup, "Verbena", St.SUN, 116)
+	label(hero, "Defiende tu barrio hasta el amanecer.", 23, St.PAPER)
+	var gap := Control.new()
+	gap.custom_minimum_size.y = 12
+	hero.add_child(gap)
+	continue_button = button(hero,"",func(): emit_launch("continue"),50)
+	continue_button.hide()
+	continue_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	continue_button.custom_minimum_size.x = 370
+	continue_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	choices = hbox(hero,12)
+	solo_entry = mode_button(choices,"En solitario","Jugar por tu cuenta","house","solo",St.SUN)
+	coop_entry = mode_button(choices,"Cooperativo","Crear o unirse · 1–4","bulb","host",St.PAPER)
+
+	utility = hbox(menu,10)
+	for item in [["Cómo jugar",help_panel],["Ajustes",settings_panel]]:
+		var target:Control = item[1]
+		button(utility,item[0],toggle_panel.bind(target),40)
+	button(utility,"Salir",func(): get_tree().quit(),40)
+	for b in utility.get_children():
+		b.add_theme_stylebox_override("normal",box(Color("30263ce8"),11,14,Color(St.PAPER,0.55),1))
+		b.add_theme_color_override("font_color",St.PAPER)
+		b.add_theme_font_size_override("font_size",17)
+
 	menu.add_child(menu_panel)
-	menu_panel.add_theme_stylebox_override("panel", paper_box(St.PAPER, 26, 22))
-	menu_panel.position = Vector2(64, 200)
-	menu_panel.custom_minimum_size = Vector2(600, 0)
-	var col := vbox(menu_panel, 10)
-	var nrow := hbox(col, 10)
-	label(nrow, "¿Cómo te llamas?", 16, St.INK_SOFT)
-	nrow.add_child(name_edit)
+	menu_panel.add_theme_stylebox_override("panel",paper_box(St.PAPER,24,24))
+	menu_scroll = ScrollContainer.new()
+	menu_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	menu_scroll.follow_focus = true
+	menu_panel.add_child(menu_scroll)
+	setup_content = vbox(menu_scroll,12)
+	var col := setup_content
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var heading := hbox(col,12)
+	setup_title = title(heading,"En solitario",St.INK,32)
+	setup_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	button(heading,"Volver",close_setup,38)
+	network_tabs = hbox(col,8)
+	for item in [["Crear sala","host"],["Unirse","join"]]:
+		var tab := button(network_tabs,item[0],open_setup.bind(item[1]),40)
+		tab.toggle_mode = true
+		tab.add_theme_stylebox_override("pressed",box(St.INK,12,12,St.INK,2))
+		tab.add_theme_stylebox_override("hover_pressed",box(St.INK_SOFT,12,12,St.INK,2))
+		tab.add_theme_color_override("font_pressed_color",St.PAPER)
+		tab.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var identity := hbox(col,12)
+	label(identity,"Tu nombre",17,St.INK)
+	identity.add_child(name_edit)
 	name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_edit.placeholder_text = "Tu nombre en el barrio"
+	name_edit.placeholder_text = "Nombre en el barrio"
 	name_edit.max_length = 14
-	name_edit.custom_minimum_size.y = 40
+	title(col,"Elige tu oficio",St.INK,22)
 	var grid := GridContainer.new()
 	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 10)
+	grid.add_theme_constant_override("h_separation",8)
+	grid.add_theme_constant_override("v_separation",8)
 	col.add_child(grid)
-	for i in 4:
-		var card := Button.new()
-		card.custom_minimum_size = Vector2(275, 128)
+	for i in Data.ROLES.size():
+		var card := button(grid,Data.ROLES[i].name,pick_role.bind(i),42)
 		card.toggle_mode = true
-		card.button_pressed = i == 0
-		var rc := Color(Data.ROLES[i].color)
-		card.add_theme_stylebox_override("normal", box(St.CARD, 16, 12, Color(St.INK, 0.35), 2))
-		card.add_theme_stylebox_override("hover", box(rc.lightened(0.75), 16, 12, St.INK, 3))
-		card.add_theme_stylebox_override("pressed", box(rc.lightened(0.55), 16, 12, St.INK, 4))
-		card.add_theme_stylebox_override("hover_pressed", box(rc.lightened(0.5), 16, 12, St.INK, 4))
-		card.pressed.connect(pick_role.bind(i))
-		grid.add_child(card)
-		var inner := vbox(card, 2)
-		inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		inner.offset_left = 14
-		inner.offset_top = 8
-		inner.offset_right = -10
-		title(inner, Data.ROLES[i].name, rc.darkened(0.35), 24)
-		var top := hbox(inner, 8)
-		var title_label := inner.get_child(0)
-		inner.remove_child(title_label)
-		top.add_child(title_label)
-		rank_labels.append(label(top, "", 13, St.MINT.darkened(0.35)))
-		label(inner, "Q · " + Data.ROLES[i].ability, 14, St.INK)
-		var d := label(inner, Data.ROLES[i].desc, 12, St.INK_SOFT)
-		d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		d.custom_minimum_size.x = 245
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var color := Color(Data.ROLES[i].color)
+		card.add_theme_stylebox_override("pressed",box(color.lightened(0.45),12,10,St.INK,3))
+		card.add_theme_stylebox_override("hover_pressed",box(color.lightened(0.35),12,10,St.INK,3))
+		card.add_theme_color_override("font_pressed_color",St.INK)
+		card.add_theme_color_override("font_hover_pressed_color",St.INK)
+		var symbol:String = ["plank","medkit","traca","sprout"][i]
+		card.draw.connect(func(): St.icon(card,symbol,Vector2(25,card.size.y*0.5),23))
 		role_cards.append(card)
-	var vrow := hbox(col, 10)
-	label(vrow, "Reglas de la partida", 16, St.INK_SOFT)
+	var detail := vbox(panel(col,St.CARD,14,12),3)
+	var detail_row := hbox(detail,8)
+	role_ability = title(detail_row,"",St.INK,18)
+	role_ability.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	role_rank = label(detail_row,"",14,St.INK_SOFT)
+	role_desc = label(detail,"",16,St.INK_SOFT)
+	role_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rules_row = hbox(col,12)
+	label(rules_row,"Reglas",17)
 	var vopt := OptionButton.new()
 	for v in Data.VARIANTS: vopt.add_item(v.name)
 	vopt.item_selected.connect(func(i):
 		variant = i
-		variant_desc.text = Data.VARIANTS[i].desc if i > 0 else ""
-		variant_desc.visible = i > 0)
-	vopt.tooltip_text = "Variantes opcionales que cambian rutas y construcción"
+		variant_desc.text = Data.VARIANTS[i].desc
+		variant_desc.visible = i>0 and setup_mode!="join")
 	vopt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vrow.add_child(vopt)
-	variant_desc = label(col, "", 13, St.INK_SOFT)
+	rules_row.add_child(vopt)
+	variant_desc = label(col,"",15,St.INK_SOFT)
 	variant_desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	variant_desc.custom_minimum_size.x = 540
-	variant_desc.visible = false
-	record_label = label(col, "", 14, St.INK_SOFT)
+	variant_desc.hide()
+	join_row = vbox(col,4)
+	label(join_row,"Dirección del anfitrión",17)
+	join_row.add_child(address)
+	address.placeholder_text = "Ej. 192.168.1.20"
+	address.text_submitted.connect(func(_value): emit_launch("join"))
+	start_button = button(col,"Empezar partida",func(): emit_launch(setup_mode),52)
+	start_button.add_theme_stylebox_override("normal",box(St.SUN,14,12,St.INK,2))
+	record_label = label(col,"",14,St.INK_SOFT)
 	record_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	record_label.custom_minimum_size.x = 540
-	continue_button = button(col, "", func(): emit_launch("continue"), 46)
-	continue_button.add_theme_stylebox_override("normal", box(St.SUN, 14, 12, St.INK, 3))
-	continue_button.visible = false
-	var row := hbox(col, 10)
-	var solo := button(row, "▶  Jugar en solitario", func(): emit_launch("solo"), 52)
-	solo.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	solo.add_theme_font_size_override("font_size", 22)
-	var host := button(row, "Crear partida en red", func(): emit_launch("host"), 52)
-	host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var row2 := hbox(col, 10)
-	row2.add_child(address)
-	address.placeholder_text = "IP del anfitrión (p. ej. 192.168.1.20)"
-	address.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	address.custom_minimum_size.y = 44
-	button(row2, "Unirse", func(): emit_launch("join"))
-	var row3 := hbox(col, 10)
-	for item in [["Ajustes", func(): toggle_panel(settings_panel)], ["Cómo se juega", func(): toggle_panel(help_panel)], ["Salir", func(): get_tree().quit()]]:
-		var b := button(row3, item[0], item[1], 40)
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(status)
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	status.add_theme_color_override("font_color", St.CORAL.darkened(0.2))
-	status.custom_minimum_size.x = 540
-	var tip := label(menu, "Ratón y teclado · F1 ayuda en partida", 15, St.PAPER, 6)
-	anchor(tip, 1.0, 1.0, Vector2(-24, -16))
+	status.add_theme_color_override("font_color",Color("933d43"))
+	# The session controller writes connection and checkpoint errors directly here.
+	menu_panel.hide()
+	root.add_child(modal_shade)
+	modal_shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	modal_shade.color = Color("21192e8c")
+	modal_shade.hide()
+	menu.resized.connect(layout_menu)
+	col.minimum_size_changed.connect(layout_menu)
+	pick_role(0)
+	var ring := St.card(Color.TRANSPARENT,14,St.SKY.darkened(0.35),3,0)
+	for control in menu.find_children("*","BaseButton",true,false):
+		control.add_theme_stylebox_override("focus",ring)
+	layout_menu()
 
-func draw_bunting(c:Control):
-	var w := c.size.x
-	var colors:Array = St.FESTIVE
-	for row in 2:
-		var y0 := 8.0 + row * 26
-		var sag := 22.0 + row * 8
-		var count := int(w / 46)
-		var pts := PackedVector2Array()
-		for i in count + 1:
-			var x := float(i) / count * w
-			pts.append(Vector2(x, y0 + sag * sin(PI * float(i) / count)))
-		c.draw_polyline(pts, Color(0.2, 0.15, 0.25, 0.7), 2.0)
-		for i in count:
-			var a := pts[i]
-			var b := pts[i + 1]
-			var m := (a + b) * 0.5
-			c.draw_colored_polygon(PackedVector2Array([a + (b - a) * 0.15, a + (b - a) * 0.85, m + Vector2(0, 24)]), colors[(i + row * 3) % colors.size()])
+func mode_button(parent:Control, caption:String, subtitle:String, icon_name:String, mode:String, fill:Color) -> Button:
+	var b := button(parent,"",open_setup.bind(mode),76)
+	b.custom_minimum_size.x = 232
+	b.accessibility_name = caption
+	b.accessibility_description = subtitle
+	b.add_theme_stylebox_override("normal",box(fill,18,14,St.INK,2))
+	b.add_theme_stylebox_override("hover",box(fill.lightened(0.22),18,14,St.INK,3))
+	b.draw.connect(func():
+		b.draw_circle(Vector2(31,b.size.y/2),20,St.INK,true,-1,true)
+		St.icon(b,icon_name,Vector2(31,b.size.y/2),28,St.SUN)
+		St.text(b,Vector2(62,b.size.y/2-1),caption,22,St.INK,"title",600)
+		St.text(b,Vector2(62,b.size.y/2+21),subtitle,15,St.INK_SOFT))
+	return b
+
+func layout_menu():
+	var w := menu.size.x
+	var h := menu.size.y
+	var margin := clampf(w*0.045,20,76)
+	var compact := w < 1080
+	hero.visible = not menu_panel.visible or not compact
+	choices.visible = not menu_panel.visible
+	hero.position = Vector2(margin,maxf(18,(h-hero.get_combined_minimum_size().y)*0.48))
+	utility.position = Vector2(margin,h-utility.get_combined_minimum_size().y-24)
+	var panel_width := minf(528,w-2*margin)
+	var panel_height := minf(setup_content.get_combined_minimum_size().y + 50,h-100)
+	menu_panel.custom_minimum_size = Vector2(panel_width,panel_height)
+	menu_panel.size = menu_panel.custom_minimum_size
+	menu_panel.position = Vector2((w-panel_width)*0.5 if compact else w-margin-panel_width,(h-panel_height)*0.5)
+	utility.visible = not compact or not menu_panel.visible
+
+func open_setup(mode:String):
+	setup_mode = mode
+	var coop := mode != "solo"
+	setup_title.text = "Cooperativo" if coop else "En solitario"
+	network_tabs.visible = coop
+	for i in network_tabs.get_child_count():
+		network_tabs.get_child(i).set_pressed_no_signal(mode == ["host","join"][i])
+	rules_row.visible = mode != "join"
+	variant_desc.visible = rules_row.visible and variant > 0
+	join_row.visible = mode == "join"
+	start_button.text = {"solo":"Empezar partida","host":"Crear partida","join":"Unirse a la partida"}[mode]
+	status.text = ""
+	menu_panel.show()
+	layout_menu()
+	menu_scroll.scroll_vertical = 0
+	if mode=="join": address.grab_focus()
+	else: role_cards[role].grab_focus()
+
+func close_setup():
+	menu_panel.hide()
+	layout_menu()
+	if setup_mode=="solo": solo_entry.grab_focus()
+	else: coop_entry.grab_focus()
+
+func _input(event:InputEvent):
+	if not menu.is_visible_in_tree(): return
+	if settings_panel.visible and event is InputEventKey and event.pressed and not event.echo:
+		if capture_key(event.physical_keycode):
+			get_viewport().set_input_as_handled()
+			return
+	if not event.is_action_pressed("ui_cancel"): return
+	if settings_panel.visible: settings_panel.hide()
+	elif help_panel.visible: help_panel.hide()
+	elif menu_panel.visible: close_setup()
+	else: return
+	get_viewport().set_input_as_handled()
+
+func sync_menu_modal():
+	var active := menu.visible and (settings_panel.visible or help_panel.visible)
+	modal_shade.visible = active
+	menu.focus_behavior_recursive = Control.FOCUS_BEHAVIOR_DISABLED if active else Control.FOCUS_BEHAVIOR_INHERITED
+	if active:
+		var modal := settings_panel if settings_panel.visible else help_panel
+		var buttons := modal.find_children("CloseDialog","Button",true,false)
+		if not buttons.is_empty(): buttons[0].grab_focus()
+	elif menu.is_visible_in_tree():
+		if menu_panel.visible: role_cards[role].grab_focus()
+		elif continue_button.visible: continue_button.grab_focus()
+		else: solo_entry.grab_focus()
+
 
 func refresh_profile():
 	## Role cards show the rank earned in previous matches and the perks it gives.
 	if profile == null: return
-	for i in rank_labels.size():
-		var r:int = profile.rank(i)
-		var goal:int = profile.next_goal(i)
-		rank_labels[i].text = "Rango %d%s" % [r, "" if goal < 0 else " · %d/%d" % [profile.role_xp[i], goal]]
+	if prefs != null: role_desc.text = Data.ROLES[role].desc.replace("Q ",k("ability")+" ")
+	var goal:int = profile.next_goal(role)
+	role_rank.text = "Rango %d%s" % [profile.rank(role), "" if goal < 0 else " · %d/%d" % [profile.role_xp[role], goal]]
+	for i in role_cards.size():
 		role_cards[i].tooltip_text = "Ventajas: " + (", ".join(profile.unlocked(i)) if profile.unlocked(i).size() else "aún ninguna") + "\nRango 2: %s · Rango 3: %s" % [profile.UNLOCKS[i][0], profile.UNLOCKS[i][1]]
 	var saved:Dictionary = preload("res://game/checkpoint.gd").peek()
 	continue_button.visible = not saved.is_empty()
 	if continue_button.visible:
 		var names:Array = saved.players.slice(0, 3)
-		continue_button.text = "⟳  Continuar: noche %d · %s%s" % [saved.wave - 1, ", ".join(names), " (en red)" if saved.mode == "host" else ""]
+		continue_button.text = "Continuar · noche %d · %s%s" % [saved.wave - 1, ", ".join(names), " (en red)" if saved.mode == "host" else ""]
 	if prefs != null and name_edit.text == "": name_edit.text = prefs.values.get("name", "")
-	record_label.text = "Partidas %d · Victorias %d · Mejor noche %d · Rango %d de %s: %s" % [profile.matches, profile.wins, profile.best_night, profile.rank(role), Data.ROLES[role].name, ", ".join(profile.unlocked(role)) if profile.unlocked(role).size() else "sube de rango jugando con este oficio"]
+	record_label.visible = profile.matches > 0
+	record_label.text = "Partidas %d   ·   Victorias %d   ·   Mejor noche %d" % [profile.matches,profile.wins,profile.best_night]
+	continue_button.tooltip_text = continue_button.text
 
 func pick_role(i:int):
 	role = i
-	for j in role_cards.size(): role_cards[j].button_pressed = j == i
+	for j in role_cards.size(): role_cards[j].set_pressed_no_signal(j == i)
+	role_ability.text = Data.ROLES[i].ability
+	role_desc.text = Data.ROLES[i].desc.replace("Q ", k("ability") + " ") if prefs != null else Data.ROLES[i].desc
 	refresh_profile()
 
 func emit_launch(mode:String):
+	status.text = ""
+	if mode == "continue" and not menu_panel.visible:
+		open_setup("solo")
+	if mode == "join" and address.text.strip_edges().is_empty():
+		status.text = "Introduce la dirección del anfitrión para unirte."
+		address.grab_focus()
+		return
 	launch.emit(mode, role, address.text.strip_edges(), name_edit.text.strip_edges())
 
 func toggle_panel(p:Control):
@@ -409,13 +534,14 @@ func build_settings():
 	var col := vbox(settings_panel, 10)
 	title(col, "Ajustes", St.INK, 34)
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 560)
+	scroll.custom_minimum_size = Vector2(0,minf(560,root.size.y-190))
+	root.resized.connect(func(): scroll.custom_minimum_size.y = clampf(root.size.y-190,140,560))
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	col.add_child(scroll)
 	settings_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	settings_list.add_theme_constant_override("separation", 10)
 	scroll.add_child(settings_list)
-	button(col, "Cerrar", func(): settings_panel.hide())
+	button(col, "Cerrar", func(): settings_panel.hide()).name = "CloseDialog"
 
 func sync_settings():
 	## Rebuild the settings controls from the saved preferences.
@@ -512,7 +638,7 @@ func build_help():
 	help_text = label(col, "", 16)
 	help_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	help_text.custom_minimum_size.x = 810
-	button(col, "Cerrar", func(): help_panel.hide())
+	button(col, "Cerrar", func(): help_panel.hide()).name = "CloseDialog"
 
 # ================================================================== HUD
 func refresh_help():
@@ -811,6 +937,7 @@ func show_menu(v:bool):
 	menu.visible = v
 	hud.visible = not v
 	if v:
+		sync_menu_modal()
 		over.visible = false
 		pause.visible = false
 		shop.visible = false
