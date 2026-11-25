@@ -8,11 +8,13 @@ signal resume
 signal action(name:String, args:Array)
 signal build_pick(kind:int)
 signal rematch
+signal close_map
 
 const Data = preload("res://game/data.gd")
 const Map = preload("res://game/map.gd")
 const P := Data.Phase
 const St = preload("res://game/ui/style.gd")
+const Book3D = preload("res://game/ui/book3d.gd")
 const Map3D = preload("res://game/ui/map3d.gd")
 const HUD = preload("res://game/ui/hud.gd")
 
@@ -97,6 +99,14 @@ var last_state := {}
 var my_id := 0
 var build_kind := -1
 var mm_data := {}
+
+func _exit_tree():
+	## Let go of the viewport textures so the renderer can free them at exit.
+	if book_view: book_view.texture = null
+	St._fonts.clear()
+	if book3d:
+		book3d.map_mat.albedo_texture = null
+		book3d.map_mat.emission_texture = null
 
 func _ready():
 	layer = 5
@@ -943,24 +953,71 @@ func sell_value(p:Dictionary, g:int) -> int:
 	for i in int(p.guns[g]) - 1: spent += int(w.up[i])
 	return spent / 2
 
+const BOOK := Vector2(1040, 668)
+const BOOK_MAP := Rect2(0, 0, 936, 540)
+var book3d
+var book_view:TextureRect
+var map_surface:SubViewport
+var close_button:Button
+
 func build_map():
+	## The map is a real 3D book. The 2D map (3D terrain plus markers) is drawn in
+	## its own viewport and printed onto the open pages; opening plays a short
+	## cinematic: the book drops in, the cover swings open and pages turn.
 	hud.add_child(map_panel)
-	map_panel.add_theme_stylebox_override("panel", paper_box(St.PAPER, 24, 16))
+	map_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	anchor(map_panel, 0.5, 0.5, Vector2(0, 0))
-	var row := hbox(map_panel, 18)
+	book3d = Book3D.new(Vector2i(BOOK))
+	add_child(book3d)
+	book_view = TextureRect.new()
+	book_view.custom_minimum_size = BOOK
+	book_view.texture = book3d.get_texture()
+	book_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	book_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	map_panel.add_child(book_view)
+	map_surface = SubViewport.new()
+	map_surface.size = Vector2i(BOOK_MAP.size * 1.5)
+	map_surface.size_2d_override = Vector2i(BOOK_MAP.size)
+	map_surface.size_2d_override_stretch = true
+	map_surface.transparent_bg = false
+	map_surface.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	add_child(map_surface)
 	bigmap = Control.new()
-	bigmap.custom_minimum_size = Vector2(700, 620)
-	bigmap.clip_contents = true
+	bigmap.size = BOOK_MAP.size
 	bigmap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bigmap.draw.connect(func(): draw_map(bigmap, true))
-	row.add_child(bigmap)
-	var col := vbox(row, 8)
-	title(col, "El barrio", St.INK, 30)
-	col.add_child(map_info)
-	map_info.custom_minimum_size.x = 300
-	map_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	map_info.add_theme_font_size_override("font_size", 15)
+	map_surface.add_child(bigmap)
+	map3d.set_sizes(map3d.mini_size, BOOK_MAP.size)
+	book3d.set_map_texture(map_surface.get_texture())
+	close_button = Button.new()
+	close_button.text = "✕"
+	close_button.focus_mode = Control.FOCUS_NONE
+	close_button.custom_minimum_size = Vector2(48, 48)
+	close_button.size = Vector2(48, 48)
+	close_button.position = Vector2(BOOK.x - 124, 96)
+	close_button.tooltip_text = "Cerrar el plano"
+	for st in ["normal", "hover", "pressed"]:
+		close_button.add_theme_stylebox_override(st, St.card(St.CORAL if st != "hover" else St.CORAL.lightened(0.2), 24, St.INK, 3, 4 if st != "pressed" else 1))
+	close_button.add_theme_font_override("font", St.font("title", 700))
+	close_button.add_theme_font_size_override("font_size", 26)
+	for c in ["font_color", "font_hover_color", "font_pressed_color"]: close_button.add_theme_color_override(c, Color.WHITE)
+	close_button.pressed.connect(func():
+		action.emit("ui_click", [])
+		close_map.emit())
+	close_button.modulate.a = 0.0
+	book_view.add_child(close_button)
+	map_panel.visibility_changed.connect(func():
+		if map_panel.visible:
+			map_surface.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+			close_button.modulate.a = 0.0
+			book3d.play_open()
+		else:
+			map_surface.render_target_update_mode = SubViewport.UPDATE_DISABLED
+			book3d.stop())
 	map_panel.visible = false
+
+func book_rect() -> Rect2:
+	return book_view.get_global_rect()
 
 func build_pause():
 	root.add_child(pause)
@@ -1046,8 +1103,8 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 	if board.visible and Engine.get_process_frames() % 15 == 0: refresh_board(false)
 	if shop.visible: refresh_shop()
 	if map_panel.visible:
-		map_info.text = map_text(s)
 		bigmap.queue_redraw()
+		close_button.modulate.a = clampf((book3d.open - 0.9) * 10.0, 0.0, 1.0)
 	map3d.update(s, mm_data.get("me", Vector2.ZERO), mm_data.get("yaw", 0.0), minimap_panel.visible, map_panel.visible)
 	minimap.queue_redraw()
 	minimap_panel.visible = s.ph != P.OVER
@@ -1231,9 +1288,11 @@ func weakest_access(s:Dictionary) -> String:
 func bigmap_world(pos:Vector2):
 	## World point under a screen position on the big map, or null outside it.
 	if not map_panel.visible: return null
-	var r := bigmap.get_global_rect()
+	var r := book_rect()
 	if not r.has_point(pos): return null
-	return map3d.ground_at(true, pos - r.position)
+	if not book3d.is_open(): return null
+	var m = book3d.screen_to_map(pos - r.position, BOOK_MAP.size)
+	return null if m == null else map3d.ground_at(true, m)
 
 func map_text(s:Dictionary) -> String:
 	var lines := []

@@ -120,6 +120,7 @@ func _ready():
 	ui.action.connect(on_ui_action)
 	ui.build_pick.connect(func(k): set_build(k))
 	ui.rematch.connect(rematch)
+	ui.close_map.connect(func(): if map_open: toggle_map())
 	multiplayer.peer_disconnected.connect(func(id):
 		if mode == "host": sim.leave(id))
 	multiplayer.connected_to_server.connect(func(): register.rpc_id(1, chosen_role, chosen_name, profile.rank(chosen_role), version()))
@@ -533,6 +534,7 @@ func toggle_shop():
 func toggle_map():
 	map_open = not map_open
 	ui.map_panel.visible = map_open
+	if map_open: audio.play("swing", null, -4, 0.5)
 
 func cycle_gun(d:int):
 	if build_kind >= 0:
@@ -567,7 +569,9 @@ func place():
 	if me.is_empty(): return
 	var cell := sim.nav.cell_of(cursor)
 	if cell < 0: return
-	if sim.structures.has(cell) or (mode == "join" and sim.nav.skind[cell] >= 0): return
+	# a turret placed on a turret stacks on it: double, then triple
+	var stacking := build_kind == Data.S_TURRET and sim.nav.skind[cell] == Data.S_TURRET
+	if not stacking and (sim.structures.has(cell) or (mode == "join" and sim.nav.skind[cell] >= 0)): return
 	send_action("build", [build_kind, cell])
 
 func move_input() -> Vector2:
@@ -734,7 +738,7 @@ func handle_event(type:String, d:Array, me:int):
 			last_shot_key = key
 			if owner <= -100:
 				# turrets: the head snaps to the target and the dart leaves the barrel
-				var tip:Vector3 = actors.turret_fired(-100 - owner, v3(d[4] - d[2], d[5] - d[3]))
+				var tip:Vector3 = actors.turret_fired(-100 - owner, v3(d[4] - d[2], d[5] - d[3]), int(d[6]) if d.size() > 6 else 0)
 				if tip != Vector3.INF:
 					a = tip
 					b.y = 0.95
@@ -1057,6 +1061,8 @@ func _process(dt:float):
 				var up := "al máximo" if info[1] >= def.hp.size() - 1 else "F mejorar (%d mat.)" % def.up[info[1]]
 				hint = "%s nivel %d · %s · X desmontar" % [def.name, info[1] + 1, up]
 				actors.show_ghost(-1, Vector3.ZERO, false)
+				if info[0] == Data.S_TURRET and build_kind == Data.S_TURRET:
+					hint = "Torreta %s · clic: apilar otra encima (%d mat.)" % [["simple", "doble", "triple"][info[1]], def.up[info[1]]] if info[1] < 2 else "Torreta triple · al máximo"
 		elif not sim.in_territory(c):
 			hint = "Fuera de tu territorio: construye cerca de la casa o de una propiedad conquistada"
 		local.build_hint = hint + "\nClic: colocar · 1–8 o rueda: elegir · Clic derecho / B: salir"

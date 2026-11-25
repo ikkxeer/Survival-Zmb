@@ -619,41 +619,42 @@ func wall_mesh(lvl:int, mask:int) -> ArrayMesh:
 		var dark := C("8b5e3c")
 		var metal := C("8f9fb5")
 		if lvl < 2:
-			k.box(Kit.at(0, 0.6, 0), Vector3(0.2, 1.2, 0.2), dark, 0.04)
-			k.box(Kit.at(0, 1.22, 0), Vector3(0.24, 0.06, 0.24), dark.darkened(0.1), 0.02)
+			k.box(Kit.at(0, 0.95, 0), Vector3(0.2, 1.9, 0.2), dark, 0.04)
+			k.box(Kit.at(0, 1.92, 0), Vector3(0.24, 0.06, 0.24), dark.darkened(0.1), 0.02)
 		else:
-			k.box(Kit.at(0, 0.7, 0), Vector3(0.24, 1.4, 0.24), C("5a6a80"), 0.05)
+			k.box(Kit.at(0, 1.05, 0), Vector3(0.24, 2.1, 0.24), C("5a6a80"), 0.05)
 		for a in arms:
 			var yaw := atan2(a.x, a.y)
 			var xf := Transform3D(Basis(Vector3.UP, yaw), Vector3(a.x * 0.25, 0, a.y * 0.25))
 			if lvl < 2:
-				var count := 3 if lvl == 0 else 4
+				var count := 5 if lvl == 0 else 6
 				for i in count:
-					var y := 0.25 + i * (0.95 / count) + 0.05
+					var y := 0.25 + i * (1.5 / count) + 0.05
 					var tilt := 0.06 * (1 if i % 2 else -1)
 					k.box(xf * Kit.rot(0, y, 0, 0, tilt), Vector3(0.12 if lvl == 0 else 0.16, 0.2, 0.56), wood.lerp(C("d9a06a"), fmod(i * 0.37, 1.0)), 0.03, 0.15)
-				k.box(xf * Kit.rot(0.03, 0.62, 0, 0, 0.9), Vector3(0.08, 0.12, 0.7), dark, 0.02)
+				k.box(xf * Kit.rot(0.03, 0.95, 0, 0, 0.9), Vector3(0.08, 0.12, 1.05), dark, 0.02)
+				k.box(xf * Kit.rot(0.03, 0.95, 0, 0, -0.9), Vector3(0.08, 0.12, 1.05), dark, 0.02)
 				if lvl == 1:
 					for j in 2: k.sphere(xf * Kit.at(0.25, 0.12, -0.14 + j * 0.28), Vector3(0.18, 0.12, 0.15), C("d9c79a"), 8, 5, 0.25)
-					for j in 3: k.sphere(xf * Kit.at(0.07, 0.4 + j * 0.25, 0.1), Vector3(0.025, 0.025, 0.025), C("c8ccd4"), 4, 3)
+					for j in 5: k.sphere(xf * Kit.at(0.07, 0.4 + j * 0.3, 0.1), Vector3(0.025, 0.025, 0.025), C("c8ccd4"), 4, 3)
 			else:
-				k.box(xf * Kit.at(0, 0.7, 0), Vector3(0.14, 1.3, 0.56), metal, 0.03, 0.25)
-				for j in 3: k.box(xf * Kit.at(0.075, 0.25 + j * 0.45, 0), Vector3(0.02, 0.06, 0.56), metal.darkened(0.15), 0.0)
+				k.box(xf * Kit.at(0, 1.0, 0), Vector3(0.14, 2.0, 0.56), metal, 0.03, 0.25)
+				for j in 4: k.box(xf * Kit.at(0.075, 0.25 + j * 0.55, 0), Vector3(0.02, 0.06, 0.56), metal.darkened(0.15), 0.0)
 				for j in 4:
-					k.box(xf * Kit.rot(0.08, 1.25, -0.21 + j * 0.14, 0, 0.6), Vector3(0.02, 0.12, 0.07), C("ffd166") if j % 2 == 0 else C("2b2d42"), 0.0)
-				for j in 3:
-					for side in [-1, 1]: k.sphere(xf * Kit.at(side * 0.075, 0.22 + j * 0.45, -0.2 + j * 0.2), Vector3(0.025, 0.025, 0.025), C("c8ccd4"), 5, 3)
-				for j in 3: k.cylinder(xf * Kit.at(0, 1.42, -0.18 + j * 0.18), 0.03, 0.0, 0.18, C("c8ccd4"), 5)
+					k.box(xf * Kit.rot(0.08, 1.8, -0.21 + j * 0.14, 0, 0.6), Vector3(0.02, 0.12, 0.07), C("ffd166") if j % 2 == 0 else C("2b2d42"), 0.0)
+				for j in 4:
+					for side in [-1, 1]: k.sphere(xf * Kit.at(side * 0.075, 0.22 + j * 0.55, -0.2 + j * 0.15), Vector3(0.025, 0.025, 0.025), C("c8ccd4"), 5, 3)
+				for j in 3: k.cylinder(xf * Kit.at(0, 2.12, -0.18 + j * 0.18), 0.03, 0.0, 0.18, C("c8ccd4"), 5)
 			# sandbags piled along the foot of every level
 			for j in 2:
 				k.sphere(xf * Kit.rot(0.2, 0.13, -0.14 + j * 0.28, 0.2 * j), Vector3(0.17, 0.12, 0.15), C("d9c79a").darkened(0.05 * j), 8, 5, 0.25)
 			if lvl < 2:
-				for j in 3: k.sphere(xf * Kit.at(-0.07, 0.35 + j * 0.3, -0.18 + j * 0.18), Vector3(0.022, 0.022, 0.022), C("8f9fb5"), 4, 3)
+				for j in 4: k.sphere(xf * Kit.at(-0.07, 0.4 + j * 0.4, -0.18 + j * 0.12), Vector3(0.022, 0.022, 0.022), C("8f9fb5"), 4, 3)
 		# pointed post top and a little pennant: still the verbena's barricade
 		if lvl < 2:
-			k.cylinder(Kit.at(0, 1.33, 0), 0.12, 0.0, 0.2, C("8b5e3c"), 6)
-		k.cylinder(Kit.at(0.06, 1.55, 0), 0.015, 0.015, 0.5, C("6b4f3c"), 4)
-		k.box(Kit.rot(0.06, 1.68, 0.12, 0, 0, 0), Vector3(0.02, 0.18, 0.22), C(["e85d5d", "4cc9f0", "f2c14e"][lvl]), 0.0)
+			k.cylinder(Kit.at(0, 2.03, 0), 0.12, 0.0, 0.2, C("8b5e3c"), 6)
+		k.cylinder(Kit.at(0.06, 2.25, 0), 0.015, 0.015, 0.5, C("6b4f3c"), 4)
+		k.box(Kit.rot(0.06, 2.38, 0.12, 0, 0, 0), Vector3(0.02, 0.18, 0.22), C(["e85d5d", "4cc9f0", "f2c14e"][lvl]), 0.0)
 	)
 
 func structure_mesh(kind:int, lvl:int) -> ArrayMesh:
@@ -709,7 +710,14 @@ func structure_mesh(kind:int, lvl:int) -> ArrayMesh:
 				for i in 3:
 					var a := TAU * i / 3.0
 					k.cylinder(Kit.rot(cos(a) * 0.2, 0.42, sin(a) * 0.2, -a, 0, 0.3), 0.04, 0.035, 0.7, C("5a6a80"), 6)
-				k.cylinder(Kit.at(0, 0.72, 0), 0.24, 0.28, 0.14, C(["e85d5d", "4f86c6", "5ab07a"][lvl]), 14, true, 0.2)
+				# one platform per stacked turret, joined by a mast and cross-braces
+				k.cylinder(Kit.at(0, 0.8 + 0.26 * lvl, 0), 0.06, 0.06, 0.7 + 0.52 * lvl, C("5a6a80"), 8)
+				for i in lvl + 1:
+					k.cylinder(Kit.at(0, 0.72 + 0.52 * i, 0), 0.26, 0.3, 0.14, C(["e85d5d", "4f86c6", "5ab07a"][i]), 14, true, 0.2)
+					if i > 0:
+						for j in 4:
+							var a2 := TAU * j / 4.0 + 0.4
+							k.cylinder(Kit.rot(cos(a2) * 0.18, 0.5 + 0.52 * i, sin(a2) * 0.18, -a2, 0, 0.35), 0.025, 0.025, 0.6, C("8f9fb5"), 5)
 				k.box(Kit.at(0.32, 0.3, 0.2), Vector3(0.26, 0.2, 0.16), C("6b7f4a"), 0.03, 0.2)
 				k.box(Kit.at(0.32, 0.41, 0.2), Vector3(0.27, 0.03, 0.17), C("55673a"), 0.01)
 			Data.S_GEN:
@@ -776,7 +784,7 @@ func turret_head(lvl:int) -> ArrayMesh:
 		k.sphere(Kit.at(0, 0.02, -0.02), Vector3(0.24, 0.2, 0.28), C("f6f0e0"), 12, 8, 0.2)
 		k.box(Kit.at(0, 0.0, 0.2), Vector3(0.5, 0.36, 0.06), paint, 0.04, 0.2)
 		k.box(Kit.at(0, 0.19, 0.2), Vector3(0.52, 0.04, 0.07), paint.darkened(0.2), 0.01)
-		for x in ([0.0] if lvl == 0 else [-0.09, 0.09]):
+		for x in [0.0]:
 			k.cylinder(Kit.rot(x, 0.0, 0.5, 0, PI * 0.5), 0.05, 0.05, 0.5, C("3a3a48"), 8)
 			k.cylinder(Kit.rot(x, 0.0, 0.76, 0, PI * 0.5), 0.07, 0.07, 0.1, C("2a2a36"), 8)
 		k.box(Kit.rot(-0.24, -0.08, 0.05, 0, 0, 0.2), Vector3(0.06, 0.22, 0.3), C("c99a28"), 0.01)
@@ -815,12 +823,14 @@ func make_structure(kind:int, lvl:int, mask:int) -> Node3D:
 	mi.name = "Mesh"
 	n.add_child(mi)
 	if kind == Data.S_TURRET:
-		var head := MeshInstance3D.new()
-		head.mesh = turret_head(lvl)
-		head.material_override = toon
-		head.position.y = 0.88
-		head.name = "Head"
-		n.add_child(head)
+		# each level adds another turret on top of the last: double, then triple
+		for i in lvl + 1:
+			var head := MeshInstance3D.new()
+			head.mesh = turret_head(i)
+			head.material_override = toon
+			head.position.y = 0.88 + 0.52 * i
+			head.name = "Head" if i == 0 else "Head%d" % i
+			n.add_child(head)
 	if kind == Data.S_COIL:
 		var top := MeshInstance3D.new()
 		top.mesh = coil_top()
@@ -876,7 +886,8 @@ func make_structure(kind:int, lvl:int, mask:int) -> Node3D:
 	var bar := MeshInstance3D.new()
 	bar.mesh = bar_quad
 	bar.material_override = bar_mat
-	bar.position.y = 1.9 if kind != Data.S_LIGHT else 3.6
+	bar.position.y = (1.9 if kind != Data.S_WALL else 2.7) if kind != Data.S_LIGHT else 3.6
+	if kind == Data.S_TURRET: bar.position.y = 1.9 + 0.52 * lvl
 	bar.scale = Vector3(0.8, 1, 1)
 	bar.visible = false
 	bar.name = "Bar"
@@ -885,14 +896,16 @@ func make_structure(kind:int, lvl:int, mask:int) -> Node3D:
 	n.add_child(bar)
 	return n
 
-func turret_fired(cell:int, dir:Vector3) -> Vector3:
+func turret_fired(cell:int, dir:Vector3, head_i:int = 0) -> Vector3:
 	## Snap a turret's head onto its target, kick it back and return the barrel tip.
 	if not structs.has(cell) or not struct_info.has(cell) or struct_info[cell][0] != Data.S_TURRET: return Vector3.INF
 	var n:Node3D = structs[cell]
-	var head:Node3D = n.get_node("Head")
+	head_i = mini(head_i, int(struct_info[cell][1]))
+	var head:Node3D = n.get_node("Head" if head_i == 0 else "Head%d" % head_i)
 	head.rotation.y = atan2(dir.x, dir.z)
 	n.set_meta("kick", 1.0)
-	return n.position + Vector3(0, 0.88, 0) + Vector3(dir.x, 0, dir.z).normalized() * 0.82
+	n.set_meta("kick_head", head_i)
+	return n.position + Vector3(0, 0.88 + 0.52 * head_i, 0) + Vector3(dir.x, 0, dir.z).normalized() * 0.82
 
 func ghost_mesh(kind:int) -> Mesh:
 	if kind == Data.S_WALL: return wall_mesh(0, 0)
@@ -1522,11 +1535,13 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		mesh.set_instance_shader_parameter("itint", Color(1, 1, 1).lerp(Color(0.65, 0.58, 0.55), 1.0 - frac))
 		var on:bool = info[5] == 1
 		if info[0] == Data.S_TURRET:
-			var head:Node3D = n.get_node("Head")
-			head.rotation.y = lerp_angle(head.rotation.y, PI * 0.5 - deg_to_rad(info[4]), 1.0 - exp(-12.0 * dt))
 			var kick:float = n.get_meta("kick", 0.0)
 			n.set_meta("kick", maxf(0.0, kick - dt * 8.0))
-			head.position = Vector3(0, 0.88, 0) - head.basis.z * 0.1 * kick
+			for hi in int(info[1]) + 1:
+				var head:Node3D = n.get_node("Head" if hi == 0 else "Head%d" % hi)
+				head.rotation.y = lerp_angle(head.rotation.y, PI * 0.5 - deg_to_rad(info[4]), 1.0 - exp(-12.0 * dt))
+				var hk:float = kick if int(n.get_meta("kick_head", 0)) == hi else 0.0
+				head.position = Vector3(0, 0.88 + 0.52 * hi, 0) - head.basis.z * 0.1 * hk
 		if info[0] == Data.S_COIL:
 			var top:MeshInstance3D = n.get_node("Top")
 			top.set_instance_shader_parameter("itint", Color(1, 1, 1) if on else Color(0.3, 0.3, 0.35))

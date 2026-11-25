@@ -159,6 +159,8 @@ Todo se genera en código, sin texturas ni modelos externos, y el audio también
 
 **Defensas.** Cada defensa tiene su propio aspecto: barricadas con sacos terreros y banderín (tablones, tablones reforzados y chapa con remaches), alambrada de espino en caballos de frisa, bobina tipo Tesla con aisladores de porcelana, torreta con escudo y sacos, generador con ruedas y bidón, banco de taller con panel de herramientas y mina de petardos. El foco es un mástil con un proyector que ilumina toda la zona donde deslumbra (marcada en el suelo de noche) y gira para seguir al brotado más cercano. La cabeza de la torreta apunta al blanco en cada disparo y el proyectil sale del cañón con una estela larga para que se vea hacia dónde va.
 
+**Torretas apilables.** Si con la torreta elegida haces clic sobre una torreta ya construida, se le coloca otra encima: doble y, con una tercera, triple (máximo). Cada torreta apilada dispara por su cuenta, cada una a su propio blanco si hay varios, y sube la vida y el alcance. Las barricadas son ahora mucho más altas (1,9 m, y 2,1 m las de chapa) y se siguen pudiendo saltar.
+
 **Rebuscar.** Al mantener E junto a un coche o un contenedor, el personaje se gira hacia él, se inclina y revuelve con las dos manos; el maletero o la tapa se abren, el coche se balancea y salen volando latas, tornillos y trapos.
 
 **El Gigantón.** Un gigante de feria reventado desde dentro: piel podrida, raíces por piernas, espinas en la espalda, fauces con colmillos, cuatro ojos rojos que brillan, un brazo con garras y otro acabado en un garrote con clavos.
@@ -179,6 +181,7 @@ Todo se genera en código, sin texturas ni modelos externos, y el audio también
 | `game/view/fx.gd` | Efectos con reservas de objetos reutilizables. |
 | `game/audio.gd` | Síntesis de efectos y música renderizada en un hilo de trabajo. |
 | `game/interface.gd` | Menú, ajustes, ayuda, minimapa, mapa, tienda, construcción, pausa y final, con el tema de papel y tinta. |
+| `game/ui/book3d.gd` | El libro 3D del plano: tapa de cuero con dorados, lomo, bloque de hojas que se hunde en el pliegue, hojas que se pasan y el plano impreso en las páginas. Toda la animación de apertura depende de un único valor (`open`) y la cámara se mueve con él. |
 | `game/ui/map3d.gd` | Maqueta 3D del barrio para el plano y el minimapa: edificios con volumen, árboles, coches y tus defensas sobre una losa, vistos con cámara inclinada. El minimapa te sigue y gira con la cámara; los marcadores se dibujan encima proyectándolos con la misma cámara. |
 | `game/ui/hud.gd`, `game/ui/style.gd`, `game/ui/portrait.gd` | HUD dibujado por código (medallón del día, retrato 3D de la casa con su anillo de resistencia, palé de materiales, farolillos, insignia del oficio, arma, avisos sobre la cabeza), la paleta, fuentes e iconos comunes, y los retratos renderizados con los modelos del juego. |
 
