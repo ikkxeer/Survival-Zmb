@@ -37,8 +37,9 @@ var settings := {"quality":2, "fullscreen":false, "volume":0.8, "music":0.6, "sf
 var prefs
 var profile
 var hero:VBoxContainer
-var ticket:Control
-var ticket_eyebrow:Label
+var festoon:Control
+var menu_clock := 0.0
+var hero_rest := Vector2.ZERO
 var choices:HBoxContainer
 var modal_shade := ColorRect.new()
 var utility:HBoxContainer
@@ -114,6 +115,12 @@ func _ready():
 	build_pause()
 	build_over()
 	hud.hide()
+
+func _process(delta:float):
+	if not menu.visible or menu_panel.visible: return
+	menu_clock += delta
+	hero.position = hero_rest + Vector2(0,sin(menu_clock*0.75)*2.0)
+	festoon.queue_redraw()
 
 # ================================================================== theme
 func box(c:Color, radius:int = 14, margin:int = 12, border:Color = Color(0, 0, 0, 0), bw:int = 0) -> StyleBoxFlat:
@@ -283,33 +290,35 @@ func build_menu():
 	menu.add_child(tint)
 	tint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 
-	var festoon := Control.new()
+	festoon = Control.new()
 	festoon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	festoon.draw.connect(func(): draw_title_doodle(festoon))
+	festoon.draw.connect(draw_title_doodle)
 	menu.add_child(festoon)
 	festoon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	ticket = Control.new()
-	ticket.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	ticket.draw.connect(draw_ticket)
-	menu.add_child(ticket)
 	hero = vbox(menu, 8)
+	hero.alignment = BoxContainer.ALIGNMENT_CENTER
 	var emblem := Control.new()
-	emblem.custom_minimum_size = Vector2(145,46)
+	emblem.custom_minimum_size = Vector2(260,42)
+	emblem.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hero.add_child(emblem)
-	emblem.draw.connect(func(): St.bunting(emblem,Vector2(0,7),Vector2(140,3),7,9,14,2))
-	ticket_eyebrow = label(hero,"FIESTAS DEL BARRIO  ·  N.º 01",14,St.SUN)
-	ticket_eyebrow.add_theme_font_override("font",St.font("title",600))
-	var lockup := vbox(hero,-20)
-	title(lockup, "La última", St.INK, 48)
-	title(lockup, "Verbena", St.CORAL, 105)
-	var strapline := label(hero, "Una noche más. Todo el barrio cuenta contigo.", 19, St.INK_SOFT)
+	emblem.draw.connect(func(): St.bunting(emblem,Vector2(8,6),Vector2(emblem.size.x-8,4),11,8,13,1))
+	var lockup := vbox(hero,-19)
+	lockup.alignment = BoxContainer.ALIGNMENT_CENTER
+	var title_top := title(lockup, "La última", St.PAPER, 48)
+	title_top.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	var title_main := title(lockup, "Verbena", St.SUN, 108)
+	title_main.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title_main.add_theme_constant_override("outline_size",5)
+	title_main.add_theme_color_override("font_outline_color",St.INK)
+	var strapline := label(hero, "La noche es larga. El barrio resiste unido.", 21, St.PAPER)
+	strapline.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	strapline.add_theme_font_override("font",St.font("body",800))
-	strapline.add_theme_color_override("font_shadow_color",St.INK)
-	strapline.add_theme_constant_override("shadow_offset_x",2)
-	strapline.add_theme_constant_override("shadow_offset_y",2)
+	strapline.add_theme_constant_override("outline_size",3)
+	strapline.add_theme_color_override("font_outline_color",St.INK)
 	var promise := hbox(hero,8)
-	for item in [["moon","DÍA · REÚNE"],["house","NOCHE · DEFIENDE"]]:
+	promise.alignment = BoxContainer.ALIGNMENT_CENTER
+	for item in [["moon","DE DÍA, PREPÁRATE"],["house","DE NOCHE, DEFIENDE"]]:
 		var badge := hbox(promise,4)
 		var mark := Control.new()
 		mark.custom_minimum_size = Vector2(26,28)
@@ -319,17 +328,21 @@ func build_menu():
 		copy.add_theme_font_override("font",St.font("title",600))
 		copy.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	var gap := Control.new()
-	gap.custom_minimum_size.y = 8
+	gap.custom_minimum_size.y = 5
 	hero.add_child(gap)
 	continue_button = button(hero,"",func(): emit_launch("continue"),50)
 	continue_button.hide()
 	continue_button.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	continue_button.custom_minimum_size.x = 370
+	continue_button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	continue_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	choices = hbox(hero,12)
+	choices = hbox(hero,14)
+	choices.alignment = BoxContainer.ALIGNMENT_CENTER
 	solo_entry = mode_button(choices,"En solitario","Jugar por tu cuenta","house","solo",St.SUN)
-	solo_entry.add_theme_stylebox_override("normal",box(St.SUN,18,14,St.INK,3))
 	coop_entry = mode_button(choices,"Cooperativo","Crear o unirse · 1–4","bulb","host",St.PAPER)
+	for entry in [solo_entry,coop_entry]:
+		entry.custom_minimum_size = Vector2(254,82)
+	solo_entry.add_theme_stylebox_override("normal",box(St.SUN,18,14,St.INK,3))
 
 	utility = hbox(menu,10)
 	for item in [["Cómo jugar",help_panel],["Ajustes",settings_panel]]:
@@ -432,37 +445,19 @@ func build_menu():
 		control.add_theme_stylebox_override("focus",ring)
 	layout_menu()
 
-func draw_title_doodle(canvas:Control):
-	var w := canvas.size.x
-	var h := canvas.size.y
-	St.bunting(canvas,Vector2(w*0.39,12),Vector2(w-34,5),13,25,19,3)
-	# Chalk-style festival chalk marks frame the illuminated village.
-	var chalk := Color(St.PAPER,0.72)
-	for i in 5:
-		var x := w*0.64+i*25
-		canvas.draw_line(Vector2(x,h-58),Vector2(x+8,h-68),chalk,2.0,true)
-		canvas.draw_circle(Vector2(x+10,h-71),2.0,St.SUN)
-	var moon := Vector2(w-86,114)
-	St.icon(canvas,"moon",moon,55,Color.WHITE)
-	canvas.draw_arc(moon,41,0.2,2.1,32,Color(St.SUN,0.7),1.6,true)
-	St.icon(canvas,"traca",Vector2(w-67,180),22,Color.WHITE)
-	St.icon(canvas,"heart",Vector2(w-145,154),17,Color(St.PINK,0.9))
-
-func draw_ticket():
-	var rect := Rect2(Vector2.ZERO,ticket.size)
-	var backing := St.card(St.PAPER,24,St.INK,3,10)
-	ticket.draw_style_box(backing,rect)
-	ticket.draw_rect(Rect2(Vector2(12,12),ticket.size-Vector2(24,24)),Color.TRANSPARENT,false,1.5)
-	St.bunting(ticket,Vector2(36,23),Vector2(ticket.size.x-36,23),11,9,12,0)
-	for i in 9:
-		var y := 78.0+i*49
-		if y < ticket.size.y-45:
-			ticket.draw_circle(Vector2(12,y),3,St.WOOD)
-			ticket.draw_circle(Vector2(ticket.size.x-12,y),3,St.WOOD)
-	var stamp := Vector2(ticket.size.x-49,ticket.size.y-49)
-	ticket.draw_arc(stamp,23,0,TAU,36,St.CORAL,2,true)
-	St.text(ticket,stamp+Vector2(-15,5),"01",14,St.CORAL,"title",600)
-	ticket.draw_line(Vector2(28,ticket.size.y-31),Vector2(ticket.size.x-28,ticket.size.y-31),St.PAPER_DARK,2,true)
+func draw_title_doodle():
+	var center := festoon.size.x*0.5
+	var y := 94.0
+	var sway := sin(menu_clock*0.7)*3.0
+	for side in [-1.0,1.0]:
+		var pos := Vector2(center+side*235,y+sway)
+		St.icon(festoon,"bulb",pos,23,Color(St.SUN,0.8))
+		festoon.draw_arc(pos,20,0,TAU,24,Color(St.PAPER,0.48),1.2,true)
+	for i in 6:
+		var side := -1.0 if i%2==0 else 1.0
+		var x := center+side*(170+(i/2)*43)
+		var twinkle := 1.4+absf(sin(menu_clock*1.6+i))*1.8
+		festoon.draw_circle(Vector2(x,154+(i%3)*24),twinkle,Color(St.PAPER,0.8))
 
 func mode_button(parent:Control, caption:String, subtitle:String, icon_name:String, mode:String, fill:Color) -> Button:
 	var b := button(parent,"",open_setup.bind(mode),76)
@@ -485,14 +480,12 @@ func layout_menu():
 	var compact := w < 1080
 	hero.visible = not menu_panel.visible or not compact
 	choices.visible = not menu_panel.visible
-	var stage_w := minf(610,w*0.49)
-	var stage_h := minf(550,h-140)
-	ticket.position = Vector2(margin-20,maxf(40,(h-stage_h)*0.5-8))
-	ticket.size = Vector2(stage_w,stage_h)
-	ticket.queue_redraw()
-	hero.position = Vector2(margin+18,ticket.position.y+27)
-	hero.size = Vector2(stage_w-62,stage_h-54)
-	utility.position = Vector2(margin,h-utility.get_combined_minimum_size().y-24)
+	var hero_width := minf(810,w-48)
+	hero.size = Vector2(hero_width,h-220)
+	hero.position = Vector2((w-hero_width)*0.5,clampf((h-hero.get_combined_minimum_size().y)*0.43,145,h*0.42))
+	hero_rest = hero.position
+	festoon.queue_redraw()
+	utility.position = Vector2((w-utility.get_combined_minimum_size().x)*0.5,h-utility.get_combined_minimum_size().y-25)
 	var panel_width := minf(528,w-2*margin)
 	var panel_height := minf(setup_content.get_combined_minimum_size().y + 50,h-100)
 	menu_panel.custom_minimum_size = Vector2(panel_width,panel_height)
