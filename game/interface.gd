@@ -13,6 +13,7 @@ const Data = preload("res://game/data.gd")
 const Map = preload("res://game/map.gd")
 const P := Data.Phase
 const St = preload("res://game/ui/style.gd")
+const Map3D = preload("res://game/ui/map3d.gd")
 const HUD = preload("res://game/ui/hud.gd")
 
 const CORAL := Color("ff6b6b")
@@ -64,6 +65,7 @@ var map_panel := PanelContainer.new()
 var map_info := Label.new()
 var minimap:Control
 var minimap_panel := PanelContainer.new()
+var map3d = Map3D.new()
 var bigmap:Control
 var pause := PanelContainer.new()
 var over := PanelContainer.new()
@@ -85,6 +87,7 @@ func _ready():
 	root.theme = theme_res
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	build_menu()
+	add_child(map3d)
 	build_hud()
 	build_settings()
 	build_help()
@@ -859,6 +862,7 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 	if map_panel.visible:
 		map_info.text = map_text(s)
 		bigmap.queue_redraw()
+	map3d.update(s, mm_data.get("me", Vector2.ZERO), mm_data.get("yaw", 0.0), minimap_panel.visible, map_panel.visible)
 	minimap.queue_redraw()
 	minimap_panel.visible = s.ph != P.OVER
 	over_wait = over_wait + dt if s.ph == P.OVER else 0.0
@@ -906,10 +910,10 @@ func jobs_text(s:Dictionary, p:Dictionary) -> String:
 		if j[1] == "transporte" and j[9] >= 0: extra = " · de camino al porche"
 		if j[1] == "relevo":
 			if not j[12]:
-				lines.append("📋 Relevo eléctrico en algún lugar de %s · sin localizar (la exploradora lo encuentra con Q)" % j[11])
+				lines.append("▢ Relevo eléctrico en algún lugar de %s · sin localizar (la exploradora lo encuentra con Q)" % j[11])
 				continue
 			extra = " · llévalo al cuadro de la casa" if j[9] >= 0 else " · localizado"
-		lines.append("📋 %s en %s · %d m%s" % [Data.JOBS[j[1]].name, j[11], d, extra])
+		lines.append("▢ %s en %s · %d m%s" % [Data.JOBS[j[1]].name, j[11], d, extra])
 	return "\n".join(lines)
 
 func toggle_board():
@@ -974,15 +978,15 @@ func refresh_board(force:bool = true):
 func goal_text(s:Dictionary) -> String:
 	var pcs:Array = s.get("pc", [])
 	if pcs.is_empty(): return ""
-	if s.get("vic", false): return "🎆 ¡La verbena está encendida!"
-	if s.get("fin", -1.0) > 0: return "🎆 ¡La gran verbena! Aguantad %d s" % ceili(s.fin)
+	if s.get("vic", false): return "✦ ¡La verbena está encendida!"
+	if s.get("fin", -1.0) > 0: return "✦ ¡La gran verbena! Aguantad %d s" % ceili(s.fin)
 	var done := 0
 	var missing := []
 	for i in pcs.size():
 		if pcs[i][0] == 4: done += 1
 		else: missing.append(Data.SITES[Data.PIECES[i].site].name)
-	if done == pcs.size(): return "🎆 Verbena lista: encendedla en el escenario (E)"
-	return "🎆 Verbena %d/%d · piezas en %s" % [done, pcs.size(), ", ".join(missing)]
+	if done == pcs.size(): return "✦ Verbena lista: encendedla en el escenario (E)"
+	return "✦ Verbena %d/%d · piezas en %s" % [done, pcs.size(), ", ".join(missing)]
 
 func first_day_steps(s:Dictionary, p:Dictionary) -> Array:
 	## Checklist for the first afternoon so new players always know a next step.
@@ -1043,14 +1047,13 @@ func bigmap_world(pos:Vector2):
 	if not map_panel.visible: return null
 	var r := bigmap.get_global_rect()
 	if not r.has_point(pos): return null
-	var f := (pos - r.position) / r.size
-	return Vector2(-37, -33) + f * Vector2(74, 66)
+	return map3d.ground_at(true, pos - r.position)
 
 func map_text(s:Dictionary) -> String:
 	var lines := []
 	for i in Data.SITES.size():
 		var si:Array = s.si[i]
-		lines.append("%s %s\n   %s" % ["🏳" if si[0] else "·", Data.SITES[i].name + (" (%d%%)" % int(100.0 * si[1] / si[2]) if si[0] else ""), Data.SITES[i].bonus])
+		lines.append("%s %s\n   %s" % ["★" if si[0] else "·", Data.SITES[i].name + (" (%d%%)" % int(100.0 * si[1] / si[2]) if si[0] else ""), Data.SITES[i].bonus])
 	lines.append("")
 	lines.append(goal_text(s))
 	lines.append("Cada pieza aparece al conquistar su propiedad: llevadla al escenario de la plaza.")
@@ -1066,96 +1069,92 @@ func map_text(s:Dictionary) -> String:
 	return "\n".join(lines)
 
 # ================================================================== drawing
-func world_to_map(c:Control, p:Vector2, big:bool) -> Vector2:
-	var area := Rect2(-37, -33, 74, 66)
-	if not big:
-		var center:Vector2 = mm_data.get("me", Vector2.ZERO)
-		area = Rect2(center - Vector2(22, 19.5), Vector2(44, 39))
-	return (p - area.position) / area.size * c.size
+func world_to_map(_c:Control, p:Vector2, big:bool, h:float = 0.6) -> Vector2:
+	## Projects a world point through the 3D map camera.
+	return map3d.project(big, Vector3(p.x, h, p.y))
+
+func proj_ring(c:Control, big:bool, center:Vector2, radius:float, col:Color, width:float, a0:float = 0.0, a1:float = TAU):
+	var pts := PackedVector2Array()
+	var steps := maxi(8, int(absf(a1 - a0) / TAU * 48.0))
+	for i in steps + 1:
+		var a := a0 + (a1 - a0) * i / steps
+		pts.append(world_to_map(c, center + Vector2(cos(a), sin(a)) * radius, big, 0.15))
+	c.draw_polyline(pts, col, width, true)
+
+func map_dot(c:Control, pos:Vector2, r:float, col:Color):
+	c.draw_circle(pos + Vector2(0, 1.5), r + 1.5, Color(St.INK, 0.35))
+	c.draw_circle(pos, r + 1.5, St.INK)
+	c.draw_circle(pos, r, col)
 
 func draw_map(c:Control, big:bool):
 	var s := last_state
 	if s.is_empty(): return
-	var sc := c.size / Vector2(74, 66) if big else c.size / Vector2(44, 39)
-	c.draw_rect(Rect2(Vector2.ZERO, c.size), Color("5fa860"))
-	for z in Map.ROADS_H:
-		var a := world_to_map(c, Vector2(-40, z - 2), big)
-		c.draw_rect(Rect2(a, Vector2(80, 4) * sc), Color("7a8498"))
-	for x in Map.ROADS_V:
-		var a := world_to_map(c, Vector2(x - 2, -40), big)
-		c.draw_rect(Rect2(a, Vector2(4, 80) * sc), Color("7a8498"))
-	c.draw_rect(Rect2(world_to_map(c, Vector2(-11, -9), big), Vector2(22, 18) * sc), Color("e8c890"))
-	for h in Map.HOUSES: c.draw_rect(Rect2(world_to_map(c, h.rect.position, big), h.rect.size * sc), Color("c98b7a"))
+	c.draw_texture_rect(map3d.texture(big), Rect2(Vector2.ZERO, c.size), false)
+	var k := map3d.scale_at(big, Vector2.ZERO if big else mm_data.get("me", Vector2.ZERO))
+	var kk := clampf(k / 9.0, 0.7, 1.6)
 	for i in Map.SITES.size():
 		var si:Array = s.si[i]
-		var r:Rect2 = Map.SITES[i].rect
 		var col := Color(Data.SITES[i].color) if si[0] else Color("8a8f9c")
-		c.draw_rect(Rect2(world_to_map(c, r.position, big), r.size * sc), col)
-		var b := world_to_map(c, Map.SITES[i].beacon, big)
-		if si[0]: c.draw_arc(b, Map.SITE_BUILD_RADIUS * sc.x, 0, TAU, 32, Color(1, 1, 1, 0.35), 1.5)
-		c.draw_circle(b, 4.0 if not big else 6.0, col.lightened(0.3))
-		if big: c.draw_string(ThemeDB.fallback_font, b + Vector2(8, -6), Data.SITES[i].name, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
-	c.draw_rect(Rect2(world_to_map(c, Map.BASE.position, big), Map.BASE.size * sc), Color("ffd166"))
-	c.draw_arc(world_to_map(c, Map.BASE_CENTER, big), Map.BASE_BUILD_RADIUS * sc.x, 0, TAU, 48, Color(1, 1, 1, 0.35), 1.5)
-	var st:PackedInt32Array = s.st
-	for i in range(0, st.size(), 8):
-		var cell := st[i]
-		var wp := Vector2(cell % 74 - 37 + 0.5, cell / 74 - 33 + 0.5)
-		c.draw_rect(Rect2(world_to_map(c, wp - Vector2(0.5, 0.5), big), sc), Color("6b4f3c") if st[i + 1] < 2 else Color("4cc9f0"))
+		var b := world_to_map(c, Map.SITES[i].beacon, big, 1.0)
+		if si[0]: proj_ring(c, big, Map.SITES[i].beacon, Map.SITE_BUILD_RADIUS, Color(1, 1, 1, 0.7), 2.0)
+		map_dot(c, b, (7.0 if big else 4.5) * kk, col.lightened(0.3))
+		if big: St.text(c, b + Vector2(10, -8), Data.SITES[i].name, 14, Color.WHITE, "title", 600, HORIZONTAL_ALIGNMENT_LEFT, -1, 5, St.INK)
+	proj_ring(c, big, Map.BASE_CENTER, Map.BASE_BUILD_RADIUS, Color(1, 1, 1, 0.55), 2.0)
 	if big:
 		for i in Map.LOOT.size():
-			if s.lo[i]: c.draw_circle(world_to_map(c, Map.LOOT[i].p, big), 3.0, Color("fff3b0"))
+			if s.lo[i]: c.draw_circle(world_to_map(c, Map.LOOT[i].p, big, 0.4), 3.0, Color("fff3b0"))
 	for f in s.fr:
 		for pt in Map.FRONTS[f]:
 			var m := world_to_map(c, pt.clamp(Vector2(-36, -32), Vector2(36, 32)), big)
-			var col := Color(1, 0.3, 0.3, 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.008))
-			c.draw_circle(m, 6.0 if big else 4.0, col)
+			c.draw_circle(m, (7.0 if big else 4.5) * kk, Color(1, 0.3, 0.3, 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.008)))
 	var en:PackedFloat32Array = s.en
 	for i in range(0, en.size(), 8):
 		var kind := int(en[i + 1])
-		c.draw_circle(world_to_map(c, Vector2(en[i + 2], en[i + 3]), big), (5.0 if kind == 7 else 2.2) * (1.4 if big else 1.0), Color("ff4d6d") if int(en[i + 6]) & 4 == 0 else Color("b07a8a"))
-	for sv in s.sv: c.draw_string(ThemeDB.fallback_font, world_to_map(c, Vector2(sv[1], sv[2]), big) - Vector2(3, -6), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, St.SUN)
-	for d in s.dr: c.draw_circle(world_to_map(c, Vector2(d[1], d[2]), big), 5.0, Color("4cc9f0"))
-	var stage_pos := world_to_map(c, Map.STAGE, big)
-	c.draw_rect(Rect2(stage_pos - Vector2(9, 4), Vector2(18, 8)), Color("e8665a"))
+		var ep := world_to_map(c, Vector2(en[i + 2], en[i + 3]), big, 0.8 if kind != 7 else 2.0)
+		var ecol := Color("ff4d6d") if int(en[i + 6]) & 4 == 0 else Color("b07a8a")
+		c.draw_circle(ep, (6.0 if kind == 7 else 2.6) * kk * (1.3 if big else 1.0), St.INK)
+		c.draw_circle(ep, (5.0 if kind == 7 else 1.9) * kk * (1.3 if big else 1.0), ecol)
+	for sv in s.sv: St.text(c, world_to_map(c, Vector2(sv[1], sv[2]), big, 2.0) + Vector2(-5, 7), "!", 20, St.SUN, "title", 700, HORIZONTAL_ALIGNMENT_LEFT, -1, 5, St.INK)
+	for d in s.dr: map_dot(c, world_to_map(c, Vector2(d[1], d[2]), big, 0.8), 5.0 * kk, Color("4cc9f0"))
+	var stage_pos := world_to_map(c, Map.STAGE, big, 0.6)
+	c.draw_style_box(St.card(Color("e8665a"), 4, St.INK, 2, 0), Rect2(stage_pos - Vector2(9, 5), Vector2(18, 10)))
 	for j in s.get("jobs", []):
 		if j[5] != 1 or not j[12]: continue
-		var jm := world_to_map(c, Vector2(j[3], j[4]), big)
-		c.draw_rect(Rect2(jm - Vector2(5, 5), Vector2(10, 10)), Color("9ff6c8"))
-		if big: c.draw_string(ThemeDB.fallback_font, jm + Vector2(8, 4), "Encargo", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("9ff6c8"))
+		var jm := world_to_map(c, Vector2(j[3], j[4]), big, 1.2)
+		c.draw_style_box(St.card(St.MINT, 3, St.INK, 2, 0), Rect2(jm - Vector2(6, 6), Vector2(12, 12)))
+		if big: St.text(c, jm + Vector2(10, 5), "Encargo", 13, Color.WHITE, "title", 600, HORIZONTAL_ALIGNMENT_LEFT, -1, 5, St.INK)
 	var pcs:Array = s.get("pc", [])
 	for i in pcs.size():
 		if pcs[i][0] == 0 or pcs[i][0] == 4: continue
-		var pm := world_to_map(c, Vector2(pcs[i][1], pcs[i][2]), big)
-		var pcol := Color(Data.PIECES[i].color)
-		c.draw_circle(pm, 7.0 if big else 5.0, Color(0.1, 0.08, 0.14))
-		c.draw_circle(pm, 5.0 if big else 3.5, pcol)
-		if big: c.draw_string(ThemeDB.fallback_font, pm + Vector2(8, 4), Data.PIECES[i].name, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, pcol.lightened(0.3))
+		var pm := world_to_map(c, Vector2(pcs[i][1], pcs[i][2]), big, 1.0)
+		map_dot(c, pm, (7.0 if big else 4.5) * kk, Color(Data.PIECES[i].color))
+		if big: St.text(c, pm + Vector2(10, 5), Data.PIECES[i].name, 13, Color.WHITE, "title", 600, HORIZONTAL_ALIGNMENT_LEFT, -1, 5, St.INK)
 	var br:Array = s.get("br", [])
-	var bc := world_to_map(c, Map.BASE_CENTER, big)
 	for i in range(0, br.size(), 3):
 		if br[i] > 0 or br[i + 1] > 0 or br[i + 2] > 0:
 			var mid:float = [-PI * 0.5, 0.0, PI * 0.5, PI][i / 3]
-			var col := CORAL if br[i + 1] > 0 or br[i + 2] > 0 else Color("ffb35c")
-			c.draw_arc(bc, Map.BASE_BUILD_RADIUS * sc.x, mid - 0.6, mid + 0.6, 16, col, 4.0)
+			var bcol := CORAL if br[i + 1] > 0 or br[i + 2] > 0 else Color("ffb35c")
+			proj_ring(c, big, Map.BASE_CENTER, Map.BASE_BUILD_RADIUS, bcol, 5.0, mid - 0.6, mid + 0.6)
 	for pid in s.pl:
 		var q:Dictionary = s.pl[pid]
 		if q.ping == null: continue
-		var pm := world_to_map(c, q.ping, big)
+		var pm := world_to_map(c, q.ping, big, 0.2)
 		var col := CORAL if q.st != 0 else Color(SLOT_COLORS[q.slot % 4])
-		c.draw_arc(pm, 9.0, 0, TAU, 20, col, 2.5)
+		var pr := 9.0 + 3.0 * sin(Time.get_ticks_msec() * 0.01)
+		c.draw_arc(pm, pr, 0, TAU, 20, St.INK, 5.0, true)
+		c.draw_arc(pm, pr, 0, TAU, 20, col, 2.5, true)
 		c.draw_colored_polygon(PackedVector2Array([pm + Vector2(0, -4), pm + Vector2(4, 0), pm + Vector2(0, 4), pm + Vector2(-4, 0)]), col)
 	for pid in s.pl:
 		var q:Dictionary = s.pl[pid]
-		var pos := world_to_map(c, q.p, big)
+		var pos := world_to_map(c, q.p, big, 1.2)
 		var col := Color(SLOT_COLORS[q.slot % 4])
-		c.draw_circle(pos, 6.0 if pid == my_id else 4.5, Color(0.1, 0.08, 0.14))
-		c.draw_circle(pos, 4.5 if pid == my_id else 3.5, col if q.st == 0 else CORAL)
+		var mine:bool = pid == my_id
+		map_dot(c, pos, (6.5 if mine else 5.0) * kk, col if q.st == 0 else CORAL)
 		if q.st != 0:
-			c.draw_line(pos - Vector2(5, 5), pos + Vector2(5, 5), CORAL, 2.5)
-			c.draw_line(pos - Vector2(5, -5), pos + Vector2(5, -5), CORAL, 2.5)
-		if pid == my_id:
-			c.draw_line(pos, pos + q.aim * 12.0, col, 2.0)
-			var view := Vector2(-sin(mm_data.get("yaw", 0.0)), -cos(mm_data.get("yaw", 0.0)))
-			c.draw_line(pos, pos + view * 22.0, Color(1, 1, 1, 0.5), 1.5)
-	c.draw_rect(Rect2(Vector2.ZERO, c.size), Color(1, 1, 1, 0.25), false, 2.0)
+			c.draw_line(pos - Vector2(5, 5), pos + Vector2(5, 5), St.INK, 2.5)
+			c.draw_line(pos - Vector2(5, -5), pos + Vector2(5, -5), St.INK, 2.5)
+		if mine:
+			var tip := world_to_map(c, q.p + q.aim * 3.0, big, 1.2)
+			c.draw_line(pos, tip, St.INK, 4.0, true)
+			c.draw_line(pos, tip, col, 2.0, true)
+	c.draw_rect(Rect2(Vector2.ZERO, c.size), Color(St.INK, 0.0), false, 2.0)

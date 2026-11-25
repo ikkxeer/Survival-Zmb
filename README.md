@@ -179,6 +179,7 @@ Todo se genera en código, sin texturas ni modelos externos, y el audio también
 | `game/view/fx.gd` | Efectos con reservas de objetos reutilizables. |
 | `game/audio.gd` | Síntesis de efectos y música renderizada en un hilo de trabajo. |
 | `game/interface.gd` | Menú, ajustes, ayuda, minimapa, mapa, tienda, construcción, pausa y final, con el tema de papel y tinta. |
+| `game/ui/map3d.gd` | Maqueta 3D del barrio para el plano y el minimapa: edificios con volumen, árboles, coches y tus defensas sobre una losa, vistos con cámara inclinada. El minimapa te sigue y gira con la cámara; los marcadores se dibujan encima proyectándolos con la misma cámara. |
 | `game/ui/hud.gd`, `game/ui/style.gd`, `game/ui/portrait.gd` | HUD dibujado por código (medallón del día, retrato 3D de la casa con su anillo de resistencia, palé de materiales, farolillos, insignia del oficio, arma, avisos sobre la cabeza), la paleta, fuentes e iconos comunes, y los retratos renderizados con los modelos del juego. |
 
 **Red.** El anfitrión decide todo lo que afecta al resultado. Cada cliente predice su propio movimiento y sus fogonazos para que el control responda sin retraso, y envía posición, puntería y botones a 30 Hz. El anfitrión valida la velocidad y corrige si hace falta. Las instantáneas viajan comprimidas a 20 Hz: unos 2 KB con decenas de brotados. Los eventos (disparos, impactos, construcciones…) llevan número de serie y se repiten durante varias instantáneas, así que una pérdida de paquete no borra efectos.
