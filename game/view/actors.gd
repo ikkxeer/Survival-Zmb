@@ -46,6 +46,8 @@ var local_id := 0
 var night := 0.0
 var bar_quad:QuadMesh
 var blob_quad:QuadMesh
+var beam_mat:ShaderMaterial
+var zone_mat:ShaderMaterial
 
 func _init():
 	var shader:Shader = load("res://game/shaders/toon.gdshader")
@@ -64,6 +66,14 @@ func _init():
 	glow_mat = ShaderMaterial.new()
 	glow_mat.shader = shader
 	glow_mat.set_shader_parameter("glow_always", 1.0)
+	beam_mat = ShaderMaterial.new()
+	beam_mat.shader = load("res://game/shaders/fx.gdshader")
+	beam_mat.set_shader_parameter("color", Color(1.0, 0.93, 0.72))
+	beam_mat.set_shader_parameter("energy", 0.22)
+	zone_mat = ShaderMaterial.new()
+	zone_mat.shader = load("res://game/shaders/soft.gdshader")
+	zone_mat.set_shader_parameter("shape", 1)
+	zone_mat.set_shader_parameter("color", Color(1.0, 0.92, 0.6, 0.35))
 	bar_mat = ShaderMaterial.new()
 	bar_mat.shader = load("res://game/shaders/bar.gdshader")
 	blob_mat = ShaderMaterial.new()
@@ -102,6 +112,13 @@ func head_base(k:Kit, skin:Color, zombie:bool = false, big:float = 1.0):
 	else:
 		k.sphere(Kit.at(0.02, 0.17 * big, 0.33 * big), Vector3(0.12, 0.07, 0.05) * big, C("4a2340"), 8, 5)
 		k.box(Kit.at(0.06 * big, 0.21 * big, 0.37 * big), Vector3(0.04, 0.05, 0.02) * big, C("fff6dc"), 0.01)
+
+func boss_eyes() -> ArrayMesh:
+	return cached("bosseyes", func(k:Kit):
+		for e in [[-0.32, 0.05, 0.2], [0.3, 0.12, 0.16], [0.12, -0.18, 0.1], [-0.12, 0.32, 0.09]]:
+			k.sphere(Kit.at(e[0], e[1], 0.8), Vector3(e[2], e[2] * 0.8, 0.08), Kit.glow(C("ff2a3a"), 1.0), 10, 6)
+			k.sphere(Kit.at(e[0], e[1], 0.86), Vector3(e[2] * 0.35, e[2] * 0.6, 0.04), Kit.glow(C("fff0a0"), 1.0), 8, 4)
+	)
 
 func eyes_mesh(zombie:bool, big:float = 1.0) -> ArrayMesh:
 	return cached("eyes%s%.2f" % [zombie, big], func(k:Kit):
@@ -416,21 +433,79 @@ func zombie_parts(kind:int, variant:int) -> Dictionary:
 			for i in 3: extra.cylinder(Kit.at(0, 0.7 + i * 0.13, 0), 0.19 - i * 0.055, 0.17 - i * 0.055, 0.05, C("ffd166"), 12, false)
 			extra.sphere(Kit.at(0, 1.15, 0), Vector3(0.08, 0.08, 0.08), Kit.glow(C("ff4a4a")), 8, 5)
 		7:
-			torso.cylinder(Kit.at(0, 1.4, 0), 1.25, 0.6, 2.8, C("7a4aa8"), 20, true, 0.25)
-			torso.cylinder(Kit.at(0, 0.08, 0), 1.28, 1.28, 0.16, C("f2c14e"), 20)
-			torso.cylinder(Kit.at(0, 2.2, 0), 0.92, 0.9, 0.14, C("f2c14e"), 20)
-			for i in 8:
-				var a := TAU * i / 8.0
-				torso.sphere(Kit.at(cos(a) * 1.0, 1.0, sin(a) * 1.0), Vector3(0.12, 0.12, 0.12), C("ff7ab8"), 8, 5)
-				torso.cylinder(Kit.rot(cos(a) * 0.95, 1.6, sin(a) * 0.95, a, 0.1), 0.05, 0.05, 1.6, C("4f9a4a"), 6)
-			torso.box(Kit.at(0, 2.75, 0), Vector3(1.3, 0.6, 0.9), C("8a5ab8"), 0.25)
-			head_base(head, C("c9dca0"), true, 2.2)
-			head.cylinder(Kit.at(0, 1.6, 0), 0.6, 0.62, 0.32, C("f2c14e"), 16, false)
+			# a festival giant torn open from inside: rotten flesh, roots, thorns and a maw
+			var rot := C("5f6f4f")
+			var robe := C("4a2f63")
+			var bark := C("4a3526")
+			var vine := C("3f6a35")
+			var bone := C("efe2c4")
+			var pus := Kit.glow(C("c6ff5a"), 1.0)
+			# root legs clawing at the ground
 			for i in 6:
+				var a := TAU * i / 6.0 + 0.3
+				torso.cylinder(Kit.rot(cos(a) * 0.95, 0.35, sin(a) * 0.95, -a, 0, 0.9), 0.26, 0.1, 1.1, bark, 8, true, 0.3)
+				torso.cylinder(Kit.rot(cos(a) * 1.5, 0.1, sin(a) * 1.5, -a, 0, 1.35), 0.12, 0.02, 0.7, bark.darkened(0.2), 6)
+			# torn festival robe with a ragged hem and broken gold trim
+			torso.cylinder(Kit.at(0, 1.25, 0), 1.2, 0.85, 1.8, robe, 18, true, 0.3)
+			for i in 14:
+				var a := TAU * i / 14.0
+				var drop := 0.25 + 0.2 * fmod(i * 0.618, 1.0)
+				torso.box(Kit.rot(cos(a) * 1.15, 0.38 - drop * 0.5, sin(a) * 1.15, -a + PI * 0.5, 0.25 * sin(i * 2.1), 0.15), Vector3(0.45, drop + 0.35, 0.06), robe.darkened(0.15), 0.02)
+			for i in 9:
+				if i % 3 == 2: continue
+				var a := TAU * i / 9.0
+				torso.box(Kit.rot(cos(a) * 1.0, 1.8 + 0.05 * sin(i), sin(a) * 1.0, -a + PI * 0.5, 0, 0.1 * (i % 2)), Vector3(0.62, 0.12, 0.08), C("c9a032"), 0.02)
+			# hunched rotting chest bursting out of the costume
+			torso.sphere(Kit.at(0, 2.35, 0.15), Vector3(1.15, 0.95, 0.95), rot, 18, 12, 0.25)
+			torso.sphere(Kit.at(0, 2.9, -0.25), Vector3(1.05, 0.65, 0.8), rot.darkened(0.1), 16, 10, 0.2)
+			for i in 5:
+				torso.box(Kit.rot(0, 2.0 + i * 0.16, 0.95 - abs(i - 2) * 0.05, 0, 0.1, 0), Vector3(1.1 - abs(i - 2) * 0.12, 0.06, 0.08), bone.darkened(0.1), 0.02)
+			for i in 9:
+				var a := i * 2.39
+				torso.sphere(Kit.at(cos(a) * 0.85, 2.2 + sin(i * 1.7) * 0.5, 0.35 + sin(a) * 0.45), Vector3(0.13, 0.13, 0.1), pus, 8, 5)
+			# thorns along the back and shoulders
+			for i in 9:
+				var x := -0.8 + i * 0.2
+				var hgt := 0.45 + 0.35 * sin(PI * i / 8.0)
+				torso.cylinder(Kit.rot(x, 3.1 + 0.25 * sin(PI * i / 8.0), -0.75, 0, -0.7, x * 0.6), 0.11, 0.0, hgt, bone, 6)
+			# vines wrapped round the body
+			for i in 7:
+				var a := TAU * i / 7.0
+				torso.cylinder(Kit.rot(cos(a) * 1.02, 1.7 + i * 0.12, sin(a) * 1.02, -a, 0.9, 0.4), 0.06, 0.05, 1.3, vine, 6)
+				torso.cylinder(Kit.rot(cos(a) * 1.08, 1.6 + i * 0.12, sin(a) * 1.08, -a, 0.0, 0.0), 0.02, 0.0, 0.22, bone, 4)
+			# the giant's papier-mache head, cracked, with a maw full of teeth
+			var mache := C("b9b394")
+			head.sphere(Kit.at(0, 0.95, 0), Vector3(0.95, 0.9, 0.88), mache, 18, 12, 0.15)
+			head.sphere(Kit.at(0, 0.45, 0.35), Vector3(0.82, 0.42, 0.62), mache.darkened(0.08), 16, 8)
+			head.sphere(Kit.at(0, 0.62, 0.62), Vector3(0.66, 0.36, 0.3), C("3a0f1e"), 14, 8)
+			head.sphere(Kit.at(0, 0.6, 0.66), Vector3(0.5, 0.24, 0.22), Kit.glow(C("b0203a"), 0.4), 12, 6)
+			for i in 9:
+				var x := -0.52 + i * 0.13
+				var fang := 0.24 + 0.1 * fmod(i * 0.7, 1.0) + (0.14 if i == 2 or i == 6 else 0.0)
+				head.cylinder(Kit.rot(x, 0.9 - fang * 0.5, 0.95 - abs(x) * 0.4, 0, PI, 0), 0.07, 0.0, fang, bone, 5)
+				head.cylinder(Kit.rot(x + 0.06, 0.36 + 0.1, 0.93 - abs(x) * 0.4, 0, 0, 0), 0.06, 0.0, 0.22, bone.darkened(0.05), 5)
+			# heavy, furious brows over the burning eyes
+			for sgn in [-1, 1]:
+				head.box(Kit.rot(sgn * 0.3, 1.42, 0.82, 0, -0.3, sgn * 0.45), Vector3(0.5, 0.12, 0.2), C("4a3a30"), 0.04)
+			for i in 6:
+				var a := 0.4 + i * 0.9
+				head.box(Kit.rot(cos(a) * 0.55, 1.1 + sin(a) * 0.45, 0.72, 0, 0, a), Vector3(0.5, 0.03, 0.03), C("5a3a2a"), 0.0)
+			head.sphere(Kit.at(-0.55, 1.05, 0.55), Vector3(0.3, 0.28, 0.2), C("2a1420"), 10, 6)
+			# broken, tilted crown with spikes
+			head.cylinder(Kit.rot(0.1, 1.75, -0.05, 0, 0.12, 0.18), 0.6, 0.66, 0.3, C("d9b03a"), 16, false)
+			for i in 6:
+				if i == 4: continue
 				var a := TAU * i / 6.0
-				head.cylinder(Kit.at(cos(a) * 0.58, 1.85, sin(a) * 0.58), 0.1, 0.01, 0.3, C("f2c14e"), 6)
-				head.sphere(Kit.at(cos(a) * 0.58, 1.72, sin(a) * 0.58), Vector3(0.07, 0.07, 0.07), C(["e8463c", "4cc9f0", "06d6a0"][i % 3]), 6, 4)
-			leaf_sprout(extra, 3)
+				head.cylinder(Kit.rot(cos(a) * 0.62 + 0.1, 2.02 + 0.1 * sin(a), sin(a) * 0.62, 0, 0.12, 0.18), 0.11, 0.0, 0.42, C("d9b03a"), 6)
+			# a carnivorous bloom and thorny vines growing out of the skull
+			for i in 5:
+				var a := TAU * i / 5.0
+				extra.sphere(Kit.rot(cos(a) * 0.26, 0.9, sin(a) * 0.26, -a, 0, 0.9), Vector3(0.34, 0.06, 0.16), C("8a1f4a"), 10, 5)
+				extra.cylinder(Kit.rot(cos(a) * 0.42, 0.95, sin(a) * 0.42, -a, 0, 1.2), 0.03, 0.0, 0.14, bone, 4)
+			extra.sphere(Kit.at(0, 0.92, 0), Vector3(0.16, 0.12, 0.16), Kit.glow(C("ff3a6a"), 1.0), 10, 6)
+			extra.cylinder(Kit.at(0, 0.7, 0), 0.08, 0.1, 0.4, vine, 8)
+			for i in 3:
+				extra.cylinder(Kit.rot(-0.6 + i * 0.6, 0.8, -0.3, 0.4 * i, -0.6, -0.5 + i * 0.5), 0.05, 0.02, 0.9, vine, 6)
 	out.torso = torso.commit()
 	out.head = head.commit()
 	out.extra = extra.commit()
@@ -439,12 +514,35 @@ func zombie_parts(kind:int, variant:int) -> Dictionary:
 	if kind == 4: arm_len = 0.55
 	if kind == 2: thick = 1.25
 	if kind == 7:
-		arm_len = 1.4
-		thick = 2.0
+		out.arm_r = boss_arm(true)
+		out.arm_l = boss_arm(false)
 	out.arm = arm_mesh(shirt if kind in [0, 2] else (C("7a6aa8") if kind == 4 else (C("8a5ab8") if kind == 7 else skin)), skin, arm_len, thick)
 	out.leg = leg_mesh(pants, C("5a4a3a"), 1.25 if kind == 2 else 1.0)
 	cache[key] = out
 	return out
+
+func boss_arm(club:bool) -> ArrayMesh:
+	## The giant's arms: one ends in a tree-trunk club full of nails, the other in claws.
+	var k := Kit.new()
+	var rot := C("5f6f4f")
+	var bark := C("4a3526")
+	var bone := C("efe2c4")
+	k.sphere(Kit.at(0, -0.05, 0), Vector3(0.42, 0.42, 0.42), rot, 12, 8)
+	k.cylinder(Kit.at(0, -0.7, 0), 0.3, 0.26, 1.3, rot.darkened(0.05), 12, true, 0.2)
+	for i in 3: k.cylinder(Kit.rot(0, -0.4 - i * 0.35, 0.05, i * 1.7, 0.9, 0.2), 0.04, 0.03, 0.7, C("3f6a35"), 6)
+	if club:
+		k.cylinder(Kit.at(0, -1.75, 0.05), 0.32, 0.55, 1.2, bark, 12, true, 0.3)
+		for i in 10:
+			var a := i * 2.4
+			var y := -1.35 - fmod(i * 0.37, 1.0) * 0.9
+			k.cylinder(Kit.rot(cos(a) * 0.48, y, sin(a) * 0.48 + 0.05, -a, 0, PI * 0.5), 0.035, 0.0, 0.3, C("8f9fb5"), 4)
+		k.sphere(Kit.at(0, -2.35, 0.05), Vector3(0.55, 0.2, 0.55), bark.darkened(0.15), 10, 6)
+	else:
+		k.sphere(Kit.at(0, -1.5, 0.05), Vector3(0.36, 0.3, 0.32), rot, 10, 6)
+		for i in 4:
+			var x := -0.24 + i * 0.16
+			k.cylinder(Kit.rot(x, -1.8, 0.18, 0, 0.5, (x) * 0.6), 0.07, 0.01, 0.6, bone, 6)
+	return k.commit()
 
 func leaf_sprout(k:Kit, count:int):
 	k.cylinder(Kit.at(0, 0.78, 0), 0.025, 0.03, 0.22, C("4f9a4a"), 6)
@@ -458,7 +556,7 @@ func make_zombie(kind:int, variant:int) -> Rig:
 	r.kind = kind
 	var parts := zombie_parts(kind, variant)
 	if kind == 7:
-		r.setup_pivots(2.75, 0.85, 0.3, 0.4, 3.0)
+		r.setup_pivots(2.75, 1.25, 0.3, 0.4, 3.0)
 	else:
 		r.setup_pivots(1.08, 0.36 if kind != 2 else 0.42, 0.62, 0.15, 1.18)
 	r.add_part(r.body, parts.torso, toon_char)
@@ -470,13 +568,26 @@ func make_zombie(kind:int, variant:int) -> Rig:
 		4: big = 0.95
 		5: big = 0.9
 		7: big = 2.2
-	r.eyes = r.add_part(r.head, eyes_mesh(true, big), toon)
-	r.eyes.position = Vector3(0, 0.36 * big, 0)
+	if kind == 7:
+		# four burning eyes of different sizes instead of the usual pair
+		r.eyes = r.add_part(r.head, boss_eyes(), glow_mat)
+		r.eyes.position = Vector3(0, 1.1, 0)
+	else:
+		r.eyes = r.add_part(r.head, eyes_mesh(true, big), toon)
+		r.eyes.position = Vector3(0, 0.36 * big, 0)
 	if kind == 2: r.extra.position.y = 0.6
 	if kind == 7: r.extra.position.y = 1.4
 	r.add_part(r.extra, parts.extra, toon_char)
-	r.add_part(r.arm_l, parts.arm, toon_char)
-	r.add_part(r.arm_r, parts.arm, toon_char)
+	r.add_part(r.arm_l, parts.get("arm_l", parts.arm), toon_char)
+	r.add_part(r.arm_r, parts.get("arm_r", parts.arm), toon_char)
+	if kind == 7:
+		var glow := OmniLight3D.new()
+		glow.position = Vector3(0, 3.6, 1.2)
+		glow.light_color = Color("ff2a3a")
+		glow.light_energy = 0.9
+		glow.omni_range = 5.0
+		glow.shadow_enabled = false
+		r.head.add_child(glow)
 	if kind != 7:
 		r.add_part(r.leg_l, parts.leg, toon_char)
 		r.add_part(r.leg_r, parts.leg, toon_char)
@@ -530,71 +641,165 @@ func wall_mesh(lvl:int, mask:int) -> ArrayMesh:
 				for j in 3: k.box(xf * Kit.at(0.075, 0.25 + j * 0.45, 0), Vector3(0.02, 0.06, 0.56), metal.darkened(0.15), 0.0)
 				for j in 4:
 					k.box(xf * Kit.rot(0.08, 1.25, -0.21 + j * 0.14, 0, 0.6), Vector3(0.02, 0.12, 0.07), C("ffd166") if j % 2 == 0 else C("2b2d42"), 0.0)
+				for j in 3:
+					for side in [-1, 1]: k.sphere(xf * Kit.at(side * 0.075, 0.22 + j * 0.45, -0.2 + j * 0.2), Vector3(0.025, 0.025, 0.025), C("c8ccd4"), 5, 3)
+				for j in 3: k.cylinder(xf * Kit.at(0, 1.42, -0.18 + j * 0.18), 0.03, 0.0, 0.18, C("c8ccd4"), 5)
+			# sandbags piled along the foot of every level
+			for j in 2:
+				k.sphere(xf * Kit.rot(0.2, 0.13, -0.14 + j * 0.28, 0.2 * j), Vector3(0.17, 0.12, 0.15), C("d9c79a").darkened(0.05 * j), 8, 5, 0.25)
+			if lvl < 2:
+				for j in 3: k.sphere(xf * Kit.at(-0.07, 0.35 + j * 0.3, -0.18 + j * 0.18), Vector3(0.022, 0.022, 0.022), C("8f9fb5"), 4, 3)
+		# pointed post top and a little pennant: still the verbena's barricade
+		if lvl < 2:
+			k.cylinder(Kit.at(0, 1.33, 0), 0.12, 0.0, 0.2, C("8b5e3c"), 6)
+		k.cylinder(Kit.at(0.06, 1.55, 0), 0.015, 0.015, 0.5, C("6b4f3c"), 4)
+		k.box(Kit.rot(0.06, 1.68, 0.12, 0, 0, 0), Vector3(0.02, 0.18, 0.22), C(["e85d5d", "4cc9f0", "f2c14e"][lvl]), 0.0)
 	)
 
 func structure_mesh(kind:int, lvl:int) -> ArrayMesh:
 	return cached("s%d_%d" % [kind, lvl], func(k:Kit):
+		var wood := C("c98a55")
+		var dark := C("8b5e3c")
+		var steel := C("8f9fb5")
+		var iron := C("3d4a5c")
+		var sand := C("d9c79a")
 		match kind:
 			Data.S_WIRE:
-				for p in [Vector2(-0.4, -0.4), Vector2(0.4, -0.4), Vector2(-0.4, 0.4), Vector2(0.4, 0.4)]:
-					k.cylinder(Kit.at(p.x, 0.4, p.y), 0.04, 0.04, 0.8, C("8b5e3c"), 6)
-				for i in 2 + lvl:
-					var y := 0.2 + i * 0.22
-					for s in [-0.4, 0.4]:
-						k.box(Kit.rot(0, y, s, 0, 0, 0.05 * (i % 2)), Vector3(0.8, 0.02, 0.02), C("c8ccd4"), 0.0)
-						k.box(Kit.rot(s, y, 0, PI * 0.5, 0, 0.05 * (i % 2)), Vector3(0.8, 0.02, 0.02), C("c8ccd4"), 0.0)
-					for j in 4: k.box(Kit.rot(-0.3 + j * 0.2, y, 0.4, j * 0.8, 0.5), Vector3(0.08, 0.015, 0.015), C("e6e6ea"), 0.0)
-				k.box(Kit.rot(0, 0.35, 0, PI * 0.25), Vector3(1.1, 0.02, 0.02), C("c8ccd4"), 0.0)
-				k.box(Kit.rot(0, 0.35, 0, -PI * 0.25), Vector3(1.1, 0.02, 0.02), C("c8ccd4"), 0.0)
+				# two wooden X frames (cheval de frise) wound with a coil of barbed wire
+				for z in [-0.38, 0.38]:
+					for sgn in [-1, 1]:
+						k.box(Kit.rot(0, 0.32, z, 0, 0, sgn * 0.75), Vector3(0.07, 0.95, 0.07), wood.darkened(0.1 * (sgn + 1)), 0.02)
+				k.box(Kit.at(0, 0.32, 0), Vector3(0.06, 0.06, 0.9), dark, 0.02)
+				var turns := 7 + lvl * 3
+				var steps := turns * 10
+				var prev := Vector3.ZERO
+				for i in steps + 1:
+					var u := float(i) / steps
+					var a := u * turns * TAU
+					var p := Vector3(cos(a) * 0.3, 0.34 + sin(a) * 0.3, -0.46 + u * 0.92)
+					if i > 0:
+						var mid := (p + prev) * 0.5
+						var dir := (p - prev)
+						var len := dir.length()
+						k.box(Transform3D(Basis.looking_at(dir / len, Vector3.UP), mid), Vector3(0.018, 0.018, len + 0.01), C("d6dbe2"), 0.0)
+						if i % 4 == 0: k.box(Transform3D(Basis.looking_at(dir / len, Vector3.UP).rotated(dir / len, a), mid), Vector3(0.09, 0.014, 0.014), C("eef0f4"), 0.0)
+					prev = p
+				for z in [-0.4, 0.4]: k.sphere(Kit.at(0, 0.06, z), Vector3(0.12, 0.07, 0.1), sand, 6, 4)
 			Data.S_COIL:
-				k.box(Kit.at(0, 0.15, 0), Vector3(0.7, 0.3, 0.7), C("3d4a5c"), 0.08, 0.3)
-				k.cylinder(Kit.at(0, 0.8, 0), 0.08, 0.08, 1.1, C("c8ccd4"), 8)
-				for i in 3 + lvl:
-					var y := 0.45 + i * 0.2
-					k.cylinder(Kit.at(0, y, 0), 0.32 - i * 0.03, 0.32 - i * 0.03, 0.08, C("4cc9c0"), 14, true, 0.2)
-				for s in [-1, 1]: k.box(Kit.at(s * 0.3, 0.38, 0.3), Vector3(0.08, 0.08, 0.04), Kit.glow(C("ffd166")), 0.02)
+				# a little Tesla tower: striped base, porcelain insulators, copper winding
+				k.box(Kit.at(0, 0.14, 0), Vector3(0.78, 0.28, 0.78), iron, 0.08, 0.3)
+				for i in 6:
+					var x := -0.33 + i * 0.13
+					k.box(Kit.rot(x, 0.14, 0.395, 0, 0, 0.6), Vector3(0.06, 0.34, 0.01), C("f2c14e") if i % 2 == 0 else C("2b2d42"), 0.0)
+				for i in 3: k.cylinder(Kit.at(0, 0.34 + i * 0.09, 0), 0.2 - i * 0.02, 0.2 - i * 0.02, 0.06, C("f6f0e0"), 12, true, 0.2)
+				k.cylinder(Kit.at(0, 0.95, 0), 0.15, 0.15, 0.9, C("c8ccd4"), 12)
+				for i in 10 + lvl * 2:
+					k.cylinder(Kit.at(0, 0.55 + i * (0.8 / (10 + lvl * 2)), 0), 0.17, 0.17, 0.035, C("d9823a").lightened(0.1 * (i % 2)), 14, false)
+				for a in [0.0, TAU / 3.0, TAU * 2.0 / 3.0]:
+					k.cylinder(Kit.rot(cos(a) * 0.28, 0.6, sin(a) * 0.28, -a, 0, 0.25), 0.025, 0.025, 0.6, C("4a4a58"), 5)
+				for i in 12:
+					var a := TAU * i / 12.0
+					k.sphere(Kit.at(cos(a) * 0.3, 1.45, sin(a) * 0.3), Vector3(0.1, 0.08, 0.1), C("c8ccd4"), 6, 4)
+				for s2 in [-1, 1]: k.box(Kit.at(s2 * 0.28, 0.33, 0.37), Vector3(0.08, 0.08, 0.04), Kit.glow(C("9ff6ff")), 0.02)
 			Data.S_TURRET:
+				# tripod in a ring of sandbags, with an ammo box
+				for i in 7:
+					var a := TAU * i / 7.0
+					k.sphere(Kit.rot(cos(a) * 0.45, 0.12, sin(a) * 0.45, -a), Vector3(0.18, 0.13, 0.12), sand.darkened(0.04 * (i % 2)), 8, 5, 0.25)
 				for i in 3:
 					var a := TAU * i / 3.0
-					k.cylinder(Kit.rot(cos(a) * 0.22, 0.3, sin(a) * 0.22, -a, 0, 0.35), 0.04, 0.04, 0.65, C("5a6a80"), 6)
-				k.cylinder(Kit.at(0, 0.62, 0), 0.26, 0.3, 0.16, C(["e85d5d", "4f86c6", "5ab07a"][lvl]), 14)
+					k.cylinder(Kit.rot(cos(a) * 0.2, 0.42, sin(a) * 0.2, -a, 0, 0.3), 0.04, 0.035, 0.7, C("5a6a80"), 6)
+				k.cylinder(Kit.at(0, 0.72, 0), 0.24, 0.28, 0.14, C(["e85d5d", "4f86c6", "5ab07a"][lvl]), 14, true, 0.2)
+				k.box(Kit.at(0.32, 0.3, 0.2), Vector3(0.26, 0.2, 0.16), C("6b7f4a"), 0.03, 0.2)
+				k.box(Kit.at(0.32, 0.41, 0.2), Vector3(0.27, 0.03, 0.17), C("55673a"), 0.01)
 			Data.S_GEN:
-				k.box(Kit.at(0, 0.38, 0), Vector3(0.85, 0.7, 0.62), C("f2c14e"), 0.1, 0.3)
-				k.box(Kit.at(0, 0.76, 0), Vector3(0.7, 0.08, 0.5), C("3d4a5c"), 0.03)
-				k.cylinder(Kit.at(0.3, 0.95, -0.15), 0.06, 0.06, 0.4, C("5a5a68"), 8)
-				k.box(Kit.at(-0.15, 0.45, 0.32), Vector3(0.3, 0.2, 0.03), C("2b2d42"), 0.02)
-				for i in 3: k.sphere(Kit.at(-0.25 + i * 0.1, 0.45, 0.34), Vector3(0.03, 0.03, 0.02), Kit.glow(C(["5ae85a", "ffd166", "ff5a5a"][i])), 6, 4)
-				for s in [-1, 1]: k.box(Kit.at(s * 0.45, 0.06, 0), Vector3(0.1, 0.12, 0.7), C("3d4a5c"), 0.03)
-				if lvl > 0: k.box(Kit.at(0, 0.88, 0.1), Vector3(0.3, 0.18, 0.2), C("e8463c"), 0.04)
+				# generator on a frame with wheels, exhaust and a fuel can
+				k.box(Kit.at(0, 0.45, 0), Vector3(0.9, 0.62, 0.62), C("f2c14e"), 0.1, 0.3)
+				for i in 5: k.box(Kit.at(-0.3 + i * 0.15, 0.5, 0.315), Vector3(0.05, 0.36, 0.01), C("c99a28"), 0.0)
+				k.box(Kit.at(0, 0.78, 0), Vector3(0.75, 0.06, 0.5), iron, 0.03)
+				for x in [-0.46, 0.46]:
+					k.box(Kit.at(x, 0.5, 0), Vector3(0.04, 0.8, 0.66), iron, 0.02)
+				k.box(Kit.at(0, 0.92, 0), Vector3(0.96, 0.04, 0.04), iron, 0.01)
+				k.cylinder(Kit.at(0.3, 1.05, -0.18), 0.05, 0.06, 0.45, C("5a5a68"), 8)
+				k.cylinder(Kit.rot(0.3, 1.3, -0.18, 0, 0.3), 0.07, 0.07, 0.05, C("3a3a48"), 8)
+				for x in [-0.32, 0.32]: k.cylinder(Kit.rot(x, 0.12, 0.33, 0, 0, PI * 0.5), 0.12, 0.12, 0.08, C("2f2f38"), 12)
+				k.box(Kit.at(-0.15, 0.55, 0.33), Vector3(0.3, 0.2, 0.03), C("2b2d42"), 0.02)
+				for i in 3: k.sphere(Kit.at(-0.25 + i * 0.1, 0.55, 0.35), Vector3(0.03, 0.03, 0.02), Kit.glow(C(["5ae85a", "ffd166", "ff5a5a"][i])), 6, 4)
+				k.box(Kit.at(-0.62, 0.22, 0.1), Vector3(0.2, 0.36, 0.14), C("e8463c"), 0.04, 0.2)
+				k.cylinder(Kit.at(-0.58, 0.44, 0.1), 0.03, 0.03, 0.06, C("2f2f38"), 6)
+				k.cylinder(Kit.rot(0.6, 0.15, -0.1, 0, 0, PI * 0.5), 0.14, 0.14, 0.12, C("3a3a48"), 10)
+				if lvl > 0: k.box(Kit.at(0, 0.98, 0.1), Vector3(0.3, 0.14, 0.2), C("e8463c"), 0.04)
 			Data.S_LIGHT:
-				k.box(Kit.at(0, 0.1, 0), Vector3(0.5, 0.2, 0.5), C("3d4a5c"), 0.05)
-				k.cylinder(Kit.at(0, 1.1, 0), 0.06, 0.07, 2.0, C("5a6a80"), 8)
-				k.box(Kit.rot(0, 2.15, 0.1, 0, 0.5), Vector3(0.5, 0.35, 0.3), C("3d4a5c"), 0.06)
-				k.box(Kit.rot(0, 2.1, 0.22, 0, 0.5), Vector3(0.42, 0.28, 0.06), Kit.glow(C("fff2c0")), 0.04)
-			Data.S_BENCH:
-				k.box(Kit.at(0, 0.62, 0), Vector3(0.95, 0.1, 0.7), C("c98a55"), 0.03, 0.2)
-				for x in [-0.4, 0.4]:
-					for z in [-0.28, 0.28]: k.box(Kit.at(x, 0.3, z), Vector3(0.08, 0.6, 0.08), C("8b5e3c"), 0.02)
-				k.box(Kit.at(0.3, 0.75, 0.15), Vector3(0.2, 0.16, 0.15), C("5a6a80"), 0.03)
-				k.box(Kit.at(-0.2, 0.74, -0.1), Vector3(0.35, 0.14, 0.2), C("e85d5d"), 0.04)
-				k.box(Kit.rot(0.05, 0.69, 0.18, 0.4), Vector3(0.4, 0.02, 0.1), C("c8ccd4"), 0.0)
-				k.box(Kit.at(0, 0.2, 0), Vector3(0.8, 0.05, 0.6), C("8b5e3c"), 0.02)
-				if lvl > 0: k.box(Kit.at(-0.35, 0.95, 0.2), Vector3(0.12, 0.5, 0.12), C("4f86c6"), 0.03)
-			Data.S_MINE:
+				# tall mast with a ladder; the lamp itself is a separate head that turns
 				for i in 5:
 					var a := TAU * i / 5.0
-					k.cylinder(Kit.rot(cos(a) * 0.12, 0.08, sin(a) * 0.12, 0, 0, PI * 0.5), 0.06, 0.06, 0.3, C("e8463c"), 8)
-				k.cylinder(Kit.at(0, 0.08, 0), 0.08, 0.08, 0.14, C("f2c14e"), 8)
-				k.cylinder(Kit.rot(0, 0.22, 0, 0, 0.4), 0.01, 0.01, 0.2, C("2f2f38"), 4)
+					k.sphere(Kit.rot(cos(a) * 0.32, 0.1, sin(a) * 0.32, -a), Vector3(0.15, 0.1, 0.11), sand, 6, 4)
+				k.box(Kit.at(0, 0.1, 0), Vector3(0.42, 0.2, 0.42), iron, 0.05)
+				k.cylinder(Kit.at(0, 1.45, 0), 0.07, 0.09, 2.7, C("5a6a80"), 8)
+				for i in 8: k.box(Kit.at(0, 0.35 + i * 0.3, 0.1), Vector3(0.22, 0.03, 0.03), C("c8ccd4"), 0.0)
+				k.box(Kit.at(0, 2.8, 0), Vector3(0.5, 0.06, 0.5), iron, 0.02)
+				k.cylinder(Kit.rot(0.25, 1.4, -0.1, 0, 0, 0.12), 0.02, 0.02, 2.7, C("2f2f38"), 4)
+			Data.S_BENCH:
+				# workbench: vice, pegboard with tools, a saw and a toolbox
+				k.box(Kit.at(0, 0.62, 0), Vector3(1.0, 0.1, 0.7), wood, 0.03, 0.2)
+				for x in [-0.42, 0.42]:
+					for z in [-0.28, 0.28]: k.box(Kit.at(x, 0.3, z), Vector3(0.08, 0.6, 0.08), dark, 0.02)
+				k.box(Kit.at(0, 0.2, 0), Vector3(0.84, 0.05, 0.6), dark, 0.02)
+				k.box(Kit.at(0, 1.08, -0.33), Vector3(1.0, 0.8, 0.05), C("e9c79a"), 0.02)
+				for x in [-0.48, 0.48]: k.box(Kit.at(x, 0.85, -0.33), Vector3(0.06, 0.6, 0.06), dark, 0.02)
+				k.box(Kit.rot(-0.3, 1.15, -0.29, 0, 0, 0.6), Vector3(0.06, 0.34, 0.03), C("8b5e3c"), 0.01)
+				k.box(Kit.rot(-0.24, 1.28, -0.28, 0, 0, 0.6), Vector3(0.16, 0.07, 0.04), C("5a6a80"), 0.01)
+				k.box(Kit.rot(0.0, 1.12, -0.29, 0, 0, -0.3), Vector3(0.05, 0.36, 0.02), C("c8ccd4"), 0.01)
+				k.cylinder(Kit.at(0.25, 1.2, -0.29), 0.09, 0.09, 0.02, C("c8ccd4"), 10)
+				k.box(Kit.at(0.33, 0.73, 0.15), Vector3(0.18, 0.14, 0.15), C("5a6a80"), 0.03)
+				k.box(Kit.at(0.33, 0.78, 0.26), Vector3(0.04, 0.04, 0.12), C("5a6a80"), 0.01)
+				k.box(Kit.at(-0.2, 0.75, 0.05), Vector3(0.36, 0.16, 0.2), C("e85d5d"), 0.04)
+				k.box(Kit.at(-0.2, 0.86, 0.05), Vector3(0.2, 0.04, 0.04), C("2f2f38"), 0.01)
+				k.box(Kit.rot(0.05, 0.69, 0.22, 0.4), Vector3(0.42, 0.02, 0.1), C("c8ccd4"), 0.0)
+				if lvl > 0: k.sphere(Kit.at(0.42, 1.5, -0.25), Vector3(0.1, 0.08, 0.1), Kit.glow(C("fff2c0")), 8, 5)
+			Data.S_MINE:
+				# a bundle of festival firecrackers on a pressure plate
+				k.cylinder(Kit.at(0, 0.03, 0), 0.32, 0.34, 0.06, dark, 10)
+				for i in 7:
+					var a := TAU * i / 6.0
+					var p := Vector2.ZERO if i == 6 else Vector2(cos(a), sin(a)) * 0.13
+					k.cylinder(Kit.at(p.x, 0.2, p.y), 0.065, 0.065, 0.28, C("e8463c") if i % 2 == 0 else C("f26b5b"), 8)
+					k.cylinder(Kit.at(p.x, 0.35, p.y), 0.06, 0.02, 0.04, C("fff2d6"), 8)
+				k.cylinder(Kit.at(0, 0.2, 0), 0.215, 0.215, 0.07, C("f2c14e"), 14, false)
+				k.cylinder(Kit.rot(0, 0.45, 0, 0, 0.5), 0.012, 0.012, 0.22, C("2f2f38"), 4)
+				k.sphere(Kit.at(0, 0.55, 0.06), Vector3(0.03, 0.03, 0.03), Kit.glow(C("ffb35c")), 6, 4)
 	)
 
 func turret_head(lvl:int) -> ArrayMesh:
 	return cached("thead%d" % lvl, func(k:Kit):
-		k.box(Kit.at(0, 0.0, 0), Vector3(0.42, 0.32, 0.5), C("f6f0e0"), 0.1, 0.2)
-		k.box(Kit.at(0, 0.18, -0.05), Vector3(0.3, 0.06, 0.3), C(["e85d5d", "4f86c6", "5ab07a"][lvl]), 0.03)
+		var paint := C(["e85d5d", "4f86c6", "5ab07a"][lvl])
+		k.sphere(Kit.at(0, 0.02, -0.02), Vector3(0.24, 0.2, 0.28), C("f6f0e0"), 12, 8, 0.2)
+		k.box(Kit.at(0, 0.0, 0.2), Vector3(0.5, 0.36, 0.06), paint, 0.04, 0.2)
+		k.box(Kit.at(0, 0.19, 0.2), Vector3(0.52, 0.04, 0.07), paint.darkened(0.2), 0.01)
 		for x in ([0.0] if lvl == 0 else [-0.09, 0.09]):
-			k.cylinder(Kit.rot(x, 0.0, 0.42, 0, PI * 0.5), 0.05, 0.05, 0.4, C("3a3a48"), 8)
-		k.sphere(Kit.at(0.15, 0.1, 0.25), Vector3(0.04, 0.04, 0.03), Kit.glow(C("ff5a5a")), 6, 4)
+			k.cylinder(Kit.rot(x, 0.0, 0.5, 0, PI * 0.5), 0.05, 0.05, 0.5, C("3a3a48"), 8)
+			k.cylinder(Kit.rot(x, 0.0, 0.76, 0, PI * 0.5), 0.07, 0.07, 0.1, C("2a2a36"), 8)
+		k.box(Kit.rot(-0.24, -0.08, 0.05, 0, 0, 0.2), Vector3(0.06, 0.22, 0.3), C("c99a28"), 0.01)
+		k.sphere(Kit.at(0.15, 0.12, 0.24), Vector3(0.04, 0.04, 0.03), Kit.glow(C("ff5a5a")), 6, 4)
+		k.cylinder(Kit.at(-0.12, 0.35, -0.15), 0.01, 0.01, 0.35, C("6b4f3c"), 4)
+		k.box(Kit.at(-0.12, 0.46, -0.07), Vector3(0.01, 0.12, 0.16), C("ffd166"), 0.0)
+	)
+
+func light_head() -> ArrayMesh:
+	## Lamp housing; the lens faces -Z so the node points where it shines.
+	return cached("lighthead", func(k:Kit):
+		k.cylinder(Kit.rot(0, 0, 0.0, 0, PI * 0.5), 0.26, 0.3, 0.5, C("3d4a5c"), 14, true, 0.2)
+		k.cylinder(Kit.rot(0, 0, -0.27, 0, PI * 0.5), 0.31, 0.31, 0.06, C("c8ccd4"), 14)
+		k.cylinder(Kit.rot(0, 0, -0.3, 0, PI * 0.5), 0.25, 0.25, 0.02, Kit.glow(C("fff6d0"), 1.0), 14)
+		for s2 in [-1, 1]: k.box(Kit.at(s2 * 0.34, -0.05, 0), Vector3(0.05, 0.32, 0.08), C("5a6a80"), 0.01)
+		k.box(Kit.at(0, -0.22, 0), Vector3(0.72, 0.05, 0.1), C("5a6a80"), 0.01)
+		for i in 4: k.box(Kit.at(0, 0.0, 0.08 + i * 0.05), Vector3(0.62, 0.04, 0.02), C("2f3a4a"), 0.0)
+	)
+
+func beam_mesh() -> ArrayMesh:
+	## Soft cone of light along -Z, used at night.
+	return cached("beam", func(k:Kit):
+		k.cylinder(Kit.rot(0, 0, -0.5, 0, -PI * 0.5), 0.2, 1.0, 1.0, Color.WHITE, 16, false)
 	)
 
 func coil_top() -> ArrayMesh:
@@ -624,19 +829,54 @@ func make_structure(kind:int, lvl:int, mask:int) -> Node3D:
 		top.name = "Top"
 		n.add_child(top)
 	if kind == Data.S_LIGHT:
-		var l := SpotLight3D.new()
-		l.position = Vector3(0, 2.1, 0.3)
-		l.rotation.x = -0.9
-		l.spot_range = 9.0
-		l.spot_angle = 50.0
-		l.light_color = Color("fff1c8")
-		l.light_energy = 0.0
-		l.name = "Lamp"
-		n.add_child(l)
+		var reach := 6.0 + lvl   # same radius the simulation uses to dazzle brotados
+		# downward flood that covers the whole dazzle zone…
+		var fill := SpotLight3D.new()
+		fill.position = Vector3(0, 2.9, 0)
+		fill.rotation.x = -PI * 0.5
+		fill.spot_range = 11.0
+		fill.spot_angle = rad_to_deg(atan(reach / 2.9)) + 4.0
+		fill.spot_attenuation = 0.4
+		fill.light_color = Color("fff1c8")
+		fill.light_energy = 0.0
+		fill.name = "Lamp"
+		n.add_child(fill)
+		# …and a turning searchlight head that follows the closest brotado inside it
+		var head := Node3D.new()
+		head.name = "Head"
+		head.position = Vector3(0, 3.1, 0)
+		n.add_child(head)
+		var hm := MeshInstance3D.new()
+		hm.mesh = light_head()
+		hm.material_override = toon
+		head.add_child(hm)
+		var beam_light := SpotLight3D.new()
+		beam_light.spot_range = reach + 3.0
+		beam_light.spot_angle = 16.0
+		beam_light.light_color = Color("fff6dc")
+		beam_light.light_energy = 0.0
+		beam_light.name = "Beam"
+		head.add_child(beam_light)
+		var cone := MeshInstance3D.new()
+		cone.mesh = beam_mesh()
+		cone.material_override = beam_mat
+		cone.scale = Vector3(1.0, 1.0, reach)
+		cone.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		cone.name = "Cone"
+		head.add_child(cone)
+		# faint ring on the ground marking where brotados get dazzled
+		var zone := MeshInstance3D.new()
+		zone.mesh = blob_quad
+		zone.material_override = zone_mat
+		zone.scale = Vector3(reach * 2.0, 1, reach * 2.0)
+		zone.position.y = 0.05
+		zone.name = "Zone"
+		zone.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		n.add_child(zone)
 	var bar := MeshInstance3D.new()
 	bar.mesh = bar_quad
 	bar.material_override = bar_mat
-	bar.position.y = 1.9 if kind != Data.S_LIGHT else 2.7
+	bar.position.y = 1.9 if kind != Data.S_LIGHT else 3.6
 	bar.scale = Vector3(0.8, 1, 1)
 	bar.visible = false
 	bar.name = "Bar"
@@ -644,6 +884,15 @@ func make_structure(kind:int, lvl:int, mask:int) -> Node3D:
 	bar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	n.add_child(bar)
 	return n
+
+func turret_fired(cell:int, dir:Vector3) -> Vector3:
+	## Snap a turret's head onto its target, kick it back and return the barrel tip.
+	if not structs.has(cell) or not struct_info.has(cell) or struct_info[cell][0] != Data.S_TURRET: return Vector3.INF
+	var n:Node3D = structs[cell]
+	var head:Node3D = n.get_node("Head")
+	head.rotation.y = atan2(dir.x, dir.z)
+	n.set_meta("kick", 1.0)
+	return n.position + Vector3(0, 0.88, 0) + Vector3(dir.x, 0, dir.z).normalized() * 0.82
 
 func ghost_mesh(kind:int) -> Mesh:
 	if kind == Data.S_WALL: return wall_mesh(0, 0)
@@ -655,7 +904,7 @@ func loot_mesh(kind:int) -> ArrayMesh:
 		match kind:
 			0:
 				k.box(Kit.at(0, 0.5, 0), Vector3(1.4, 0.95, 0.9), C("4f9a6a"), 0.08, 0.3)
-				k.box(Kit.rot(0, 1.02, -0.05, 0, -0.12), Vector3(1.45, 0.08, 0.95), C("3f7a54"), 0.03)
+				k.box(Kit.at(0, 0.97, 0), Vector3(1.3, 0.02, 0.8), C("1f2a22"), 0.0)
 				for x in [-0.5, 0.5]: k.cylinder(Kit.rot(x, 0.1, 0.4, 0, 0, PI * 0.5), 0.08, 0.08, 0.06, C("2f2f38"), 8)
 				k.box(Kit.at(0, 0.6, 0.46), Vector3(0.5, 0.2, 0.02), C("ffd166"), 0.01)
 			1:
@@ -666,6 +915,7 @@ func loot_mesh(kind:int) -> ArrayMesh:
 				for x in [-0.82, 0.82]:
 					for z in [-1.0, 1.0]: k.cylinder(Kit.rot(x, 0.32, z, 0, 0, PI * 0.5), 0.32, 0.32, 0.26, C("2f2f38"), 12)
 				k.box(Kit.rot(0.3, 1.33, 0.5, 0.3), Vector3(0.6, 0.1, 0.5), C("8b5e3c"), 0.03)
+				k.box(Kit.at(0, 0.86, -1.1), Vector3(1.4, 0.02, 0.75), C("1f1a22"), 0.0)
 			2:
 				for i in 3:
 					k.box(Kit.rot(0, 0.1 + i * 0.2, 0, 0.1 * i), Vector3(1.1, 0.06, 1.1), C("d9a06a"), 0.01)
@@ -684,6 +934,19 @@ func loot_mesh(kind:int) -> ArrayMesh:
 				k.box(Kit.at(0, 0.28, 0), Vector3(0.9, 0.55, 0.55), C("6b7f4a"), 0.05, 0.25)
 				k.box(Kit.at(0, 0.58, 0), Vector3(0.92, 0.08, 0.57), C("55673a"), 0.02)
 				k.box(Kit.at(0, 0.3, 0.28), Vector3(0.4, 0.12, 0.02), C("f2c14e"), 0.0)
+	)
+
+func lid_mesh(kind:int) -> ArrayMesh:
+	## The part that opens while someone searches: a container lid or a car boot.
+	return cached("lid%d" % kind, func(k:Kit):
+		if kind == 0:
+			k.box(Kit.at(0, 0.03, 0.47), Vector3(1.45, 0.08, 0.95), C("3f7a54"), 0.03)
+			k.box(Kit.at(0, 0.08, 0.85), Vector3(0.4, 0.05, 0.06), C("2f5a3e"), 0.01)
+		else:
+			var body := C("ef8f8f").darkened(0.15)
+			k.box(Kit.at(0, 0.02, -0.42), Vector3(1.55, 0.08, 0.86), body, 0.05)
+			k.box(Kit.at(0, -0.1, -0.86), Vector3(1.5, 0.28, 0.06), body.darkened(0.08), 0.03)
+			for x in [-0.55, 0.55]: k.box(Kit.at(x, -0.12, -0.9), Vector3(0.22, 0.1, 0.03), Kit.glow(C("ff5a5a"), 0.4), 0.01)
 	)
 
 func piece_mesh(i:int) -> ArrayMesh:
@@ -772,6 +1035,16 @@ func build_static():
 		mi.material_override = toon
 		mi.name = "Mesh"
 		n.add_child(mi)
+		if l.kind <= 1:
+			var lid := Node3D.new()
+			lid.name = "Lid"
+			lid.position = Vector3(0, 1.0, -0.45) if l.kind == 0 else Vector3(0, 0.86, -0.68)
+			var lm := MeshInstance3D.new()
+			lm.mesh = lid_mesh(l.kind)
+			lm.material_override = toon
+			lm.name = "LidMesh"
+			lid.add_child(lm)
+			mi.add_child(lid)
 		var sp := MeshInstance3D.new()
 		sp.mesh = sparkle_mesh()
 		sp.material_override = glow_mat
@@ -1177,6 +1450,7 @@ func flash_zombie(key:int):
 # ================================================================== per frame
 func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector2, night_amount:float, blackout:bool):
 	night = night_amount
+	var searching := {}
 	for id in heroes:
 		if not hero_target.has(id): continue
 		var p:Dictionary = hero_target[id]
@@ -1196,7 +1470,15 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		# Walk facing where you go (forward with the camera shows your back);
 		# turn to the cursor only while shooting or swinging the pan.
 		var rolling:bool = local_rolling if id == local_id else p.roll
-		if p.st != 0: r.face(r.ground_vel, dt)
+		var hk:String = p.get("hk", "")
+		r.rummage = p.use and hk.begins_with("lo") and p.st == 0
+		if r.rummage:
+			var li := int(hk.substr(2))
+			if li >= 0 and li < Map.LOOT.size():
+				searching[li] = true
+				r.face(Map.LOOT[li].p - Vector2(r.position.x, r.position.z), dt, 12.0)
+		if r.rummage: pass
+		elif p.st != 0: r.face(r.ground_vel, dt)
 		elif rolling: r.face(r.ground_vel, dt, 30.0)
 		elif aiming: r.face(aim, dt, 22.0)
 		elif r.ground_vel.length() > 0.5: r.face(r.ground_vel, dt, 10.0)
@@ -1242,15 +1524,55 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		if info[0] == Data.S_TURRET:
 			var head:Node3D = n.get_node("Head")
 			head.rotation.y = lerp_angle(head.rotation.y, PI * 0.5 - deg_to_rad(info[4]), 1.0 - exp(-12.0 * dt))
+			var kick:float = n.get_meta("kick", 0.0)
+			n.set_meta("kick", maxf(0.0, kick - dt * 8.0))
+			head.position = Vector3(0, 0.88, 0) - head.basis.z * 0.1 * kick
 		if info[0] == Data.S_COIL:
 			var top:MeshInstance3D = n.get_node("Top")
 			top.set_instance_shader_parameter("itint", Color(1, 1, 1) if on else Color(0.3, 0.3, 0.35))
 			top.scale = Vector3.ONE * (1.0 + 0.08 * sin(t * 9.0 + cell))
 		if info[0] == Data.S_LIGHT:
-			(n.get_node("Lamp") as SpotLight3D).light_energy = 3.0 * night_amount if on else 0.0
+			var lit := night_amount if on else 0.0
+			(n.get_node("Lamp") as SpotLight3D).light_energy = 2.2 * lit
+			var lhead:Node3D = n.get_node("Head")
+			(lhead.get_node("Beam") as SpotLight3D).light_energy = 5.0 * lit
+			lhead.get_node("Cone").visible = lit > 0.15
+			var zone:MeshInstance3D = n.get_node("Zone")
+			zone.visible = lit > 0.15
+			zone.set_instance_shader_parameter("itint", Color(1, 1, 1, lit))
+			# aim at the nearest brotado inside the zone, otherwise sweep slowly
+			var base := n.position
+			var reach:float = 6.0 + float(info[1])
+			var best := Vector3.INF
+			for key in horde:
+				var zp:Vector3 = horde[key].position
+				if zp.distance_to(base) < reach and (best == Vector3.INF or zp.distance_to(base) < best.distance_to(base)): best = zp
+			var want_yaw := t * 0.5 + float(cell) * 0.37
+			var want_pitch := -0.42
+			if best != Vector3.INF:
+				var d := best - base
+				want_yaw = atan2(-d.x, -d.z)
+				want_pitch = -atan2(2.6, maxf(1.0, Vector2(d.x, d.z).length()))
+			lhead.rotation.y = lerp_angle(lhead.rotation.y, want_yaw, 1.0 - exp(-(6.0 if best != Vector3.INF else 2.0) * dt))
+			lhead.rotation.x = lerpf(lhead.rotation.x, want_pitch, 1.0 - exp(-5.0 * dt))
 		if info[0] == Data.S_GEN:
 			mesh.position.x = sin(t * 50.0) * 0.008
 	for i in loot_nodes.size():
+		# whoever searches here: the boot or lid swings open and the prop rocks
+		var ln:Node3D = loot_nodes[i]
+		var mesh_node:Node3D = ln.get_node("Mesh")
+		var open:float = move_toward(ln.get_meta("open", 0.0), 1.0 if searching.has(i) else 0.0, dt * (4.0 if searching.has(i) else 2.0))
+		ln.set_meta("open", open)
+		var kind:int = Map.LOOT[i].kind
+		if mesh_node.has_node("Lid"):
+			var lid:Node3D = mesh_node.get_node("Lid")
+			lid.rotation.x = (-1.25 if kind == 0 else 1.15) * (open * open * (3.0 - 2.0 * open)) + (sin(t * 11.0 + i) * 0.05 * open if searching.has(i) else 0.0)
+		if searching.has(i):
+			mesh_node.rotation = Vector3(sin(t * 13.0 + i) * 0.015, 0, sin(t * 17.0 + i) * (0.03 if kind == 1 else 0.02))
+			mesh_node.position.y = absf(sin(t * 9.0)) * 0.02
+		else:
+			mesh_node.rotation = mesh_node.rotation.lerp(Vector3.ZERO, 1.0 - exp(-10.0 * dt))
+			mesh_node.position.y = 0.0
 		var sp:Node3D = loot_nodes[i].get_node("Sparkle")
 		if sp.visible:
 			sp.position.y = (2.0 if Map.LOOT[i].kind == 1 else 1.6) + sin(t * 2.5 + i) * 0.12

@@ -42,6 +42,7 @@ var hip_y := 0.0
 var gun_home := Vector3.ZERO
 var move_amt := 0.0
 const ROLL_TIME := 0.34          # matches the dodge length in main.gd
+var rummage := false             # searching a container or car: lean in and dig
 var bar_t := 0.0                 # health bar shows for a moment after a hit
 
 func setup_pivots(shoulder_y:float, shoulder_x:float, hip_y:float, hip_x:float, neck_y:float):
@@ -167,7 +168,16 @@ func animate_hero(dt:float, t:float, vel:Vector2, aiming:bool, firing:bool, stat
 		arm_l.rotation.x = -0.9 + sin(t * 12.0) * 0.3
 	else:
 		gun.rotation = Vector3(lerpf(0.55, 0.0, aim_blend) - recoil * 0.5, lerpf(-0.35, 0.0, aim_blend), 0)
-	if using:
+	if using and rummage:
+		# lean into the boot and dig through it with both hands
+		body.rotation.x = 0.55 + sin(t * 7.0) * 0.06
+		body.position.y = -0.05 + absf(sin(t * 7.0)) * 0.03
+		head.rotation.x = 0.35
+		head.rotation.y = sin(t * 2.3) * 0.35
+		arm_l.rotation = Vector3(-0.9 + sin(t * 16.0) * 0.55, 0, 0.25 + sin(t * 8.0) * 0.15)
+		arm_r.rotation = Vector3(-0.9 - sin(t * 16.0) * 0.55, 0, -0.25 - cos(t * 8.0) * 0.15)
+		gun.visible = false
+	elif using:
 		arm_l.rotation.x = -1.1 + sin(t * 14.0) * 0.35
 		arm_r.rotation.x = -1.1 - sin(t * 14.0) * 0.35
 	if swing > 0 and pan:
@@ -212,6 +222,7 @@ func animate_zombie(dt:float, t:float, moving:float, flags:int):
 	leg_r.rotation.x = -s * 0.6 * moving
 	var reach := -1.35
 	if kind == 3: reach = -1.0
+	if kind == 7: reach = -0.45 - 0.15 * sin(t * 1.3)
 	var arm_bob := sin(phase * 0.5 + 1.0) * 0.15
 	if windup or attacking:
 		var k := (sin(t * 12.0) * 0.5 + 0.5)

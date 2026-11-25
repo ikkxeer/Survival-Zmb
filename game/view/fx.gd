@@ -327,6 +327,27 @@ func _ready():
 		p.scale_amount_max = 1.2
 		p.mesh = small_box(Vector3(0.09, 0.09, 0.09), Color("9be36a"), false)
 	)
+	make_pool("bits", 8, func(p:CPUParticles3D):
+		# odds and ends thrown out while someone rummages: cans, screws, rags, coins
+		p.amount = 6
+		p.lifetime = 0.8
+		p.explosiveness = 0.85
+		p.spread = 35.0
+		p.direction = Vector3(0, 1, 0)
+		p.initial_velocity_min = 2.5
+		p.initial_velocity_max = 4.5
+		p.gravity = Vector3(0, -12, 0)
+		p.angular_velocity_min = -600
+		p.angular_velocity_max = 600
+		p.scale_amount_min = 0.7
+		p.scale_amount_max = 1.4
+		p.mesh = small_box(Vector3(0.1, 0.08, 0.06), Color.WHITE, false)
+		var g := Gradient.new()
+		g.colors = PackedColorArray([Color("c8ccd4"), Color("e8463c"), Color("f2c14e"), Color("5a9ae8"), Color("8b5e3c"), Color("7cd06a")])
+		g.offsets = PackedFloat32Array([0, 0.2, 0.4, 0.6, 0.8, 1.0])
+		g.interpolation_mode = Gradient.GRADIENT_INTERPOLATE_CONSTANT
+		p.color_initial_ramp = g
+	)
 	make_pool("stars", 4, func(p:CPUParticles3D):
 		p.amount = 24
 		p.lifetime = 1.2
@@ -505,7 +526,7 @@ func shot(owner:int, g:int, a:Vector3, b:Vector3, local:bool, hit:int = -1, firs
 	var c := gun_color(g)
 	var dir := (b - a).normalized()
 	# width, speed (m/s) and glow length: pistol, shotgun, smg, rifle, sniper, launcher, flame, turret
-	var spec:Array = [[0.06, 46.0, 0.9], [0.05, 40.0, 0.6], [0.05, 52.0, 0.8], [0.06, 62.0, 1.2], [0.08, 95.0, 2.2], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.065, 46.0, 0.9]][clampi(g, 0, 7)]
+	var spec:Array = [[0.06, 46.0, 0.9], [0.05, 40.0, 0.6], [0.05, 52.0, 0.8], [0.06, 62.0, 1.2], [0.08, 95.0, 2.2], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [0.07, 32.0, 1.8]][clampi(g, 0, 7)]
 	if g != 5 and g != 6: bullet(a, b, c, spec[0], spec[1], spec[2])
 	if first and owner != -999:
 		muzzle(a + dir * 0.08, c, 1.4 if g in [1, 4, 5] else 0.9, dir)

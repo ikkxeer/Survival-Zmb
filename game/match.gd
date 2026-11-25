@@ -2167,7 +2167,7 @@ func snapshot() -> Dictionary:
 		pl[id] = {"name":p.name, "role":p.role, "slot":p.slot, "p":p.p, "aim":p.aim, "hp":p.hp, "hpmax":p.hpmax, "st":p.st,
 			"bleed":p.bleed, "coins":p.coins, "xp":p.xp, "lvl":p.lvl, "gun":p.gun, "guns":p.guns, "mag":p.mag, "res":p.res,
 			"rl":p.rl, "rlmax":p.rlmax, "ab":p.ab, "buff":p.buff, "med":p.med, "tr":p.tr, "kills":p.kills, "helped":p.helped, "carry":p.carry, "cargo":p.cargo, "rank":p.get("rank", 1),
-			"notice":p.notice if p.nt > 0 else "", "hold":p.hold, "ht":p.ht, "hm":p.hm, "prompt":p.prompt, "ready":p.ready,
+			"notice":p.notice if p.nt > 0 else "", "hold":p.hold, "hk":p.hkey, "ht":p.ht, "hm":p.hm, "prompt":p.prompt, "ready":p.ready,
 			"roll":p.roll, "fix":p.fix, "ping":p.ping, "ping_left":p.ping_left, "dmg":p.dmg, "fire":p.fire and p.rl <= 0, "use":p.use}
 	var si := []
 	for s in sites: si.append([s.claimed, s.hp, s.max])
