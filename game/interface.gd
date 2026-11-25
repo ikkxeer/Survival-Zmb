@@ -37,6 +37,8 @@ var settings := {"quality":2, "fullscreen":false, "volume":0.8, "music":0.6, "sf
 var prefs
 var profile
 var hero:VBoxContainer
+var ticket:Control
+var ticket_eyebrow:Label
 var choices:HBoxContainer
 var modal_shade := ColorRect.new()
 var utility:HBoxContainer
@@ -286,22 +288,38 @@ func build_menu():
 	festoon.draw.connect(func(): draw_title_doodle(festoon))
 	menu.add_child(festoon)
 	festoon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	ticket = Control.new()
+	ticket.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ticket.draw.connect(draw_ticket)
+	menu.add_child(ticket)
 	hero = vbox(menu, 8)
 	var emblem := Control.new()
 	emblem.custom_minimum_size = Vector2(145,46)
 	emblem.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hero.add_child(emblem)
-	emblem.draw.connect(func(): St.bunting(emblem,Vector2(0,5),Vector2(140,1),5,10,17,1))
+	emblem.draw.connect(func(): St.bunting(emblem,Vector2(0,7),Vector2(140,3),7,9,14,2))
+	ticket_eyebrow = label(hero,"FIESTAS DEL BARRIO  ·  N.º 01",14,St.SUN)
+	ticket_eyebrow.add_theme_font_override("font",St.font("title",600))
 	var lockup := vbox(hero,-20)
-	title(lockup, "La última", St.PAPER, 50)
-	title(lockup, "Verbena", St.SUN, 116)
-	var strapline := label(hero, "Defiende tu barrio hasta el amanecer.", 23, St.PAPER)
+	title(lockup, "La última", St.INK, 48)
+	title(lockup, "Verbena", St.CORAL, 105)
+	var strapline := label(hero, "Una noche más. Todo el barrio cuenta contigo.", 19, St.INK_SOFT)
 	strapline.add_theme_font_override("font",St.font("body",800))
 	strapline.add_theme_color_override("font_shadow_color",St.INK)
 	strapline.add_theme_constant_override("shadow_offset_x",2)
 	strapline.add_theme_constant_override("shadow_offset_y",2)
+	var promise := hbox(hero,8)
+	for item in [["moon","DÍA · REÚNE"],["house","NOCHE · DEFIENDE"]]:
+		var badge := hbox(promise,4)
+		var mark := Control.new()
+		mark.custom_minimum_size = Vector2(26,28)
+		badge.add_child(mark)
+		mark.draw.connect(func(): St.icon(mark,item[0],mark.size*0.5,19,Color.WHITE))
+		var copy := label(badge,item[1],12,St.INK)
+		copy.add_theme_font_override("font",St.font("title",600))
+		copy.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	var gap := Control.new()
-	gap.custom_minimum_size.y = 12
+	gap.custom_minimum_size.y = 8
 	hero.add_child(gap)
 	continue_button = button(hero,"",func(): emit_launch("continue"),50)
 	continue_button.hide()
@@ -430,6 +448,22 @@ func draw_title_doodle(canvas:Control):
 	St.icon(canvas,"traca",Vector2(w-67,180),22,Color.WHITE)
 	St.icon(canvas,"heart",Vector2(w-145,154),17,Color(St.PINK,0.9))
 
+func draw_ticket():
+	var rect := Rect2(Vector2.ZERO,ticket.size)
+	var backing := St.card(St.PAPER,24,St.INK,3,10)
+	ticket.draw_style_box(backing,rect)
+	ticket.draw_rect(Rect2(Vector2(12,12),ticket.size-Vector2(24,24)),Color.TRANSPARENT,false,1.5)
+	St.bunting(ticket,Vector2(36,23),Vector2(ticket.size.x-36,23),11,9,12,0)
+	for i in 9:
+		var y := 78.0+i*49
+		if y < ticket.size.y-45:
+			ticket.draw_circle(Vector2(12,y),3,St.WOOD)
+			ticket.draw_circle(Vector2(ticket.size.x-12,y),3,St.WOOD)
+	var stamp := Vector2(ticket.size.x-49,ticket.size.y-49)
+	ticket.draw_arc(stamp,23,0,TAU,36,St.CORAL,2,true)
+	St.text(ticket,stamp+Vector2(-15,5),"01",14,St.CORAL,"title",600)
+	ticket.draw_line(Vector2(28,ticket.size.y-31),Vector2(ticket.size.x-28,ticket.size.y-31),St.PAPER_DARK,2,true)
+
 func mode_button(parent:Control, caption:String, subtitle:String, icon_name:String, mode:String, fill:Color) -> Button:
 	var b := button(parent,"",open_setup.bind(mode),76)
 	b.custom_minimum_size.x = 232
@@ -451,7 +485,13 @@ func layout_menu():
 	var compact := w < 1080
 	hero.visible = not menu_panel.visible or not compact
 	choices.visible = not menu_panel.visible
-	hero.position = Vector2(margin,maxf(18,(h-hero.get_combined_minimum_size().y)*0.48))
+	var stage_w := minf(610,w*0.49)
+	var stage_h := minf(550,h-140)
+	ticket.position = Vector2(margin-20,maxf(40,(h-stage_h)*0.5-8))
+	ticket.size = Vector2(stage_w,stage_h)
+	ticket.queue_redraw()
+	hero.position = Vector2(margin+18,ticket.position.y+27)
+	hero.size = Vector2(stage_w-62,stage_h-54)
 	utility.position = Vector2(margin,h-utility.get_combined_minimum_size().y-24)
 	var panel_width := minf(528,w-2*margin)
 	var panel_height := minf(setup_content.get_combined_minimum_size().y + 50,h-100)
