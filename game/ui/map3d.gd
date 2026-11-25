@@ -297,7 +297,7 @@ func update(s:Dictionary, me:Vector2, yaw:float, show_mini:bool, show_big:bool):
 			k.box(Kit.at(wp.x, def[0] * 0.5, wp.y), Vector3(0.85, def[0], 0.85), hex(def[1]), 0.05)
 		structs.mesh = k.commit() if not k.is_empty() else null
 	# big map: whole neighbourhood, north up. Minimap: follows you and turns with the camera.
-	place(big_cam, Vector3(0, 0, 1.5), 0.0, 122.0)
+	place(big_cam, Vector3(0, 0, 1.5), 0.0, 94.0)
 	place(mini_cam, Vector3(me.x, 0, me.y), yaw, 58.0)
 	big_vp.render_target_update_mode = SubViewport.UPDATE_ONCE if show_big and Engine.get_process_frames() % 6 == 0 else SubViewport.UPDATE_DISABLED
 	mini_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if show_mini else SubViewport.UPDATE_DISABLED

@@ -120,6 +120,7 @@ func _ready():
 	ui.action.connect(on_ui_action)
 	ui.build_pick.connect(func(k): set_build(k))
 	ui.rematch.connect(rematch)
+	ui.close_map.connect(func(): if map_open: toggle_map())
 	multiplayer.peer_disconnected.connect(func(id):
 		if mode == "host": sim.leave(id))
 	multiplayer.connected_to_server.connect(func(): register.rpc_id(1, chosen_role, chosen_name, profile.rank(chosen_role), version()))
