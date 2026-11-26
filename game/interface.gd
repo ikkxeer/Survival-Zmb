@@ -586,52 +586,127 @@ func build_hud():
 	close.focus_mode = Control.FOCUS_NONE
 	board.visible = false
 
+var build_icons := []          # 3D portraits of each defence, set by main
+var build_sel := -1
+var build_costs := []
+var build_mat := 0
+var build_info:Label
+var build_title:Label
+var build_stats:Label
+var build_row:HBoxContainer
+
 func build_buildbar():
+	## A hotbar of cards (3D photo, key, name, cost) with an info strip for the
+	## selected one. The chosen card lifts up; ones you cannot afford are greyed.
 	hud.add_child(build_bar)
-	build_bar.add_theme_stylebox_override("panel", paper_box(St.PAPER, 22, 12))
-	anchor(build_bar, 0.5, 1.0, Vector2(0, -192))
-	build_bar.custom_minimum_size = Vector2(1060, 0)
-	var col := vbox(build_bar, 8)
-	var row := hbox(col, 8)
-	for i in Data.STRUCTURES.size():
-		var b := Button.new()
-		b.custom_minimum_size = Vector2(108, 70)
-		b.toggle_mode = true
-		b.focus_mode = Control.FOCUS_NONE
-		b.pressed.connect(func(): build_pick.emit(i))
-		row.add_child(b)
-		var inner := vbox(b, 0)
-		inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		inner.offset_top = 5
-		inner.offset_left = 6
-		var k := label(inner, "%d · %s" % [i + 1, Data.STRUCTURES[i].name], 14, St.INK)
-		k.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		k.custom_minimum_size.x = 96
-		var cost := label(inner, "", 14, St.INK)
-		build_cards.append([b, cost])
-	# the last card is not a defence: it takes things down and gives half back
-	var db := Button.new()
-	db.custom_minimum_size = Vector2(108, 70)
-	db.toggle_mode = true
-	db.focus_mode = Control.FOCUS_NONE
-	db.add_theme_stylebox_override("normal", box(St.CORAL.lightened(0.55), 14, 12, St.INK, 3))
-	db.add_theme_stylebox_override("hover", box(St.CORAL.lightened(0.3), 14, 12, St.INK, 3))
-	db.add_theme_stylebox_override("pressed", box(St.CORAL, 14, 12, St.INK, 3))
-	db.pressed.connect(func(): build_pick.emit(Data.STRUCTURES.size()))
-	row.add_child(db)
-	var dinner := vbox(db, 0)
-	dinner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dinner.offset_top = 5
-	dinner.offset_left = 6
-	var dk := label(dinner, "9 · Desmontar", 14, St.INK)
-	dk.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	dk.custom_minimum_size.x = 96
-	build_cards.append([db, label(dinner, "X · ½ vuelve", 13, St.INK_SOFT)])
+	build_bar.add_theme_stylebox_override("panel", paper_box(St.PAPER, 24, 14))
+	anchor(build_bar, 0.5, 1.0, Vector2(0, -12))
+	var col := vbox(build_bar, 10)
+	# info strip: name, description, stats, context hint
+	var info := hbox(col, 14)
+	var text := vbox(info, 2)
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	build_title = title(text, "", St.INK, 24)
+	build_info = label(text, "", 15, St.INK_SOFT)
+	build_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	build_info.custom_minimum_size.x = 600
+	build_stats = label(text, "", 14, St.INK)
+	build_stats.add_theme_font_override("font", St.font("body", 850))
 	col.add_child(build_hint)
 	build_hint.add_theme_font_size_override("font_size", 15)
-	build_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	build_hint.add_theme_color_override("font_color", Color("b8473f"))
 	build_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	build_hint.custom_minimum_size.x = 600
+	build_row = hbox(col, 8)
+	build_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	for i in Data.STRUCTURES.size() + 1:
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(94, 128)
+		b.focus_mode = Control.FOCUS_NONE
+		for st in ["normal", "hover", "pressed", "hover_pressed", "disabled"]: b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+		b.pressed.connect(func():
+			action.emit("ui_click", [])
+			build_pick.emit(i))
+		build_row.add_child(b)
+		var card := Control.new()
+		card.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.draw.connect(draw_build_card.bind(card, b, i))
+		b.add_child(card)
+		build_cards.append([b, card])
+	# controls row
+	var keys := hbox(col, 16)
+	keys.alignment = BoxContainer.ALIGNMENT_CENTER
+	for item in [["Clic", "colocar"], ["F", "mejorar"], ["9 · X", "desmontar"], ["1–8 · rueda", "elegir"], ["B · clic dcho.", "salir"]]:
+		var chip := hbox(keys, 6)
+		var kp := panel(chip, St.CARD, 8, 6)
+		var kl := label(kp, item[0], 13, St.INK)
+		kl.add_theme_font_override("font", St.font("title", 600))
+		label(chip, item[1], 13, St.INK_SOFT)
 	build_bar.visible = false
+
+func draw_build_card(c:Control, b:Button, i:int):
+	var demolish := i >= Data.STRUCTURES.size()
+	var sel := i == build_sel
+	var hover := b.is_hovered()
+	var cost:int = build_costs[i] if i < build_costs.size() else 0
+	var afford := demolish or build_mat >= cost
+	var lift := -12.0 if sel else (-4.0 if hover else 0.0)
+	var r := Rect2(Vector2(2, 14 + lift), Vector2(c.size.x - 4, c.size.y - 16))
+	if sel: c.draw_circle(r.get_center() + Vector2(0, -20), 46, Color(St.SUN, 0.25))
+	var accent := St.CORAL if demolish else Color(["c98a55", "9aa7b8", "4cc9c0", "e85d5d", "f2c14e", "fff2c0", "c98a55", "e8463c"][i])
+	var fill := St.SUN.lightened(0.55) if sel else (St.CARD if afford else St.PAPER_DARK)
+	if demolish: fill = St.CORAL.lightened(0.35 if sel else 0.6)
+	c.draw_style_box(St.card(fill, 16, St.SUN.darkened(0.3) if sel else St.INK, 4 if sel else 2, 5 if sel else 3), r)
+	# coloured band at the top of the card
+	c.draw_style_box(St.card(Color(accent, 0.55), 12, Color(0, 0, 0, 0), 0, 0), Rect2(r.position + Vector2(5, 5), Vector2(r.size.x - 10, 58)))
+	# the 3D photo, or a hammer for demolishing
+	var photo := Rect2(r.position + Vector2(r.size.x * 0.5 - 42, -14), Vector2(84, 84))
+	if demolish:
+		St.icon(c, "hammer", photo.get_center() + Vector2(0, 6), 52)
+	elif i < build_icons.size():
+		c.draw_texture_rect(build_icons[i], photo, false, Color(1, 1, 1, 1.0 if afford else 0.55))
+	# key cap
+	St.keycap(c, r.position + Vector2(15, 16), str(i + 1), 24, St.SUN if sel else St.CARD)
+	# name
+	var name := "Desmontar" if demolish else String(Data.STRUCTURES[i].name)
+	if name == "Banco de taller": name = "Banco"
+	if name == "Mina de petardos": name = "Mina"
+	St.text(c, Vector2(r.position.x, r.position.y + 84), name, 14, St.INK if afford else St.INK_SOFT, "title", 600, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+	# cost chip
+	var chip := Rect2(Vector2(r.position.x + r.size.x * 0.5 - 30, r.end.y - 22), Vector2(60, 22))
+	if demolish:
+		St.text(c, Vector2(chip.position.x - 10, chip.position.y + 16), "+½ coste", 13, Color("8a2f2a"), "body", 900, HORIZONTAL_ALIGNMENT_CENTER, chip.size.x + 20)
+	else:
+		c.draw_style_box(St.card(St.CARD if afford else St.CORAL.lightened(0.5), 11, St.INK, 2, 0), chip)
+		St.icon(c, "plank", chip.position + Vector2(16, 11), 18)
+		St.text(c, chip.position + Vector2(28, 16), str(cost), 15, St.INK if afford else Color("a3302a"), "title", 600)
+
+func refresh_build_bar(s:Dictionary, local:Dictionary):
+	var sel:int = local.get("build", -1)
+	var costs:Array = local.get("costs", [])
+	var changed:bool = sel != build_sel or costs != build_costs or s.mat != build_mat
+	build_sel = sel
+	build_costs = costs
+	build_mat = s.mat
+	for c in build_cards: c[1].queue_redraw()
+	if not changed: return
+	if sel >= Data.STRUCTURES.size():
+		build_title.text = "Desmontar"
+		build_info.text = "Quita una construcción y devuelve la mitad de su coste, según lo dañada que esté. Úsalo para mover defensas a otro acceso."
+		build_stats.text = ""
+		build_stats.visible = false
+		return
+	var d:Dictionary = Data.STRUCTURES[sel]
+	build_title.text = d.name
+	build_info.text = d.desc
+	var bits := ["Resistencia %d" % int(d.hp[0]), "%d nivel%s" % [d.hp.size(), "" if d.hp.size() == 1 else "es"]]
+	if d.block: bits.append("bloquea el paso")
+	if d.vault: bits.append("se puede saltar")
+	if d.electric: bits.append("necesita corriente en un apagón")
+	if sel == Data.S_TURRET: bits.append("apilable hasta triple")
+	build_stats.text = " · ".join(bits)
+	build_stats.visible = true
 
 func build_shop():
 	hud.add_child(shop)
@@ -911,15 +986,9 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 	# build bar
 	build_bar.visible = local.get("build", -1) >= 0
 	if build_bar.visible:
-		for i in build_cards.size():
-			var b:Button = build_cards[i][0]
-			b.button_pressed = i == local.build
-			if i >= local.costs.size(): continue
-			var cost:int = local.costs[i]
-			var lab:Label = build_cards[i][1]
-			lab.text = "%d" % cost
-			lab.add_theme_color_override("font_color", St.INK if s.mat >= cost else St.CORAL)
+		refresh_build_bar(s, local)
 		build_hint.text = local.get("build_hint", "")
+		build_hint.visible = build_hint.text != ""
 	if board.visible and Engine.get_process_frames() % 15 == 0: refresh_board(false)
 	if shop.visible: refresh_shop()
 	if map_panel.visible:

@@ -158,6 +158,38 @@ func make_portraits():
 	mats.frame(Vector3(0, 0.45, 0), 5.2, -35.0, -30.0)
 	ui.canvas.house_tex = house_portrait.get_texture()
 	ui.canvas.mat_tex = mats.get_texture()
+	# a little 3D photo of every defence for the build bar
+	var icons := []
+	for k in Data.STRUCTURES.size():
+		var pt := Portrait.new(160)
+		add_child(pt)
+		var mesh:Mesh = actors.wall_mesh(1, 2 | 8) if k == Data.S_WALL else actors.structure_mesh(k, 1 if Data.STRUCTURES[k].hp.size() > 1 else 0)
+		pt.add_mesh(mesh, Transform3D(), actors.toon)
+		var h := 0.75
+		var dist := 3.4
+		match k:
+			Data.S_TURRET:
+				pt.add_mesh(actors.turret_head(0), Transform3D(Basis(Vector3.UP, 0.6), Vector3(0, 0.88, 0)), actors.toon)
+				pt.add_mesh(actors.turret_head(1), Transform3D(Basis(Vector3.UP, 0.6), Vector3(0, 1.4, 0)), actors.toon)
+				h = 1.05
+				dist = 4.4
+			Data.S_LIGHT:
+				pt.add_mesh(actors.light_head(), Transform3D(Basis(Vector3.UP, 2.4).rotated(Vector3.RIGHT, -0.4), Vector3(0, 3.1, 0)), actors.toon)
+				h = 1.8
+				dist = 7.0
+			Data.S_COIL:
+				pt.add_mesh(actors.coil_top(), Transform3D(Basis(), Vector3(0, 1.45, 0)), actors.glow_mat)
+				h = 0.85
+				dist = 3.9
+			Data.S_WALL:
+				h = 1.0
+				dist = 4.4
+			Data.S_MINE:
+				h = 0.2
+				dist = 1.7
+		pt.frame(Vector3(0, h, 0), dist, -30.0, -22.0)
+		icons.append(pt.get_texture())
+	ui.build_icons = icons
 
 func make_crosshair() -> ImageTexture:
 	var img := Image.create(40, 40, false, Image.FORMAT_RGBA8)
@@ -1125,8 +1157,7 @@ func _process(dt:float):
 			local.build_hint = ("Clic: desmontar %s · recuperas %d %s" % [Data.STRUCTURES[info[0]].name.to_lower(), refund, "material" if refund == 1 else "materiales"]) if near else "Acércate más para desmontarla"
 		else:
 			actors.show_ghost(-1, Vector3.ZERO, false)
-			local.build_hint = "Desmontar: apunta a una construcción y haz clic. Recuperas la mitad de su coste según su estado."
-		local.build_hint += "\n1–8: volver a construir · Clic derecho / B: salir"
+			local.build_hint = "Apunta a una construcción para desmontarla"
 	elif build_kind >= 0 and not p.is_empty():
 		var cell := sim.nav.cell_of(cursor)
 		var c := sim.nav.center(cell) if cell >= 0 else cursor
@@ -1136,19 +1167,21 @@ func _process(dt:float):
 		var costs := []
 		for k in Data.STRUCTURES.size(): costs.append(client_cost(p, k))
 		local.costs = costs
-		var hint := "%s: %s" % [Data.STRUCTURES[build_kind].name, Data.STRUCTURES[build_kind].desc]
+		var hint := ""
+		if s.mat < cost: hint = "Faltan materiales: tienes %d y cuesta %d" % [s.mat, cost]
+		elif cell >= 0 and c.distance_to(local_pos) > 9.5 and sim.nav.skind[cell] < 0: hint = "Demasiado lejos: acércate para construir aquí"
 		if cell >= 0 and sim.nav.skind[cell] >= 0:
 			var info = actors.struct_info.get(cell)
 			if info != null:
 				var def:Dictionary = Data.STRUCTURES[info[0]]
 				var up := "al máximo" if info[1] >= def.hp.size() - 1 else "F mejorar (%d mat.)" % def.up[info[1]]
-				hint = "%s nivel %d · %s · X desmontar" % [def.name, info[1] + 1, up]
+				hint = "Aquí hay %s de nivel %d · %s · X desmontar" % [def.name.to_lower(), info[1] + 1, up]
 				actors.show_ghost(-1, Vector3.ZERO, false)
 				if info[0] == Data.S_TURRET and build_kind == Data.S_TURRET:
 					hint = "Torreta %s · clic: apilar otra encima (%d mat.)" % [["simple", "doble", "triple"][info[1]], def.up[info[1]]] if info[1] < 2 else "Torreta triple · al máximo"
 		elif not sim.in_territory(c):
 			hint = "Fuera de tu territorio: construye cerca de la casa o de una propiedad conquistada"
-		local.build_hint = hint + "\nClic: colocar · 1–8 o rueda: elegir · 9 o X: desmontar · Clic derecho / B: salir"
+		local.build_hint = hint
 	var ui_k := 1.0 / maxf(0.1, get_tree().root.content_scale_factor)
 	# the system cursor hides during play: the HUD draws the crosshair instead
 	var playing:bool = not paused and not shop_open and not map_open and not ui.board.visible and not ui.settings_panel.visible and not ui.help_panel.visible and s.ph != P.OVER and not p.is_empty()
