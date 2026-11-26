@@ -163,6 +163,9 @@ func build_bank():
 	bank.hitmark = wav(synth(0.06, func(t, i): return (sin(TAU * 2300 * t) * 0.6 + sin(TAU * 3400 * t) * 0.3) * exp(-70 * t)))
 	bank.killmark = wav(mix(synth(0.08, func(t, i): return sin(TAU * 1900 * t) * exp(-50 * t) * 0.6), mix(synth(0.18, func(t, i): return sin(TAU * (220 - 300 * t) * t) * exp(-20 * t) * 0.7), synth(0.08, func(t, i): return sin(TAU * 2800 * t) * exp(-45 * t) * 0.4), 0.05), 0.0))
 	bank.dry = wav(synth(0.05, func(t, i): return (noise() * 0.5 + sin(TAU * 1200 * t) * 0.5) * exp(-80 * t)))
+	# earth cracking open and being clawed through
+	bank.dig = wav(mix(lowpass(synth(0.6, func(t, i): return noise() * (0.6 + 0.4 * signf(sin(TAU * 18 * t))) * exp(-4 * t) * 0.9), 0.2), synth(0.5, func(t, i): return sin(TAU * (70 - 40 * t) * t) * exp(-6 * t) * 0.6)))
+	bank.crack = wav(mix(lowpass(synth(0.35, func(t, i): return noise() * exp(-12 * t)), 0.5), synth(0.25, func(t, i): return sin(TAU * (55 + 30 * sin(TAU * 9 * t)) * t) * exp(-9 * t) * 0.8)))
 	# the Plañidera: a long falling wail with vibrato, and the midnight bell
 	bank.wail = wav(lowpass(synth(1.8, func(t, i):
 		var f := 760.0 * pow(0.55, t / 1.8) * (1.0 + 0.035 * sin(TAU * 6.5 * t))

@@ -386,7 +386,7 @@ Estilo de colores suaves y volúmenes redondeados, inspirado en los juegos de Ni
   - **Andar propio:** cada tipo camina a su manera, con brazos y cabeza flojos y espasmos.
   - **Ataque:** se echan atrás, levantan los brazos y se lanzan.
   - **Impactos:** se encogen en la dirección del disparo.
-  - **Aparecer:** salen arañando del suelo.
+  - **Aparecer:** salen de la tierra. El suelo se agrieta y retumba, asoman primero las manos, luego la cabeza; se arrastran agarrándose al borde, sacan una pierna y se sacuden la tierra. Quedan un agujero y un montículo que se asientan poco a poco. Mientras salen no atacan, pero ya se les puede disparar.
   - **Morir:** caen y se hunden en vez de desaparecer.
 
 </details>

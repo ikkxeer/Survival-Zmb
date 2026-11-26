@@ -35,6 +35,7 @@ var fx                       # effects and audio, set by main: footsteps, dust, 
 var audio
 var apply_count := 0
 var dying := []              # zombies playing their death fall
+var mounds := []             # [node, age]: holes left where brotados climbed out
 var listener_pos := Vector3.ZERO
 var beacons := []
 var drops := {}
@@ -1266,6 +1267,8 @@ func clear_all():
 	ghost.visible = false
 	for z in dying: z.queue_free()
 	dying.clear()
+	for m in mounds: m[0].queue_free()
+	mounds.clear()
 	apply_count = 0
 
 # ================================================================== motion effects
@@ -1306,6 +1309,66 @@ func rig_fx(name:String, pos:Vector3, r:Rig):
 		"slam":
 			for i in 3: fx.burst("dust", pos + Vector3(randf_range(-0.6, 0.6), 0, randf_range(-0.6, 0.6)))
 			if pos.distance_to(listener_pos) < 14.0: fx.shake(0.2 if r.kind == 7 else 0.08)
+
+func mound_mesh() -> ArrayMesh:
+	## Broken earth: a dark hole, a ring of turned soil and cracks running out over the street.
+	return cached("mound", func(k:Kit):
+		k.cylinder(Kit.at(0, 0.015, 0), 0.62, 0.66, 0.03, C("2a1c14"), 18)
+		for i in 11:
+			var a := TAU * i / 11.0 + 0.2 * sin(i * 3.1)
+			var r := 0.72 + 0.1 * sin(i * 1.7)
+			k.sphere(Kit.at(cos(a) * r, 0.04, sin(a) * r), Vector3(0.2, 0.09 + 0.04 * fmod(i * 0.618, 1.0), 0.16), C(["6b4a32", "7d5a3c", "5c412c"][i % 3]), 7, 4, 0.3, 0.4)
+		for i in 7:
+			var a := TAU * i / 7.0 + 0.5
+			var l := 0.7 + 0.5 * fmod(i * 0.37, 1.0)
+			k.box(Kit.rot(cos(a) * (0.75 + l * 0.5), 0.012, sin(a) * (0.75 + l * 0.5), -a + PI * 0.5), Vector3(0.05, 0.015, l), C("2e211a"), 0.0)
+			k.box(Kit.rot(cos(a + 0.18) * (1.1 + l * 0.6), 0.012, sin(a + 0.18) * (1.1 + l * 0.6), -a + PI * 0.5 - 0.5), Vector3(0.035, 0.012, l * 0.5), C("2e211a"), 0.0)
+		for i in 5:
+			var a := TAU * i / 5.0 + 1.1
+			k.box(Kit.rot(cos(a) * 1.15, 0.05, sin(a) * 1.15, a, 0.3, 0.2), Vector3(0.16, 0.1, 0.14), C("6b4a32"), 0.04)
+	)
+
+func spawn_mound(at:Vector3, k:float):
+	var mi := MeshInstance3D.new()
+	mi.mesh = mound_mesh()
+	mi.material_override = toon
+	mi.position = at
+	mi.rotation.y = randf() * TAU
+	mi.set_meta("k", k)
+	mi.scale = Vector3.ONE * 0.01
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+	mounds.append([mi, 0.0])
+	while mounds.size() > 40:
+		mounds[0][0].queue_free()
+		mounds.pop_front()
+
+func emerge_effects(z:Rig, was:float, at:Vector3):
+	## Cracks and rumbles, then earth flying as hands, head and body break the surface.
+	if fx == null: return
+	var e := z.emerge
+	var ground := Vector3(at.x, 0.05, at.z)
+	var k := z.rise_scale()
+	var near := ground.distance_to(listener_pos) < 24.0
+	var crossed := func(mark:float) -> bool: return was < mark and e >= mark
+	if crossed.call(0.0001):
+		fx.burst("dust", ground)
+		if near: audio.play("crack", ground, -8 + 4 * (k - 1.0), randf_range(0.85, 1.1) / sqrt(k))
+	if crossed.call(0.14):
+		# the hands punch through
+		for i in int(2 + k): fx.burst("clods", ground + Vector3(randf_range(-0.3, 0.3), 0, randf_range(-0.3, 0.3)) * k)
+		fx.burst("dust", ground)
+		if near: audio.play("dig", ground, -6 + 4 * (k - 1.0), randf_range(0.9, 1.1) / sqrt(k))
+		if k > 2.0: fx.shake(0.3 if ground.distance_to(listener_pos) < 16.0 else 0.1)
+	if e > 0.14 and e < 0.9 and fmod(e * z.emerge_dur, 0.16) < fmod(was * z.emerge_dur, 0.16):
+		fx.burst("clods", ground + Vector3(randf_range(-0.4, 0.4), 0, randf_range(-0.4, 0.4)) * k)
+		if randf() < 0.5: fx.burst("dust", ground)
+	if crossed.call(0.36) and near: audio.play("dig", ground, -9, randf_range(1.0, 1.2) / sqrt(k))
+	if crossed.call(0.93):
+		# hauled out: the last of the earth sprays off
+		for i in int(2 + k): fx.burst("clods", ground + Vector3(0, 0.6 * k, 0))
+		fx.burst("dust", ground)
+		if near: audio.play("land", ground, -8, 0.8 / sqrt(k))
 
 func kill_zombie(key:int, z:Rig):
 	## The brotado falls away from the nearest hero instead of vanishing.
@@ -1378,10 +1441,11 @@ func apply(s:Dictionary, me:int):
 			z.spawn_t = 0.0
 			hook(z)
 			# brotados claw their way out of the ground (not the ones already there when you join)
-			if apply_count > 3 and int(en[i + 1]) != 8:
+			if (apply_count > 3 or int(en[i + 6]) & 1024 != 0) and int(en[i + 1]) != 8:
 				z.emerge = 0.0
-				z.position.y = -1.6
-				if fx: fx.burst("dust", z.position + Vector3(0, 1.6, 0))
+				z.emerge_dur = Data.RISE_TIME_BOSS if int(en[i + 1]) == 7 else Data.RISE_TIME
+				z.position.y = z.emerge_height()
+				spawn_mound(z.position * Vector3(1, 0, 1), z.rise_scale())
 			horde[key] = z
 		horde_target[key] = Vector3(en[i + 2], 0, en[i + 3])
 		horde_info[key] = [en[i + 4], en[i + 5], int(en[i + 6]), en[i + 7]]
@@ -1671,9 +1735,11 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		z.rotation.y = z.yaw
 		z.spawn_t += dt
 		if z.emerge < 1.0:
-			z.emerge = minf(1.0, z.emerge + dt / 0.8)
-			flat.y = lerpf(-1.6, 0.0, Rig.ease_out_back(z.emerge))
-			if fmod(z.spawn_t, 0.2) < dt and fx: fx.burst("dust", Vector3(flat.x, 0.05, flat.z))
+			var was := z.emerge
+			z.emerge = minf(1.0, z.emerge + dt / z.emerge_dur)
+			flat = Vector3(before.x, 0, before.z)     # it stays in its hole until it is out
+			flat.y = z.emerge_height()
+			emerge_effects(z, was, flat)
 		z.position = flat
 		z.animate_zombie(dt, t, z.ground_vel if z.emerge >= 1.0 else Vector2.ZERO, info[2], info[3])
 		if info[3] > 0.05:
@@ -1685,6 +1751,18 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		if z.bar.visible:
 			z.bar.set_instance_shader_parameter("value", hp)
 			z.bar.set_instance_shader_parameter("fill", Color("ff6b6b") if info[2] & 8 == 0 else Color("ffd166"))
+	for i in range(mounds.size() - 1, -1, -1):
+		var m:Array = mounds[i]
+		m[1] += dt
+		var node:Node3D = m[0]
+		var a:float = m[1]
+		# heaves up as the ground cracks, stays a while, then settles back flat
+		var grow := clampf(a / 0.35, 0.0, 1.0)
+		node.scale = Vector3(node.get_meta("k"), node.get_meta("k") * (0.3 + 0.7 * Rig.ease_out_back(grow)), node.get_meta("k")) * (0.6 + 0.4 * grow)
+		node.position.y = -0.35 * smoothstep(9.0, 12.0, a)
+		if a > 12.0:
+			node.queue_free()
+			mounds.remove_at(i)
 	for i in range(dying.size() - 1, -1, -1):
 		var dz:Rig = dying[i]
 		if dz.animate_death(dt):

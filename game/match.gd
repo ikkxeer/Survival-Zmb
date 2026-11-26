@@ -945,6 +945,12 @@ func new_enemy(kind:int, at:Vector2, goal:String, night:bool) -> Dictionary:
 	enemies[serial] = e
 	return e
 
+func rise(e:Dictionary) -> Dictionary:
+	## Fresh brotados claw out of the ground first: still, harmless, but they can be shot.
+	e.rise = Data.RISE_TIME_BOSS if e.k == Data.BOSS else Data.RISE_TIME
+	e.face = (Map.BASE_CENTER - e.p).normalized()
+	return e
+
 func spawn_guard(site:int):
 	var b:Vector2 = Map.SITES[site].beacon
 	for tries in 12:
@@ -1183,7 +1189,7 @@ func spawn_tick(dt:float):
 	log_line({"evento":"grupo", "frente":Map.FRONT_NAMES[front], "tamano":group, "asalto":assault_index})
 	for i in group:
 		var kind:int = queue.pop_front()
-		var e := new_enemy(kind, front_point(front), pick_goal(), true)
+		var e := rise(new_enemy(kind, front_point(front), pick_goal(), true))
 		if kind == Data.BOSS:
 			e.goal = "base"
 			announce("¡Un Gigantón avanza por el %s!" % Map.FRONT_NAMES[front])
@@ -1406,7 +1412,7 @@ func tick_phase(dt:float):
 				var day := 0
 				for e in enemies.values(): if not e.night and not e.guard: day += 1
 				if day < 2 + wave / 2:
-					new_enemy(0, front_point(rng.randi_range(0, 3)), "base", false)
+					rise(new_enemy(0, front_point(rng.randi_range(0, 3)), "base", false))
 			if clock <= 0: start_night()
 		P.NIGHT:
 			if finale:
@@ -1771,7 +1777,7 @@ func event_drop(at:Vector2 = Vector2.INF, rich:bool = false):
 func event_horde():
 	var front := rng.randi_range(0, 3)
 	for i in 4 + wave / 2:
-		new_enemy(0 if rng.randf() < 0.7 else 1, front_point(front), "base", false)
+		rise(new_enemy(0 if rng.randf() < 0.7 else 1, front_point(front), "base", false))
 	announce("Una horda errante entra por el %s" % Map.FRONT_NAMES[front])
 
 # ------------------------------------------------------------------ world
@@ -1939,6 +1945,9 @@ func tick_enemies(dt:float):
 		e.cd = maxf(-1.0, e.cd - dt)
 		e.atk = maxf(0, e.atk - dt)
 		e.kv = e.kv.move_toward(Vector2.ZERO, 22.0 * dt)
+		if e.get("rise", 0.0) > 0:
+			e.rise -= dt
+			continue
 		if e.burn > 0:
 			e.burn -= dt
 			damage_enemy(key, 7.0 * dt, e.burner)
@@ -2155,7 +2164,7 @@ func boss_logic(e:Dictionary, dt:float):
 		e.summon = 11.0
 		for i in 3:
 			var at:Vector2 = e.p + Vector2.from_angle(TAU * i / 3.0) * 2.2
-			if nav.blocked_cell(at, 0.4, 1) == -1: new_enemy(0, at, "base", true)
+			if nav.blocked_cell(at, 0.4, 1) == -1: rise(new_enemy(0, at, "base", true))
 		emit("summon", [e.p.x, e.p.y])
 	e.slam -= dt
 	if e.slam <= 0 and e.wind <= 0:
@@ -2222,6 +2231,7 @@ func snapshot() -> Dictionary:
 		if e.burn > 0: flags |= 128
 		if e.get("rage", 0.0) > 0: flags |= 256
 		if e.get("wailing", 0.0) > 0: flags |= 512
+		if e.get("rise", 0.0) > 0: flags |= 1024
 		en[i] = key
 		en[i + 1] = e.k
 		en[i + 2] = e.p.x

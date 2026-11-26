@@ -327,6 +327,27 @@ func _ready():
 		p.scale_amount_max = 1.2
 		p.mesh = small_box(Vector3(0.09, 0.09, 0.09), Color("9be36a"), false)
 	)
+	make_pool("clods", 24, func(p:CPUParticles3D):
+		# lumps of earth thrown up as a brotado breaks the surface
+		p.amount = 9
+		p.lifetime = 0.9
+		p.explosiveness = 0.9
+		p.spread = 40.0
+		p.direction = Vector3(0, 1, 0)
+		p.initial_velocity_min = 2.5
+		p.initial_velocity_max = 5.5
+		p.gravity = Vector3(0, -14, 0)
+		p.angular_velocity_min = -500
+		p.angular_velocity_max = 500
+		p.scale_amount_min = 0.6
+		p.scale_amount_max = 1.5
+		p.mesh = small_box(Vector3(0.14, 0.11, 0.13), Color.WHITE, false)
+		var g := Gradient.new()
+		g.colors = PackedColorArray([Color("6b4a32"), Color("8a6342"), Color("54402c"), Color("7d5a3c"), Color("5fae5e")])
+		g.offsets = PackedFloat32Array([0, 0.3, 0.55, 0.8, 0.95])
+		g.interpolation_mode = Gradient.GRADIENT_INTERPOLATE_CONSTANT
+		p.color_initial_ramp = g
+	)
 	make_pool("bits", 8, func(p:CPUParticles3D):
 		# odds and ends thrown out while someone rummages: cans, screws, rags, coins
 		p.amount = 6
