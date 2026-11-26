@@ -415,11 +415,13 @@ func draw_badge():
 	if building: draw_arc(bc, 28 + 2 * sin(t * 4.0), 0, TAU, 32, Color(S.SUN, 0.7), 2.5, true)
 	S.icon(self, "hammer", bc + Vector2(-1, -2), 30)
 	S.keycap(self, bc + Vector2(18, 16), key("build", "B"), 22, S.SUN if not building else S.CARD)
-	var lbl := "Salir (%s)" % key("build", "B") if building else "Construir"
-	var lw := S.text_width(lbl, 15) + 20
-	var lr := Rect2(bc + Vector2(34, -16), Vector2(lw, 28))
-	draw_style_box(S.card(S.PAPER, 10, S.INK, 2, 3), lr)
-	S.text(self, lr.position + Vector2(10, 20), lbl, 15, S.INK, "body", 900)
+	# while building, the bar itself explains how to leave and would sit on top of this label
+	if not building:
+		var lbl := "Construir"
+		var lw := S.text_width(lbl, 15) + 20
+		var lr := Rect2(bc + Vector2(34, -16), Vector2(lw, 28))
+		draw_style_box(S.card(S.PAPER, 10, S.INK, 2, 3), lr)
+		S.text(self, lr.position + Vector2(10, 20), lbl, 15, S.INK, "body", 900)
 	# items
 	var x := c.x + 70
 	var y := c.y + 34

@@ -82,6 +82,7 @@ var shop_coins := Label.new()
 var shop_sig := ""
 var board_sig := ""
 var map_panel := PanelContainer.new()
+var map_closing := false    # shrinking back into the minimap
 var map_info := Label.new()
 var minimap:Control
 var minimap_panel := PanelContainer.new()
@@ -1082,21 +1083,46 @@ func build_map():
 		close_map.emit())
 	deco.add_child(close_button)
 	deco.resized.connect(func(): close_button.position = Vector2(deco.size.x - 30, -18))
-	map_panel.visibility_changed.connect(func():
-		if not map_panel.visible: return
-		# grow out of the minimap in the top-right corner
-		if map_tween: map_tween.kill()
-		var full := BIG_MAP + Vector2(20, 14)
-		map_panel.pivot_offset = Vector2(full.x, 0)
-		map_panel.scale = Vector2(0.2, 0.2)
-		map_panel.modulate.a = 0.0
-		var from := minimap_panel.get_global_rect()
-		var rest := get_viewport().get_visible_rect().size * 0.5 / maxf(0.1, get_tree().root.content_scale_factor) - full * 0.5
-		map_panel.position = rest + (from.end - Vector2(0, from.size.y) - (rest + Vector2(full.x, 0))) * 0.6
+	map_panel.visible = false
+
+func map_poses() -> Array:
+	## [resting position, position tucked against the minimap] of the big map.
+	var full := BIG_MAP + Vector2(20, 14)
+	map_panel.pivot_offset = Vector2(full.x, 0)
+	var from := minimap_panel.get_global_rect()
+	var rest := get_viewport().get_visible_rect().size * 0.5 / maxf(0.1, get_tree().root.content_scale_factor) - full * 0.5
+	return [rest, rest + (from.end - Vector2(0, from.size.y) - (rest + Vector2(full.x, 0))) * 0.6]
+
+func show_map(open:bool):
+	## The big map grows out of the minimap in the top-right corner and shrinks back into it.
+	if open == (map_panel.visible and not map_closing): return
+	if map_tween: map_tween.kill()
+	var poses := map_poses()
+	if open:
+		map_closing = false
+		if not map_panel.visible:
+			map_panel.scale = Vector2(0.2, 0.2)
+			map_panel.modulate.a = 0.0
+			map_panel.position = poses[1]
+		map_panel.visible = true
 		map_tween = create_tween().set_parallel(true)
 		map_tween.tween_property(map_panel, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		map_tween.tween_property(map_panel, "position", rest, 0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		map_tween.tween_property(map_panel, "modulate:a", 1.0, 0.12))
+		map_tween.tween_property(map_panel, "position", poses[0], 0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		map_tween.tween_property(map_panel, "modulate:a", 1.0, 0.12)
+		return
+	if not map_panel.visible: return
+	map_closing = true
+	map_tween = create_tween().set_parallel(true)
+	map_tween.tween_property(map_panel, "scale", Vector2(0.2, 0.2), 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	map_tween.tween_property(map_panel, "position", poses[1], 0.18).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+	map_tween.tween_property(map_panel, "modulate:a", 0.0, 0.1).set_delay(0.08)
+	map_tween.chain().tween_callback(func():
+		map_closing = false
+		map_panel.visible = false)
+
+func hide_map_now():
+	if map_tween: map_tween.kill()
+	map_closing = false
 	map_panel.visible = false
 
 func build_pause():
@@ -1140,7 +1166,7 @@ func show_menu(v:bool):
 		over.visible = false
 		pause.visible = false
 		shop.visible = false
-		map_panel.visible = false
+		hide_map_now()
 
 func say(text:String, c:Color = St.SUN):
 	canvas.toast(text, c)
@@ -1361,7 +1387,7 @@ func weakest_access(s:Dictionary) -> String:
 
 func bigmap_world(pos:Vector2):
 	## World point under a screen position on the big map, or null outside it.
-	if not map_panel.visible or map_panel.scale.x < 0.98: return null
+	if not map_panel.visible or map_closing or map_panel.scale.x < 0.98: return null
 	var r := bigmap.get_global_rect()
 	if not r.has_point(pos): return null
 	return map3d.ground_at(true, pos - r.position)
