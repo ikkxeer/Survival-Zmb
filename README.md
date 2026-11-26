@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎆 La última verbena
+# La última verbena
 
 ### Supervivencia cooperativa en 3D · de 1 a 4 vecinos · un barrio español en fiestas
 
