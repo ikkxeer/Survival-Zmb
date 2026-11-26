@@ -75,6 +75,7 @@ var last_flash := 0.0           # zombies: last hit flash; heroes: last damage t
 var wind_was := false
 var strike_t := 9.0
 var emerge := 1.0                 # 0 → 1 while a brotado claws out of the ground
+var emerge_dur := 1.7
 var dying := -1.0
 var fall_dir := Vector2.ZERO
 var tinted := false
@@ -534,12 +535,79 @@ func animate_zombie(dt:float, t:float, vel:Vector2, flags:int, flash:float = 0.0
 		body.scale = Vector3(1.0 + 0.03 * sin(phase * 2.0), 1.0 - 0.02 * sin(phase * 2.0), 1.0 + 0.03 * sin(phase * 2.0))
 	else:
 		body.scale = Vector3.ONE
-	# clawing out of the ground
-	if emerge < 1.0:
-		var e := emerge
-		body.rotation.x += 0.6 * (1.0 - e)
-		arm_l.rotation.x = lerpf(-2.9 + sin(t * 14.0) * 0.4, arm_l.rotation.x, e)
-		arm_r.rotation.x = lerpf(-2.9 - sin(t * 14.0) * 0.4, arm_r.rotation.x, e)
+	if emerge < 1.0: emerge_pose(t)
+	elif tinted == false and dirt > 0.0:
+		dirt = 0.0
+		set_tint(Color.WHITE)
+		arm_l.scale = Vector3.ONE
+		arm_r.scale = Vector3.ONE
+
+# ================================================================== rising from the earth
+var dirt := 0.0
+
+func rise_scale() -> float:
+	return 2.3 if kind == 7 else (1.25 if kind == 2 else 1.0)
+
+func emerge_height() -> float:
+	## How deep the body still is. Hidden at first, then the hands break through,
+	## head and shoulders push up, and finally it hauls itself out with a little hop.
+	var e := emerge
+	var k := rise_scale()
+	var y := 0.0
+	if e < 0.14: y = -2.7
+	elif e < 0.36: y = lerpf(-2.2, -1.85, smoothstep(0.14, 0.32, e))
+	elif e < 0.7: y = lerpf(-1.85, -0.5, smoothstep(0.36, 0.7, e)) + sin(e * 60.0) * 0.025
+	elif e < 0.93:
+		var u := (e - 0.7) / 0.23
+		y = lerpf(-0.5, 0.0, u * u * (3.0 - 2.0 * u)) + sin(PI * u) * 0.18
+	return y * k
+
+func emerge_pose(t:float):
+	var e := emerge
+	# caked in earth, brushed clean in the last moment
+	var d := 1.0 - smoothstep(0.86, 1.0, e)
+	if absf(d - dirt) > 0.02 and not tinted:
+		dirt = d
+		set_tint(Color.WHITE.lerp(Color(0.74, 0.6, 0.47), d))
+	# arms reach far up through the earth so the hands break the surface first
+	var reach_s := lerpf(2.5, 1.0, smoothstep(0.36, 0.62, e))
+	arm_l.scale = Vector3(1, reach_s, 1)
+	arm_r.scale = Vector3(1, reach_s, 1)
+	if e < 0.36:
+		# the hands burst through first and claw at the air
+		var c := smoothstep(0.14, 0.24, e)
+		arm_l.rotation = Vector3(-3.05 + sin(t * 17.0) * 0.28 * c, 0, 0.18 + sin(t * 9.0) * 0.1)
+		arm_r.rotation = Vector3(-3.05 + sin(t * 17.0 + 1.7) * 0.28 * c, 0, -0.18 - sin(t * 8.0) * 0.1)
+		body.rotation = Vector3(-0.15, 0, sin(t * 6.0) * 0.08)
+		head.rotation = Vector3(-0.45, 0, 0)
+	elif e < 0.7:
+		# head and shoulders out: grab the ground and drag, one hand after the other
+		var u := smoothstep(0.36, 0.5, e)
+		var pull_l := sin(t * 7.5)
+		var pull_r := sin(t * 7.5 + PI)
+		arm_l.rotation = Vector3(lerpf(-3.0, -1.35 + pull_l * 0.55, u), 0, 0.35)
+		arm_r.rotation = Vector3(lerpf(-3.0, -1.35 + pull_r * 0.55, u), 0, -0.35)
+		body.rotation = Vector3(lerpf(-0.1, 0.55, u), sin(t * 4.0) * 0.15, sin(t * 7.5) * 0.18)
+		head.rotation = Vector3(lerpf(-0.4, 0.1, u) + sin(t * 11.0) * 0.06, sin(t * 3.0) * 0.4, sin(t * 5.0) * 0.15)
+	elif e < 0.93:
+		# palms pressed down, one knee up and over the rim
+		var u := smoothstep(0.7, 0.93, e)
+		arm_l.rotation = Vector3(lerpf(-1.1, 0.25, u), 0, 0.45)
+		arm_r.rotation = Vector3(lerpf(-1.1, 0.2, u), 0, -0.45)
+		leg_l.rotation = Vector3(-1.4 * sin(PI * u), 0, 0.1)
+		leg_r.rotation = Vector3(-0.3 * sin(PI * u), 0, -0.05)
+		body.rotation = Vector3(lerpf(0.6, 0.2, u), 0, sin(t * 6.0) * 0.08)
+		head.rotation = Vector3(0.2, 0, 0)
+	else:
+		# shake the earth off like a wet dog
+		var u := smoothstep(0.93, 1.0, e)
+		var sh := (1.0 - u)
+		body.rotation = Vector3(0.15, sin(t * 28.0) * 0.25 * sh, sin(t * 31.0) * 0.12 * sh)
+		head.rotation = Vector3(0.1, sin(t * 34.0) * 0.5 * sh, sin(t * 29.0) * 0.2 * sh)
+		arm_l.rotation = Vector3(-0.4, 0, 0.35 + sin(t * 30.0) * 0.3 * sh)
+		arm_r.rotation = Vector3(-0.4, 0, -0.35 - sin(t * 27.0) * 0.3 * sh)
+	arms = Vector2(arm_l.rotation.x, arm_r.rotation.x)
+	arms_v = Vector2.ZERO
 
 func animate_wailer(dt:float, t:float, vel:Vector2, moving:float, wailing:bool, stunned:bool):
 	## The Plañidera glides: no steps, the dress sways, the veil trails behind.
