@@ -2,6 +2,69 @@
 
 Objetivo de la próxima versión: que un grupo pueda descargar el juego, entrar en la misma casa y superar tres noches entendiendo por qué sobrevive o por qué pierde.
 
+## Propuestas de mejora
+
+Ideas para seguir mejorando el juego, ordenadas por lo que más aportaría. Esfuerzo: 🟢 pequeño (horas) · 🟡 medio (un par de días) · 🔴 grande (una semana o más).
+
+### 1 · Arreglar y pulir lo que ya hay
+
+- [ ] 🟡 **Equilibrar las noches 3 a 5.** La partida automática de 4 bots termina unas veces en la noche 3 y otras en la 8. Medir qué noche y qué mezcla de brotados rompe la defensa (Plañidera, cabezudos, rabia) y suavizar la curva, sobre todo con 2 jugadores. Hecho cuando 5 partidas seguidas de los bots lleguen a la noche 6.
+- [ ] 🟢 **Dificultad según el número de jugadores.** Ajustar la vida y el número de brotados por jugador conectado, y repartir mejor los frentes en solitario.
+- [ ] 🟢 **Que la barra de construcción no tape nada.** Ahora pisa la etiqueta «Salir (B)» del botón de construir; ocultarla mientras se construye o recolocar la barra.
+- [ ] 🟢 **Cerrar el plano con la misma animación con la que se abre** (se encoge hacia el minimapa).
+- [ ] 🟡 **Probar el tacto en tiempo real.** Jugar 20 minutos con ratón y teclado y anotar el retroceso, la apertura de la mira, la velocidad de la cámara y el paso de los personajes; ajustar las constantes de `main.gd` y `rig.gd`.
+- [ ] 🟢 **Avisos de salida de brotados.** Mostrar en el borde de la pantalla dónde está saliendo un grupo de la tierra cuando ocurre fuera de cámara.
+
+### 2 · Jugabilidad
+
+- [ ] 🔴 **Mando y Steam Deck.** Mover con el stick izquierdo y apuntar con el derecho (con ayuda a la puntería), menús navegables con cruceta y la barra de construcción en una rueda radial. Es lo que más abriría el juego a jugar en el sofá.
+- [ ] 🟡 **Rueda de comunicación.** Sustituir el único «pedir apoyo» por cuatro mensajes rápidos: «¡aquí!», «peligro», «necesito munición» y «voy a por la pieza», cada uno con su icono y sonido.
+- [ ] 🟡 **Nuevas defensas con personalidad:**
+  - **Portón de feria:** barricada que los vecinos abren y cierran y los brotados no.
+  - **Altavoz señuelo:** atrae a los brotados cercanos con música de verbena.
+  - **Charco de aceite:** los hace resbalar y arde con el soplete.
+  - **Castillo de fuegos:** torreta de área de un solo uso para la noche final.
+- [ ] 🟡 **Plataformas y tejados.** Andamios de dos alturas para disparar desde arriba; los trepadores serían su respuesta natural.
+- [ ] 🟡 **Nuevos brotados:**
+  - **Acorazado** con una olla por casco: inmune por delante, hay que flanquearlo.
+  - **Sembradora:** planta brotes que crecen si no se pisan a tiempo.
+  - **Enjambre de semillas:** pequeños y rápidos, mueren de un golpe.
+- [ ] 🟡 **Más momentos especiales como la medianoche:**
+  - Una lluvia de semillas que hace brotar enemigos dentro del territorio.
+  - Una procesión de cabezudos que cruza el barrio.
+  - Un apagón parcial que deja a oscuras solo un lado de la casa.
+- [ ] 🟢 **Rescatar arrastrando.** Poder cargar con un compañero caído hacia la casa en lugar de solo reanimarlo en el sitio.
+- [ ] 🟡 **Armas con efectos propios** al llegar al nivel máximo: confeti que frena, corchos que rebotan, petardos que aturden.
+
+### 3 · Contenido y rejugabilidad
+
+- [ ] 🔴 **Un segundo barrio.** Un pueblo costero con paseo marítimo y feria con noria, con rutas y propiedades distintas para elegir en el menú.
+- [ ] 🟡 **Desafío diario.** Una semilla fija cada día con reglas especiales y una tabla de récords local.
+- [ ] 🟡 **Modo sin fin.** Noches que no terminan nunca para medir hasta dónde llega el grupo.
+- [ ] 🟡 **Cosméticos desbloqueables.** Sombreros, colores de ropa y banderines de la casa al subir de rango, sin ventajas de juego.
+- [ ] 🟢 **Más vecinos rescatables:** la panadera (cura con comida al amanecer), el cura (tocar la campana adelanta la noche y da un respiro más largo) y el feriante (rebaja la tienda).
+
+### 4 · Presentación
+
+- [ ] 🟡 **Reacciones más cómicas al morir:** sombreros, conos y setas que salen volando y rebotan.
+- [ ] 🟡 **Música que reacciona más:** un tema propio para la medianoche y otro para el Gigantón, y una capa de percusión que sube con las brechas.
+- [ ] 🟢 **Voces sintetizadas para los brotados.** Gruñidos distintos por tipo y un grito al lanzarse a atacar.
+- [ ] 🟡 **Cámara al hombro opcional** para apuntar con más precisión en tercera persona.
+- [ ] 🟢 **Pantalla de fin más rica.** Mostrar estadísticas por jugador (precisión, defensas construidas, vecinos salvados) y un «mejor momento» de la partida.
+
+### 5 · Accesibilidad e idiomas
+
+- [ ] 🟡 **Inglés** y preparar los textos para otras traducciones.
+- [ ] 🟢 **Modo para daltonismo.** Los colores de los avisos, las brechas y la rabia de la Plañidera no deben depender solo del rojo y el verde.
+- [ ] 🟢 **Subtítulos de sonidos importantes** («la campana de medianoche», «golpean la casa por el norte»).
+
+### 6 · Técnico
+
+- [ ] 🔴 **Jugar por Internet sin abrir puertos.** Invitaciones por Steam o un servidor de enlace, con reconexión.
+- [ ] 🟡 **Nivel de detalle para los brotados lejanos** para mantener la fluidez en portátiles con 70 enemigos.
+- [ ] 🟡 **Pruebas visuales automáticas.** Guardar capturas de referencia de las animaciones y avisar si cambian sin querer.
+- [ ] 🟢 **Semilla fija en la prueba larga** para que sus resultados se puedan comparar entre versiones.
+
 ## Entregado en la rama de coordinación cooperativa
 
 - [x] **Orientarse desde la calle.** M abre el plano con el norte fijo. Muestra jugadores, caídos, enemigos, casa, puestos y defensas a partir del estado real de la partida.
