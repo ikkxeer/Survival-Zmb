@@ -61,12 +61,20 @@ const ENEMIES = [
 	{"name":"Escupidor", "hp":60.0, "speed":1.5, "dmg":13.0, "cd":2.4, "struct":1.0, "r":0.45, "coins":2, "xp":4, "from":4},
 	{"name":"Petardero", "hp":45.0, "speed":2.05, "dmg":40.0, "cd":0.7, "struct":2.2, "r":0.4, "coins":2, "xp":4, "from":5},
 	{"name":"Gigantón", "hp":2000.0, "speed":1.0, "dmg":34.0, "cd":2.2, "struct":4.0, "r":1.25, "coins":25, "xp":60, "from":5},
+	# Only at midnight, from the second night on: wails to send the brotados around her into a frenzy.
+	{"name":"Plañidera", "hp":170.0, "speed":1.7, "dmg":7.0, "cd":1.2, "struct":0.3, "r":0.42, "coins":8, "xp":10, "from":2},
 ]
 const BOSS := 7
 const CLIMBER := 4
 const BREAKER := 3
 const SPITTER := 5
 const BOOMER := 6
+const WAILER := 8
+const WAIL_EVERY := 8.0      # seconds between wails
+const WAIL_RADIUS := 6.0
+const RAGE_TIME := 4.0       # how long a wail keeps brotados enraged
+const RAGE_MAX := 6          # brotados one wail can enrage
+const RAGE_SPEED := 1.25
 
 # ---------------------------------------------------------------- structures
 # block: zombies (except climbers) must go round or break it. vault: players can hop over.

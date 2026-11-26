@@ -245,5 +245,38 @@ func _initialize():
 	check(g.phase != Data.Phase.OVER, "Con botiquín aún se puede levantar en solitario")
 	g.act(1, "medkit")
 	check(g.players[1].st == 0, "El botiquín levanta al jugador caído")
+	# --- midnight: the Plañidera
+	g = Game.new()
+	g.join(1, 1)
+	g.wave = 1
+	g.start_night()
+	g.queue.clear()
+	g.assaults.clear()
+	g.check_midnight()
+	var wailers := g.enemies.values().filter(func(e): return e.k == Data.WAILER)
+	check(wailers.is_empty(), "La primera noche no viene la Plañidera")
+	g.wave = 2
+	g.start_night()
+	g.queue.clear()
+	g.assaults.clear()
+	g.check_midnight()
+	wailers = g.enemies.values().filter(func(e): return e.k == Data.WAILER)
+	check(wailers.size() == 1 and g.midnight, "A medianoche de la segunda noche llega una Plañidera")
+	g.check_midnight()
+	check(g.enemies.values().filter(func(e): return e.k == Data.WAILER).size() == 1, "Solo llega una vez por noche")
+	var w:Dictionary = wailers[0]
+	w.p = Vector2(0.5, 20.5)
+	var near_one:Dictionary = g.new_enemy(0, Vector2(2.5, 20.5), "base", true)
+	var far_one:Dictionary = g.new_enemy(0, Vector2(-20.5, 20.5), "base", true)
+	w.wail = 0.0
+	g.players[1].p = Vector2(-30, -25)
+	g.tick(1.0 / 30.0)
+	check(near_one.rage > 0 and far_one.rage == 0, "Su lamento enfurece solo a los brotados cercanos")
+	var before_p:Vector2 = w.p
+	g.players[1].p = w.p + Vector2(2.0, 0)
+	g.players[1].st = 0
+	w.wailing = 0.0
+	for i in 30: g.tick(1.0 / 30.0)
+	check(w.p.distance_to(g.players[1].p) > before_p.distance_to(g.players[1].p), "La Plañidera se aparta de quien se le acerca")
 	print("%d fallos" % failed)
 	quit(1 if failed else 0)

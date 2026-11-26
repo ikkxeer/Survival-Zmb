@@ -286,7 +286,7 @@ func _ready():
 		b.material = m
 		p.mesh = b
 	)
-	make_pool("dust", 10, func(p:CPUParticles3D):
+	make_pool("dust", 28, func(p:CPUParticles3D):
 		p.amount = 6
 		p.lifetime = 0.5
 		p.explosiveness = 1.0
@@ -534,8 +534,6 @@ func shot(owner:int, g:int, a:Vector3, b:Vector3, local:bool, hit:int = -1, firs
 		if g in [0, 2, 3, 4] and owner > 0: burst("casing", a - dir * 0.25 + Vector3(0, 0.05, 0), dir.cross(Vector3.UP) * -1.0)
 	if g != 5 and a.distance_to(b) > 0.5:
 		live.append([null, 0.0, a.distance_to(b) / spec[1], "impact", [b, dir, hit == 1]])
-	if local and first:
-		shake([0.06, 0.2, 0.04, 0.07, 0.26, 0.2, 0.0, 0.0][clampi(g, 0, 7)])
 
 func explosion(at:Vector3, radius:float):
 	burst("puff", at + Vector3(0, 0.3, 0))
@@ -557,9 +555,10 @@ func explosion(at:Vector3, radius:float):
 	shake(0.35)
 
 func death(at:Vector3, kind:int):
-	burst("confetti", at + Vector3(0, 1.0, 0))
-	burst("leaves", at + Vector3(0, 1.2, 0))
-	burst("puff", at + Vector3(0, 0.5, 0))
+	# the body falls on its own now: a pop of confetti and leaves, dust at the feet
+	burst("confetti", at + Vector3(0, 1.2, 0))
+	burst("leaves", at + Vector3(0, 1.3, 0))
+	burst("dust", at)
 	if kind == 7:
 		for i in 4: burst("confetti", at + Vector3(randf_range(-1.5, 1.5), 2.0 + i * 0.5, randf_range(-1.5, 1.5)))
 		shake(0.6)

@@ -21,7 +21,7 @@ var sfx := 1.0
 func _ready():
 	rng.seed = 3
 	build_bank()
-	for i in 14:
+	for i in 26:
 		var p := AudioStreamPlayer3D.new()
 		p.unit_size = 9.0
 		p.max_distance = 60.0
@@ -156,6 +156,20 @@ func build_bank():
 		return s
 	), true)
 	bank.rain = wav(lowpass(synth(2.0, func(t, i): return noise() * 0.35), 0.4), true)
+	# movement and feedback
+	bank.step = wav(lowpass(synth(0.09, func(t, i): return (noise() * 0.6 + sin(TAU * 95 * t) * 0.8) * exp(-55 * t)), 0.25))
+	bank.land = wav(mix(lowpass(synth(0.25, func(t, i): return noise() * exp(-22 * t)), 0.18), synth(0.2, func(t, i): return sin(TAU * (90 - 120 * t) * t) * exp(-18 * t) * 0.9)))
+	bank.whoosh = wav(lowpass(synth(0.3, func(t, i): return noise() * sin(PI * t / 0.3) * 0.7), 0.12))
+	bank.hitmark = wav(synth(0.06, func(t, i): return (sin(TAU * 2300 * t) * 0.6 + sin(TAU * 3400 * t) * 0.3) * exp(-70 * t)))
+	bank.killmark = wav(mix(synth(0.08, func(t, i): return sin(TAU * 1900 * t) * exp(-50 * t) * 0.6), mix(synth(0.18, func(t, i): return sin(TAU * (220 - 300 * t) * t) * exp(-20 * t) * 0.7), synth(0.08, func(t, i): return sin(TAU * 2800 * t) * exp(-45 * t) * 0.4), 0.05), 0.0))
+	bank.dry = wav(synth(0.05, func(t, i): return (noise() * 0.5 + sin(TAU * 1200 * t) * 0.5) * exp(-80 * t)))
+	# the Plañidera: a long falling wail with vibrato, and the midnight bell
+	bank.wail = wav(lowpass(synth(1.8, func(t, i):
+		var f := 760.0 * pow(0.55, t / 1.8) * (1.0 + 0.035 * sin(TAU * 6.5 * t))
+		var env := minf(1.0, t * 6.0) * (1.0 - smoothstep(1.2, 1.8, t))
+		return (sin(TAU * f * t) * 0.5 + sin(TAU * f * 2.01 * t) * 0.18 + sin(TAU * f * 3.0 * t) * 0.08 + noise() * 0.05) * env * 0.7
+	), 0.5))
+	bank.toll = wav(synth(3.2, func(t, i): return (sin(TAU * 196 * t) + 0.5 * sin(TAU * 392.7 * t) * exp(-1.2 * t) + 0.35 * sin(TAU * 523 * t) * exp(-2.0 * t) + 0.25 * sin(TAU * 98 * t)) * 0.32 * exp(-1.1 * t) * minf(1.0, t * 150.0)))
 
 func bank_arp(freqs:Array) -> PackedFloat32Array:
 	var out := PackedFloat32Array()

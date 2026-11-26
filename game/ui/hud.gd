@@ -22,6 +22,10 @@ var last_gun := -1
 var slots_t := 0.0
 var last_core := -1.0
 var house_shake := 0.0
+var bloom := 0.0           # crosshair spread after shooting
+var hit_t := 0.0
+var hit_crit := false
+var kill_t := 0.0
 var over_t := 0.0          # seconds since the match ended (cinematic bars)
 var forecast_t := 8.0
 var last_phase := -1
@@ -43,6 +47,9 @@ func feed(state:Dictionary, id:int, loc:Dictionary, dt:float):
 	p = state.pl.get(id, {})
 	t += dt
 	over_t = over_t + dt if s.get("ph", -1) == P.OVER else 0.0
+	bloom = move_toward(bloom, 0.0, dt * (1.2 + bloom * 4.0))
+	hit_t = maxf(0.0, hit_t - dt)
+	kill_t = maxf(0.0, kill_t - dt)
 	if p.is_empty(): return
 	if p.gun != last_gun:
 		if last_gun >= 0: slots_t = 2.2
@@ -105,6 +112,49 @@ func _draw():
 	draw_toasts()
 	draw_report()
 	draw_announce()
+	draw_crosshair()
+
+# ------------------------------------------------------------------ crosshair
+func shot(amount:float):
+	bloom = minf(1.6, bloom + amount)
+
+func hitmark(crit:bool):
+	hit_t = 0.16
+	hit_crit = crit
+
+func killmark():
+	kill_t = 0.32
+
+func draw_crosshair():
+	## A live crosshair: opens with each shot and while moving, shows hits, kills and reloads.
+	if not local.get("cross_on", false): return
+	var c:Vector2 = local.get("cross", size * 0.5)
+	var moving:float = local.get("moving", 0.0)
+	var gap := 7.0 + bloom * 13.0 + moving * 5.0
+	var len := 8.0
+	var col := Color.WHITE if not local.get("empty", false) else S.CORAL
+	for d in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP, Vector2.DOWN]:
+		var a:Vector2 = c + d * gap
+		var b:Vector2 = c + d * (gap + len)
+		draw_line(a, b, Color(S.INK, 0.85), 5.0, true)
+		draw_line(a, b, col, 2.5, true)
+	draw_circle(c, 2.6, Color(S.INK, 0.85))
+	draw_circle(c, 1.5, col)
+	var rl:float = local.get("reload", 0.0)
+	if rl > 0.0:
+		draw_arc(c, gap + len + 6.0, 0, TAU, 40, Color(S.INK, 0.5), 5.0, true)
+		draw_arc(c, gap + len + 6.0, -PI * 0.5, -PI * 0.5 + TAU * rl, 40, S.SUN, 3.0, true)
+	if hit_t > 0.0 or kill_t > 0.0:
+		var killing := kill_t > 0.0
+		var k := (kill_t / 0.32) if killing else (hit_t / 0.16)
+		var r0 := 5.0 + (1.0 - k) * (6.0 if killing else 3.0)
+		var r1 := r0 + (10.0 if killing else 7.0)
+		var mc := S.CORAL if killing else (S.SUN if hit_crit else Color.WHITE)
+		for i in 4:
+			var dir := Vector2.from_angle(PI * 0.25 + i * PI * 0.5)
+			draw_line(c + dir * r0, c + dir * r1, Color(S.INK, k), 5.5, true)
+			draw_line(c + dir * r0, c + dir * r1, Color(mc, k), 3.0, true)
+		if killing: draw_arc(c, r1 + 4.0, 0, TAU, 32, Color(S.CORAL, k * 0.7), 2.5, true)
 
 # ------------------------------------------------------------------ house, materials, lanterns
 func draw_house():
