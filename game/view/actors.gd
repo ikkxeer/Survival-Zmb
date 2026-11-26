@@ -31,6 +31,11 @@ var structs := {}
 var loot_nodes := []
 var local_rolling := false   # the local dodge, ahead of the snapshot
 var local_firing := false   # set by main from the local mouse button, ahead of the snapshot
+var fx                       # effects and audio, set by main: footsteps, dust, thuds
+var audio
+var apply_count := 0
+var dying := []              # zombies playing their death fall
+var listener_pos := Vector3.ZERO
 var beacons := []
 var drops := {}
 var bundles := {}
@@ -112,6 +117,25 @@ func head_base(k:Kit, skin:Color, zombie:bool = false, big:float = 1.0):
 	else:
 		k.sphere(Kit.at(0.02, 0.17 * big, 0.33 * big), Vector3(0.12, 0.07, 0.05) * big, C("4a2340"), 8, 5)
 		k.box(Kit.at(0.06 * big, 0.21 * big, 0.37 * big), Vector3(0.04, 0.05, 0.02) * big, C("fff6dc"), 0.01)
+
+func wailer_eyes() -> ArrayMesh:
+	return cached("wailereyes", func(k:Kit):
+		for sx in [-1, 1]:
+			k.sphere(Kit.at(sx * 0.1, 0.04, 0.22), Vector3(0.07, 0.05, 0.04), C("120c18"), 8, 5)
+			k.sphere(Kit.at(sx * 0.1, 0.04, 0.245), Vector3(0.03, 0.03, 0.02), Kit.glow(C("bfe0ff"), 1.0), 8, 4)
+		# tear tracks
+		for sx in [-1, 1]: k.box(Kit.at(sx * 0.1, -0.08, 0.25), Vector3(0.02, 0.16, 0.01), Kit.glow(C("9fc8ff"), 0.6), 0.0)
+	)
+
+func wailer_lantern() -> ArrayMesh:
+	return cached("wailerlantern", func(k:Kit):
+		k.cylinder(Kit.at(0, 0.12, 0), 0.01, 0.01, 0.2, C("3a3a48"), 4)
+		k.box(Kit.at(0, 0.0, 0), Vector3(0.18, 0.04, 0.18), C("3a3a48"), 0.01)
+		k.box(Kit.at(0, -0.26, 0), Vector3(0.2, 0.04, 0.2), C("3a3a48"), 0.01)
+		k.sphere(Kit.at(0, -0.13, 0), Vector3(0.08, 0.11, 0.08), Kit.glow(C("bfe0ff"), 1.0), 8, 6)
+		for x in [-0.09, 0.09]:
+			for z in [-0.09, 0.09]: k.box(Kit.at(x, -0.13, z), Vector3(0.015, 0.26, 0.015), C("3a3a48"), 0.0)
+	)
 
 func boss_eyes() -> ArrayMesh:
 	return cached("bosseyes", func(k:Kit):
@@ -506,6 +530,31 @@ func zombie_parts(kind:int, variant:int) -> Dictionary:
 			extra.cylinder(Kit.at(0, 0.7, 0), 0.08, 0.1, 0.4, vine, 8)
 			for i in 3:
 				extra.cylinder(Kit.rot(-0.6 + i * 0.6, 0.8, -0.3, 0.4 * i, -0.6, -0.5 + i * 0.5), 0.05, 0.02, 0.9, vine, 6)
+	if kind == 8:
+		# Plañidera: a mourner in black with a tall comb and a lace mantilla,
+		# a pale face with hollow glowing eyes and a cold lantern
+		var black := C("2a2236")
+		var lace := C("3d3250")
+		var pale := C("d8d4e6")
+		torso.cylinder(Kit.at(0, 0.75, 0), 0.62, 0.24, 1.5, black, 16, true, 0.2)
+		for i in 12:
+			var a := TAU * i / 12.0
+			var dl := 0.12 + 0.1 * fmod(i * 0.618, 1.0)
+			torso.box(Kit.rot(cos(a) * 0.6, 0.05 - dl * 0.3, sin(a) * 0.6, -a + PI * 0.5, 0.15, 0.0), Vector3(0.32, dl + 0.12, 0.04), lace, 0.02)
+		torso.sphere(Kit.at(0, 1.45, 0.02), Vector3(0.3, 0.26, 0.24), black, 12, 8)
+		torso.cylinder(Kit.at(0, 1.38, 0.0), 0.36, 0.3, 0.12, lace, 14, false)
+		for i in 5: torso.sphere(Kit.at(-0.16 + i * 0.08, 1.52, 0.22), Vector3(0.025, 0.025, 0.025), C("c9c2dc"), 4, 3)
+		head.sphere(Kit.at(0, 0.3, 0), Vector3(0.27, 0.32, 0.27), pale, 14, 10, 0.1)
+		head.sphere(Kit.at(0.0, 0.16, 0.22), Vector3(0.09, 0.07, 0.05), C("1a1222"), 8, 5)
+		# peineta: a tall fan-shaped comb behind the crown
+		head.box(Kit.rot(0, 0.74, -0.1, 0, -0.22), Vector3(0.46, 0.3, 0.04), black, 0.03)
+		for i in 7:
+			var a := -0.75 + i * 0.25
+			head.box(Kit.rot(sin(a) * 0.24, 0.9 + cos(a) * 0.12, -0.14, 0, -0.22, -a), Vector3(0.05, 0.16, 0.035), black, 0.01)
+		# mantilla: lace falling from the comb over the back and the sides of the head
+		head.box(Kit.rot(0, 0.32, -0.27, 0, 0.12), Vector3(0.66, 0.95, 0.04), lace, 0.03)
+		for sx in [-1, 1]: head.box(Kit.rot(sx * 0.29, 0.22, -0.17, 0, 0.05, sx * 0.06), Vector3(0.04, 0.75, 0.18), lace, 0.02)
+		for i in 7: head.sphere(Kit.at(-0.3 + i * 0.1, -0.17, -0.27), Vector3(0.05, 0.04, 0.03), lace.lightened(0.15), 5, 3)
 	out.torso = torso.commit()
 	out.head = head.commit()
 	out.extra = extra.commit()
@@ -516,6 +565,9 @@ func zombie_parts(kind:int, variant:int) -> Dictionary:
 	if kind == 7:
 		out.arm_r = boss_arm(true)
 		out.arm_l = boss_arm(false)
+	if kind == 8:
+		out.arm_l = arm_mesh(C("2a2236"), C("d8d4e6"), 0.5, 0.75)
+		out.arm_r = arm_mesh(C("2a2236"), C("d8d4e6"), 0.5, 0.75)
 	out.arm = arm_mesh(shirt if kind in [0, 2] else (C("7a6aa8") if kind == 4 else (C("8a5ab8") if kind == 7 else skin)), skin, arm_len, thick)
 	out.leg = leg_mesh(pants, C("5a4a3a"), 1.25 if kind == 2 else 1.0)
 	cache[key] = out
@@ -557,6 +609,8 @@ func make_zombie(kind:int, variant:int) -> Rig:
 	var parts := zombie_parts(kind, variant)
 	if kind == 7:
 		r.setup_pivots(2.75, 1.25, 0.3, 0.4, 3.0)
+	elif kind == 8:
+		r.setup_pivots(1.45, 0.3, 0.3, 0.1, 1.62)
 	else:
 		r.setup_pivots(1.08, 0.36 if kind != 2 else 0.42, 0.62, 0.15, 1.18)
 	r.add_part(r.body, parts.torso, toon_char)
@@ -568,7 +622,10 @@ func make_zombie(kind:int, variant:int) -> Rig:
 		4: big = 0.95
 		5: big = 0.9
 		7: big = 2.2
-	if kind == 7:
+	if kind == 8:
+		r.eyes = r.add_part(r.head, wailer_eyes(), glow_mat)
+		r.eyes.position = Vector3(0, 0.32, 0)
+	elif kind == 7:
 		# four burning eyes of different sizes instead of the usual pair
 		r.eyes = r.add_part(r.head, boss_eyes(), glow_mat)
 		r.eyes.position = Vector3(0, 1.1, 0)
@@ -588,9 +645,23 @@ func make_zombie(kind:int, variant:int) -> Rig:
 		glow.omni_range = 5.0
 		glow.shadow_enabled = false
 		r.head.add_child(glow)
-	if kind != 7:
+	if kind != 7 and kind != 8:
 		r.add_part(r.leg_l, parts.leg, toon_char)
 		r.add_part(r.leg_r, parts.leg, toon_char)
+	if kind == 0 and variant % 2 == 1: r.limp = 0.8
+	if kind == 8:
+		var lantern := MeshInstance3D.new()
+		lantern.mesh = wailer_lantern()
+		lantern.material_override = glow_mat
+		lantern.position = Vector3(0, -0.62, 0.05)
+		r.arm_r.add_child(lantern)
+		var cold := OmniLight3D.new()
+		cold.light_color = Color("8fb6ff")
+		cold.light_energy = 1.4
+		cold.omni_range = 4.5
+		cold.shadow_enabled = false
+		cold.position = Vector3(0, -0.75, 0.05)
+		r.arm_r.add_child(cold)
 	match kind:
 		1: r.scale = Vector3.ONE * 0.92
 		2: r.scale = Vector3.ONE * 1.18
@@ -601,7 +672,7 @@ func make_zombie(kind:int, variant:int) -> Rig:
 	r.bar = MeshInstance3D.new()
 	r.bar.mesh = bar_quad
 	r.bar.material_override = bar_mat
-	r.bar.position.y = 4.6 if kind == 7 else (2.7 if kind == 2 else 2.25)
+	r.bar.position.y = 4.6 if kind == 7 else (2.7 if kind == 2 else (2.85 if kind == 8 else 2.25))
 	if kind == 7: r.bar.scale = Vector3(2.4, 1.8, 1)
 	r.bar.visible = false
 	r.bar.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -1193,6 +1264,65 @@ func clear_all():
 		n.visible = false
 		if n.has_meta("info"): n.remove_meta("info")
 	ghost.visible = false
+	for z in dying: z.queue_free()
+	dying.clear()
+	apply_count = 0
+
+# ================================================================== motion effects
+func hook(r:Rig):
+	r.on_step = rig_step.bind(r)
+	r.on_fx = rig_fx.bind(r)
+
+func rig_step(pos:Vector3, strength:float, r:Rig):
+	## A foot lands: dust when sprinting or for heavy brotados, a thud you can hear.
+	if fx == null: return
+	var near := pos.distance_to(listener_pos) < 22.0
+	if r.zombie:
+		if r.kind == 7:
+			fx.burst("dust", pos)
+			if near:
+				audio.play("land", pos, -2, 0.55)
+				fx.shake(0.12 if pos.distance_to(listener_pos) < 12.0 else 0.04)
+		elif r.kind == 2:
+			fx.burst("dust", pos)
+			if near: audio.play("step", pos, -6, 0.6)
+		elif r.limp > 0 and near and randf() < 0.5:
+			audio.play("step", pos, -16, 0.8)
+		return
+	var running := r.sprinting
+	if running: fx.burst("dust", pos)
+	if near: audio.play("step", pos, (-13 if running else -16) if r == heroes.get(local_id) else -21, randf_range(0.9, 1.15) * (1.12 if running else 1.0))
+
+func rig_fx(name:String, pos:Vector3, r:Rig):
+	if fx == null: return
+	match name:
+		"roll":
+			fx.burst("dust", pos)
+			audio.play("whoosh", pos + Vector3(0, 1, 0), -6, randf_range(0.9, 1.1))
+		"land":
+			fx.burst("dust", pos)
+			fx.burst("dust", pos + Vector3(0, 0, 0.3))
+			audio.play("land", pos, -8, 1.2)
+		"slam":
+			for i in 3: fx.burst("dust", pos + Vector3(randf_range(-0.6, 0.6), 0, randf_range(-0.6, 0.6)))
+			if pos.distance_to(listener_pos) < 14.0: fx.shake(0.2 if r.kind == 7 else 0.08)
+
+func kill_zombie(key:int, z:Rig):
+	## The brotado falls away from the nearest hero instead of vanishing.
+	var info:Array = horde_info.get(key, [1.0, 0.0, 0, 0.0])
+	if int(info[2]) & 32 != 0:
+		z.queue_free()      # a firecracker that went off: nothing left to fall
+		return
+	var away := Vector2.ZERO
+	var best := 999.0
+	for id in heroes:
+		var hp:Vector3 = heroes[id].position
+		var d := hp.distance_to(z.position)
+		if d < best:
+			best = d
+			away = Vector2(z.position.x - hp.x, z.position.z - hp.z)
+	z.start_death(away)
+	dying.append(z)
 
 # ================================================================== snapshot reconciliation
 var hero_target := {}
@@ -1204,6 +1334,7 @@ var drop_info := {}
 
 func apply(s:Dictionary, me:int):
 	local_id = me
+	apply_count += 1
 	# heroes
 	for id in heroes.keys():
 		if not s.pl.has(id):
@@ -1226,6 +1357,8 @@ func apply(s:Dictionary, me:int):
 			r.label.outline_modulate = Color(0.1, 0.08, 0.14, 0.9)
 			r.label.no_depth_test = true
 			r.add_child(r.label)
+			hook(r)
+			r.base_speed = 5.0 * float(Data.ROLES[p.role].speed)
 			heroes[id] = r
 		var r:Rig = heroes[id]
 		set_gun(r, p.gun)
@@ -1240,14 +1373,21 @@ func apply(s:Dictionary, me:int):
 			var z := make_zombie(int(en[i + 1]), key % 4)
 			add_child(z)
 			z.position = Vector3(en[i + 2], 0, en[i + 3])
-			z.yaw = en[i + 5]
+			z.yaw = PI * 0.5 - en[i + 5]
+			z.rotation.y = z.yaw
 			z.spawn_t = 0.0
+			hook(z)
+			# brotados claw their way out of the ground (not the ones already there when you join)
+			if apply_count > 3 and int(en[i + 1]) != 8:
+				z.emerge = 0.0
+				z.position.y = -1.6
+				if fx: fx.burst("dust", z.position + Vector3(0, 1.6, 0))
 			horde[key] = z
 		horde_target[key] = Vector3(en[i + 2], 0, en[i + 3])
 		horde_info[key] = [en[i + 4], en[i + 5], int(en[i + 6]), en[i + 7]]
 	for key in horde.keys():
 		if not seen.has(key):
-			horde[key].queue_free()
+			kill_zombie(key, horde[key])
 			horde.erase(key)
 			horde_target.erase(key)
 			horde_info.erase(key)
@@ -1457,8 +1597,16 @@ func apply(s:Dictionary, me:int):
 		mi.position = Vector3(pr[i * 4], pr[i * 4 + 1], pr[i * 4 + 2])
 		mi.rotation = Vector3(Time.get_ticks_msec() * 0.01, Time.get_ticks_msec() * 0.007, 0)
 
-func flash_zombie(key:int):
-	if horde.has(key): horde[key].hit_flash = 1.0
+func flash_zombie(key:int, from = null):
+	## A hit: flash white and flinch away from the shooter.
+	if not horde.has(key): return
+	var z:Rig = horde[key]
+	z.hit_flash = 1.0
+	if from is Vector3:
+		var d := Vector2(z.position.x - from.x, z.position.z - from.z).normalized()
+		var right := Vector2(cos(z.yaw), -sin(z.yaw))
+		var fwd := Vector2(sin(z.yaw), cos(z.yaw))
+		z.shove(Vector2(d.dot(right), d.dot(fwd)), 0.6 if z.kind != 7 else 0.15)
 
 # ================================================================== per frame
 func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector2, night_amount:float, blackout:bool):
@@ -1474,7 +1622,7 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		r.position = target if id == local_id else r.position.lerp(target, 1.0 - exp(-14.0 * dt))
 		var vel := (r.position - before) / maxf(dt, 0.0001)
 		# smoothed ground velocity: per-frame deltas are noisy (network, tick rate)
-		r.ground_vel = r.ground_vel.lerp(Vector2(vel.x, vel.z), 1.0 - exp(-12.0 * dt))
+		r.ground_vel = r.ground_vel.lerp(Vector2(vel.x, vel.z), 1.0 - exp(-(20.0 if id == local_id else 12.0) * dt))
 		if r.ground_vel.length() > 12.0: r.ground_vel = r.ground_vel.normalized() * 12.0
 		var aim:Vector2 = local_aim if id == local_id and local_aim != Vector2.ZERO else p.aim
 		if p.fire or (id == local_id and local_firing) or r.swing > 0: r.fire_t = 0.9
@@ -1493,36 +1641,55 @@ func update(dt:float, t:float, s:Dictionary, local_pos:Vector3, local_aim:Vector
 		if r.rummage: pass
 		elif p.st != 0: r.face(r.ground_vel, dt)
 		elif rolling: r.face(r.ground_vel, dt, 30.0)
-		elif aiming: r.face(aim, dt, 22.0)
+		elif aiming and id == local_id and local_firing: r.face_now(aim)
+		elif aiming: r.face(aim, dt, 26.0)
 		elif r.ground_vel.length() > 0.5: r.face(r.ground_vel, dt, 10.0)
-		r.animate_hero(dt, t, r.ground_vel, aiming, p.fire, p.st, rolling, p.rl > 0, p.use and p.hold != "")
+		# hop over a barricade (or step high over wire) while crossing its cell
+		var hx := floori(r.position.x) + 37
+		var hz := floori(r.position.z) + 33
+		var under:Array = struct_info.get(hz * 74 + hx, [])
+		r.vault_target = 0.0
+		if not under.is_empty() and p.st == 0 and not rolling:
+			if int(under[0]) == Data.S_WALL: r.vault_target = 1.0
+			elif int(under[0]) == Data.S_WIRE: r.vault_target = 0.35
+		var reload_frac:float = 1.0 - p.rl / maxf(0.01, p.get("rlmax", 1.0)) if p.rl > 0 else 0.0
+		if p.dmg > r.last_flash + 0.05 and p.st == 0: r.hurt()
+		r.last_flash = p.dmg
+		r.animate_hero(dt, t, r.ground_vel, aiming, p.fire, p.st, rolling, p.rl > 0, p.use and p.hold != "", reload_frac)
 		r.flashlight.light_energy = (2.2 if p.st == 0 else 0.0) * smoothstep(0.3, 0.9, night_amount)
 		r.label.visible = id != local_id
-		if p.dmg > 0.25: r.hit_flash = 0.7
 	for key in horde:
 		var z:Rig = horde[key]
 		var target:Vector3 = horde_target[key]
 		var info:Array = horde_info[key]
-		var before := z.position
-		z.position = z.position.lerp(target, 1.0 - exp(-12.0 * dt))
-		var moving := clampf((z.position - before).length() / maxf(dt, 0.0001) / 2.0, 0.0, 1.0)
+		var before := Vector3(z.position.x, 0, z.position.z)
+		var flat := before.lerp(target, 1.0 - exp(-12.0 * dt))
+		var vel := (flat - before) / maxf(dt, 0.0001)
+		z.ground_vel = z.ground_vel.lerp(Vector2(vel.x, vel.z), 1.0 - exp(-10.0 * dt))
 		var want:float = info[1]
-		z.yaw = lerp_angle(z.yaw, PI * 0.5 - want, 1.0 - exp(-10.0 * dt))
+		z.yaw = lerp_angle(z.yaw, PI * 0.5 - want, 1.0 - exp(-(7.0 if z.kind in [2, 7] else 10.0) * dt))
 		z.rotation.y = z.yaw
 		z.spawn_t += dt
-		var grow := clampf(z.spawn_t * 3.0, 0.0, 1.0)
-		z.body.scale = Vector3.ONE * (0.4 + 0.6 * grow)
-		z.animate_zombie(dt, t, moving, info[2])
+		if z.emerge < 1.0:
+			z.emerge = minf(1.0, z.emerge + dt / 0.8)
+			flat.y = lerpf(-1.6, 0.0, Rig.ease_out_back(z.emerge))
+			if fmod(z.spawn_t, 0.2) < dt and fx: fx.burst("dust", Vector3(flat.x, 0.05, flat.z))
+		z.position = flat
+		z.animate_zombie(dt, t, z.ground_vel if z.emerge >= 1.0 else Vector2.ZERO, info[2], info[3])
 		if info[3] > 0.05:
-			z.hit_flash = 1.0
 			z.bar_t = 2.5
 		z.bar_t = maxf(0.0, z.bar_t - dt)
 		var hp:float = info[0]
 		# only tough enemies keep a bar; the rest show it briefly after being hit
-		z.bar.visible = hp < 0.999 and (z.bar_t > 0 or z.kind == 2) and z.kind != 7
+		z.bar.visible = hp < 0.999 and (z.bar_t > 0 or z.kind == 2 or z.kind == 8) and z.kind != 7
 		if z.bar.visible:
 			z.bar.set_instance_shader_parameter("value", hp)
 			z.bar.set_instance_shader_parameter("fill", Color("ff6b6b") if info[2] & 8 == 0 else Color("ffd166"))
+	for i in range(dying.size() - 1, -1, -1):
+		var dz:Rig = dying[i]
+		if dz.animate_death(dt):
+			dz.queue_free()
+			dying.remove_at(i)
 	for cell in structs:
 		var n:Node3D = structs[cell]
 		var info:Array = struct_info[cell]

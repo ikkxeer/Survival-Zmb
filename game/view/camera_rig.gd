@@ -15,6 +15,7 @@ var boom := 22.0
 var tracking := false
 var sensitivity := 1.0
 var obstacles:Array[AABB] = []
+var fov_kick := 0.0      # widens the view a little while sprinting
 
 func _ready():
 	near = 0.1
@@ -39,7 +40,7 @@ func elevation() -> float:
 	return clampf(lerpf(0.3, 0.9, zoom_t) + tilt, 0.12, 1.25)
 
 func apply_lens():
-	fov = lerpf(56.0, 40.0, zoom_t)
+	fov = lerpf(56.0, 40.0, zoom_t) + fov_kick
 
 func orbit(motion:Vector2):
 	yaw -= motion.x * 0.005 * sensitivity

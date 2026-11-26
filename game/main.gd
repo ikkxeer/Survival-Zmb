@@ -2,6 +2,10 @@ extends Node3D
 ## Orchestrates a session: menus, ENet networking, local input with movement
 ## prediction, the host simulation, camera, and routing of events to effects/audio/UI.
 
+# Shot feel per weapon: body kick, camera push back (m), crosshair bloom.
+const KICK = [0.55, 1.5, 0.35, 0.65, 1.7, 1.3, 0.12, 0.0]
+const CAM_KICK = [0.07, 0.26, 0.045, 0.09, 0.3, 0.22, 0.015, 0.0]
+const BLOOM = [0.35, 1.0, 0.2, 0.3, 0.9, 0.7, 0.05, 0.0]
 const Portrait = preload("res://game/ui/portrait.gd")
 const Match = preload("res://game/match.gd")
 const Data = preload("res://game/data.gd")
@@ -47,6 +51,10 @@ var paused := false
 var local_pos := Vector2.INF
 var last_shot_key := ""
 var search_t := 0.0
+var cam_kick := 0.0
+var fire_was := false
+var sprinting := false
+var mouse_hidden := false
 var house_portrait
 var collapse_dust := 0.0     # seconds of dust and rumble while the house comes down
 var prev_pos := Vector2.INF   # local_pos one physics tick ago, to draw smoothly between ticks
@@ -92,6 +100,8 @@ func _ready():
 	actors.build_static()
 	add_child(fx)
 	add_child(audio)
+	actors.fx = fx
+	actors.audio = audio
 	add_child(camera)
 	camera.current = true
 	persist = not Engine.has_meta("sin_guardar")
@@ -205,7 +215,7 @@ func start(which:String, role:int, address:String, player_name:String):
 	paused = false
 	ui.show_menu(false)
 	get_viewport().gui_release_focus()
-	Input.set_custom_mouse_cursor(crosshair, Input.CURSOR_ARROW, Vector2(20, 20))
+	Input.set_custom_mouse_cursor(null)
 	sim = Match.new()
 	if mode == "join":
 		ui.big("Conectando…", "Buscando al anfitrión en " + address, Color.WHITE, 30.0)
@@ -285,6 +295,7 @@ func stop(reason:String):
 	journal_file = null
 	mode = ""
 	end_orbit()
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	camera.reset()
 	map_click = false
 	if multiplayer.multiplayer_peer != null:
@@ -408,7 +419,7 @@ func _notification(what):
 
 func begin_orbit():
 	orbiting = true
-	ui.orbit_reticle.visible = true
+	ui.orbit_reticle.visible = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func end_orbit():
@@ -598,6 +609,10 @@ func _physics_process(dt:float):
 		if roll_t > 0: buttons |= 4
 		if autopilot.has("buttons"): buttons = autopilot.buttons
 		actors.local_firing = buttons & 1 != 0 and me.st == 0
+		# a dry click when the trigger is pulled on an empty weapon
+		if actors.local_firing and not fire_was and me.mag.get(me.gun, 1) <= 0 and not (me.role == 2 and me.buff > 0):
+			audio.play("dry", null, -6)
+		fire_was = actors.local_firing
 		actors.local_rolling = roll_t > 0
 		predict_fire(dt, me, buttons & 1 != 0)
 	net_clock -= dt
@@ -639,7 +654,8 @@ func local_move(dt:float, me:Dictionary):
 	roll_cd -= dt
 	var dir := move_input()
 	var speed := sim.player_speed(me)
-	var sprint:bool = prefs.pressed("sprint") and dir != Vector2.ZERO and stamina > 0.05 and me.st == 0
+	var sprint:bool = (prefs.pressed("sprint") or autopilot.get("sprint", false)) and dir != Vector2.ZERO and stamina > 0.05 and me.st == 0
+	sprinting = sprint
 	if sprint:
 		speed *= 1.35
 		stamina = maxf(0.0, stamina - dt * 0.32)
@@ -673,13 +689,21 @@ func predict_fire(dt:float, me:Dictionary, firing:bool):
 	pred_cool = w.rate * (0.6 if me.role == 2 and me.buff > 0 else 1.0)
 	var origin := Vector3(local_pos.x, 1.1, local_pos.y) + Vector3(local_aim.x, 0, local_aim.y) * 0.7
 	var r = actors.heroes.get(my_id())
-	if r:
-		origin = r.muzzle_point()
-		r.recoil = 1.0
+	if r: origin = r.muzzle_point()
 	fx.muzzle(origin, fx.gun_color(g), 1.4 if g in [1, 4, 5] else 0.9, Vector3(local_aim.x, 0, local_aim.y))
 	fx.burst("smoke", origin, Vector3(local_aim.x, 0, local_aim.y))
-	fx.shake([0.06, 0.2, 0.04, 0.07, 0.26, 0.2, 0.0, 0.0][clampi(g, 0, 7)])
+	local_shot(g)
 	play_gun(g, origin)
+
+func local_shot(g:int):
+	## Everything that makes your own shot feel solid: the body kicks, the camera
+	## is pushed back along the aim, the crosshair blooms.
+	g = clampi(g, 0, 7)
+	var r = actors.heroes.get(my_id())
+	if r: r.kick(KICK[g])
+	cam_kick = minf(0.6, cam_kick + CAM_KICK[g])
+	fx.shake([0.03, 0.12, 0.015, 0.035, 0.16, 0.12, 0.0, 0.0][g])
+	ui.canvas.shot(BLOOM[g])
 
 func play_gun(g:int, at:Vector3):
 	var names := ["cork", "shotgun", "smg", "rifle", "sniper", "launch", "flame", "turret"]
@@ -747,7 +771,8 @@ func handle_event(type:String, d:Array, me:int):
 				var muzzle_at:Vector3 = r.muzzle_point()
 				if muzzle_at.distance_to(a) < 2.5: a = muzzle_at
 				b.y = 0.95 if d.size() > 6 and d[6] == 1 else a.y * 0.85
-				if first: r.recoil = 1.0
+				if first and owner != me: r.kick(KICK[clampi(g, 0, 7)])
+			if owner == me and first and mode != "join": local_shot(g)
 			var mine := owner == me and mode == "join"
 			if g != 5: fx.shot(owner, g, a, b, owner == me, d[6] if d.size() > 6 else -1, first and not mine)
 			if not mine and first: play_gun(7 if owner <= -100 else (0 if owner == -2 else g), a)
@@ -759,7 +784,14 @@ func handle_event(type:String, d:Array, me:int):
 			var at := v3(d[0], d[1])
 			var crit:bool = d[3] == 1
 			fx.number(at, str(d[2]) + ("!" if crit else ""), Color("ffd166") if crit else Color("fff4dc"), crit)
-			actors.flash_zombie(d[4])
+			var shooter = null
+			var hit_owner:int = d[5] if d.size() > 5 else 0
+			if actors.heroes.has(hit_owner): shooter = actors.heroes[hit_owner].position
+			elif hit_owner <= -100 and actors.structs.has(-100 - hit_owner): shooter = actors.structs[-100 - hit_owner].position
+			actors.flash_zombie(d[4], shooter)
+			if hit_owner == me:
+				ui.canvas.hitmark(crit)
+				audio.play("hitmark", null, -12 if not crit else -7, randf_range(0.95, 1.08) * (1.25 if crit else 1.0))
 			hit_sound_t -= 1
 			if hit_sound_t <= 0:
 				hit_sound_t = 2
@@ -768,7 +800,10 @@ func handle_event(type:String, d:Array, me:int):
 			var at := v3(d[0], d[1])
 			fx.death(at, d[2])
 			audio.play("pop", at + Vector3(0, 1, 0), -2, randf_range(0.9, 1.15))
-			if d[3] == me: fx.number(at + Vector3(0, 0.6, 0), "+%d 🪙" % Data.ENEMIES[clampi(d[2], 0, 7)].coins, Color("ffe680"), false)
+			if d[3] == me:
+				fx.number(at + Vector3(0, 0.6, 0), "+%d" % Data.ENEMIES[clampi(d[2], 0, Data.ENEMIES.size() - 1)].coins, Color("ffe680"), false)
+				ui.canvas.killmark()
+				audio.play("killmark", null, -8, randf_range(0.95, 1.05))
 		"boom":
 			fx.explosion(v3(d[0], d[1]), d[2])
 			audio.play("explosion", v3(d[0], d[1], 1), 2)
@@ -826,6 +861,15 @@ func handle_event(type:String, d:Array, me:int):
 		"lost":
 			audio.play("alarm", null, -2)
 			ui.big("¡%s PERDIDO!" % Data.SITES[d[0]].name.to_upper(), "Reconquistadlo de día", Color("ff6b6b"), 3.5)
+		"midnight":
+			ui.big("MEDIANOCHE", "Llega la Plañidera: su llanto enfurece a los brotados que la rodean", Color("b9a6ff"), 5.0)
+			audio.play("toll", null, -2, 1.0)
+		"wail":
+			var at := v3(d[0], d[1])
+			fx.ring(at, Color("b9a6ff"), 1.0, Data.WAIL_RADIUS * 2.0, 1.0)
+			fx.ring(at, Color("ff6b8a"), 0.5, Data.WAIL_RADIUS * 1.4, 0.7)
+			fx.light(at + Vector3(0, 2, 0), Color("b9a6ff"), 6.0, 0.6, 14.0)
+			audio.play("wail", at + Vector3(0, 2, 0), 3, randf_range(0.92, 1.05))
 		"night":
 			audio.play("horn", null, 0)
 			var ev:Dictionary = Data.NIGHT_EVENTS[d[1]]
@@ -1017,12 +1061,17 @@ func _process(dt:float):
 	elif not p.is_empty() and local_pos != Vector2.INF:
 		var lead := (cursor - local_pos).limit_length(7.0) * 0.28 * camera.zoom_t
 		var target := Vector3(drawn.x + lead.x, 0, drawn.y + lead.y)
+		if autopilot.has("focus"): target = autopilot.focus   # tests: frame a fixed spot
 		cam_focus = cam_focus.lerp(target, 1.0 - exp(-6.0 * dt))
 	var shake := Vector3.ZERO
 	if ui.settings.shake and fx.trauma > 0:
 		var tr := fx.trauma * fx.trauma
 		shake = Vector3(randf_range(-1, 1), randf_range(-1, 1), randf_range(-1, 1)) * tr * 0.7
-	camera.follow(cam_focus, dt, shake)
+	cam_kick = move_toward(cam_kick, 0.0, dt * (0.6 + cam_kick * 10.0))
+	var aim3 := Vector3(local_aim.x, 0, local_aim.y)
+	camera.fov_kick = lerpf(camera.fov_kick, 4.0 if sprinting and local_pos != Vector2.INF else 0.0, 1.0 - exp(-5.0 * dt))
+	camera.follow(cam_focus, dt, shake - aim3 * cam_kick + Vector3(0, cam_kick * 0.3, 0))
+	actors.listener_pos = cam_focus
 	if actors.heroes.has(me): actors.heroes[me].visible = camera.boom > 1.2
 	listener.global_position = cam_focus + Vector3(0, 8, 4)
 	listener.global_basis = camera.global_basis
@@ -1067,6 +1116,17 @@ func _process(dt:float):
 			hint = "Fuera de tu territorio: construye cerca de la casa o de una propiedad conquistada"
 		local.build_hint = hint + "\nClic: colocar · 1–8 o rueda: elegir · Clic derecho / B: salir"
 	var ui_k := 1.0 / maxf(0.1, get_tree().root.content_scale_factor)
+	# the system cursor hides during play: the HUD draws the crosshair instead
+	var playing:bool = not paused and not shop_open and not map_open and not ui.board.visible and not ui.settings_panel.visible and not ui.help_panel.visible and s.ph != P.OVER and not p.is_empty()
+	if not orbiting:
+		var want := Input.MOUSE_MODE_HIDDEN if playing else Input.MOUSE_MODE_VISIBLE
+		if Input.mouse_mode != want: Input.mouse_mode = want
+	local.cross_on = playing and p.get("st", 0) == 0
+	local.cross = (get_viewport().get_visible_rect().size * 0.5 if orbiting else get_viewport().get_mouse_position()) * ui_k
+	local.moving = clampf(actors.heroes[me].ground_vel.length() / 6.0, 0.0, 1.0) if actors.heroes.has(me) else 0.0
+	if not p.is_empty():
+		local.reload = 1.0 - p.rl / maxf(0.01, p.get("rlmax", 1.0)) if p.rl > 0 else 0.0
+		local.empty = p.mag.get(p.gun, 1) <= 0 and p.rl <= 0
 	if lp != Vector3.INF and not camera.is_position_behind(lp + Vector3(0, 2.4, 0)):
 		local.head = camera.unproject_position(lp + Vector3(0, 2.4, 0)) * ui_k
 	var sectors := []
@@ -1142,6 +1202,9 @@ func indicators(s:Dictionary, me:int) -> Array:
 	var all_in := pcs.size() > 0 and pcs.all(func(x): return x[0] == 4)
 	if carrying or (all_in and s.ph == P.PREP and s.get("fin", -1.0) < 0): add.call(v3(Map.STAGE.x, Map.STAGE.y, 2.5), Color("ff9ad5"), "Escenario")
 	if s.boss.size() > 0 and actors.horde.has(s.boss[0]): add.call(actors.horde[s.boss[0]].position + Vector3(0, 3, 0), Color("c45ad8"), "Gigantón")
+	var en:PackedFloat32Array = s.en
+	for i in range(0, en.size(), 8):
+		if int(en[i + 1]) == Data.WAILER: add.call(v3(en[i + 2], en[i + 3], 3.0), Color("b9a6ff"), "Plañidera")
 	return out
 
 func menu_camera(dt:float):

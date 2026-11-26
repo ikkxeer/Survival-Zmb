@@ -48,6 +48,7 @@ var weather := 0
 var fronts := [2]
 var queue := []
 var night_total := 0
+var midnight := false        # the Plañidera has already come tonight
 var spawn_timer := 0.0
 var straggler_timer := 20.0
 var day_plan := {}
@@ -765,7 +766,9 @@ func fire(id:int, p:Dictionary):
 		start_reload(p)
 		return
 	p.cool = w.rate * (0.6 if frenzy else 1.0)
-	if not frenzy: p.mag[p.gun] -= 1
+	if not frenzy:
+		p.mag[p.gun] -= 1
+		if p.mag[p.gun] <= 0: start_reload(p)    # the last round starts the reload at once
 	var dmg:float = w.dmg * (1.0 + 0.25 * (lvl - 1)) * Data.ROLES[p.role].damage
 	if p.role == 2: dmg *= role_level_bonus(p)
 	var origin:Vector2 = p.p + p.aim * 0.55
@@ -832,7 +835,7 @@ func damage_enemy(key:int, dmg:float, owner:int, dir:Vector2 = Vector2.ZERO, kno
 		var mass := 2.5 if e.k == 2 else 1.0
 		e.kv += dir * knock * 6.0 / mass
 		e.stun = maxf(e.stun, 0.08 * knock)
-	emit("hit", [e.p.x, e.p.y, int(round(dmg)), 1 if crit else 0, key])
+	emit("hit", [e.p.x, e.p.y, int(round(dmg)), 1 if crit else 0, key, owner])
 	if e.hp <= 0: kill_enemy(key, owner)
 
 func kill_enemy(key:int, owner:int):
@@ -937,7 +940,8 @@ func new_enemy(kind:int, at:Vector2, goal:String, night:bool) -> Dictionary:
 		"cd":rng.randf_range(0.2, 1.0), "wind":0.0, "target":null, "state":0, "stun":0.0, "burn":0.0, "burner":-1,
 		"kv":Vector2.ZERO, "night":night, "victim":-1, "retarget":rng.randf(), "face":Vector2.ZERO, "flash":0.0,
 		"lit":false, "climb":false, "fuse":0.0, "home":at, "guard":false, "guard_alert":0.0, "summon":8.0, "slam":0.0,
-		"atk":0.0, "surv":null, "stuck":0.0, "speed":def.speed * rng.randf_range(0.92, 1.08)}
+		"atk":0.0, "surv":null, "stuck":0.0, "speed":def.speed * rng.randf_range(0.92, 1.08),
+		"rage":0.0, "wail":Data.WAIL_EVERY * 0.5, "wailing":0.0}
 	enemies[serial] = e
 	return e
 
@@ -1147,6 +1151,7 @@ func start_night():
 	if night_event == 6:
 		queue.append(Data.BOSS)
 	night_total = queue.size()
+	midnight = false
 	# Split the night into assaults with a respite between them.
 	assault_count = 2 if wave < 3 else 3
 	assaults = []
@@ -1183,6 +1188,67 @@ func spawn_tick(dt:float):
 			e.goal = "base"
 			announce("¡Un Gigantón avanza por el %s!" % Map.FRONT_NAMES[front])
 	spawn_timer = maxf(2.2, 5.5 - wave * 0.2) * (0.6 if night_event == 2 else 1.0) + active * 0.04
+
+func check_midnight():
+	## Halfway through every night from the second one, the Plañidera arrives.
+	if midnight or wave < 2 or night_total <= 0 or night_event == 6: return    # never on a Gigantón night
+	var done := 1.0 - float(remaining()) / maxf(1.0, night_total)
+	if done < 0.45: return
+	midnight = true
+	var count := 1 + (1 if players.size() >= 3 else 0) + (1 if wave >= 6 else 0)
+	var front:int = fronts[rng.randi_range(0, fronts.size() - 1)]
+	for i in count:
+		var e := new_enemy(Data.WAILER, front_point(front) + Vector2(rng.randf_range(-1.5, 1.5), rng.randf_range(-1.5, 1.5)), "base", true)
+		e.wail = 2.0 + i
+	night_total += count
+	emit("midnight", [front, count])
+	announce("¡Medianoche! %s llora por el %s: callad su lamento" % ["Una plañidera" if count == 1 else "%d plañideras" % count, Map.FRONT_NAMES[front]])
+	log_line({"evento":"medianoche", "frente":Map.FRONT_NAMES[front], "planideras":count, "noche":wave})
+
+func wailer_logic(key:int, e:Dictionary, dt:float):
+	## Keeps her distance, drifts towards the house and wails to enrage the brotados around her.
+	e.wailing = maxf(0.0, e.wailing - dt)
+	# she does not hold the night hostage: alone, or after a while, she fades away
+	e.life = e.get("life", 0.0) + dt
+	var others := 0
+	for o in enemies.values(): if o.night and o.k != Data.WAILER: others += 1
+	if e.life > 70.0 or (others == 0 and queue.is_empty() and e.life > 6.0):
+		enemies.erase(key)
+		emit("kill", [e.p.x, e.p.y, e.k, -9])
+		announce("La Plañidera se desvanece entre lamentos")
+		return
+	e.wail -= dt
+	if e.wail <= 0 and e.stun <= 0:
+		e.wail = Data.WAIL_EVERY
+		e.wailing = 1.3
+		var touched := 0
+		for other in near_enemies(e.p, Data.WAIL_RADIUS):
+			if touched >= Data.RAGE_MAX: break
+			if other == key or not enemies.has(other): continue
+			var o:Dictionary = enemies[other]
+			if o.k == Data.WAILER or o.p.distance_to(e.p) > Data.WAIL_RADIUS: continue
+			o.rage = Data.RAGE_TIME
+			if o.state == 2: wake(o)
+			touched += 1
+		emit("wail", [e.p.x, e.p.y, touched])
+	if e.wailing > 0.5 or e.stun > 0: return
+	var dir := Vector2.ZERO
+	var near_p:Dictionary = {}
+	var nd := 99.0
+	for p in players.values():
+		if p.st == 0 and p.p.distance_to(e.p) < nd:
+			nd = p.p.distance_to(e.p)
+			near_p = p
+	if not near_p.is_empty() and nd < 5.0:
+		dir = (e.p - near_p.p).normalized()
+	elif e.p.distance_to(Map.BASE_CENTER) > 9.0:
+		var next := nav.next_cell("base", 0, e.p)
+		if next >= 0: dir = (nav.center(next) - e.p).normalized()
+	else:
+		dir = Vector2(cos(time * 0.4 + key), sin(time * 0.4 + key)) * 0.4
+	if dir != Vector2.ZERO: e.face = e.face.lerp(dir.normalized(), minf(1.0, 4.0 * dt)).normalized()
+	if not near_p.is_empty(): e.face = (near_p.p - e.p).normalized()
+	e.p = nav.move(e.p, (dir * e.speed + e.kv) * dt, 0.38, 1)
 
 func start_finale(p:Dictionary):
 	## The last night: lights on, every street at once, hold until the final firecracker.
@@ -1347,6 +1413,7 @@ func tick_phase(dt:float):
 				finale_tick(dt)
 				spawn_tick(dt)
 				return
+			check_midnight()
 			if respite > 0:
 				respite -= dt
 				if respite <= 0:
@@ -1901,6 +1968,10 @@ func tick_enemies(dt:float):
 				emit("kill", [e.p.x, e.p.y, e.k, -9])
 			continue
 		if e.k == Data.BOSS: boss_logic(e, dt)
+		e.rage = maxf(0.0, e.rage - dt)
+		if e.k == Data.WAILER:
+			wailer_logic(key, e, dt)
+			continue
 		# --- ongoing wind-up
 		if e.wind > 0:
 			e.wind -= dt
@@ -1962,6 +2033,7 @@ func tick_enemies(dt:float):
 			continue
 		# --- move
 		var spd:float = e.speed * speed_mult
+		if e.rage > 0: spd *= Data.RAGE_SPEED
 		if e.stun > 0: spd = 0.0
 		if e.lit: spd *= 0.82
 		var cell := nav.cell_of(e.p)
@@ -2148,6 +2220,8 @@ func snapshot() -> Dictionary:
 		if e.fuse > 0: flags |= 32
 		if e.wind > 0: flags |= 64
 		if e.burn > 0: flags |= 128
+		if e.get("rage", 0.0) > 0: flags |= 256
+		if e.get("wailing", 0.0) > 0: flags |= 512
 		en[i] = key
 		en[i + 1] = e.k
 		en[i + 2] = e.p.x
