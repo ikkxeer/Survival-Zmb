@@ -66,6 +66,7 @@ var roll_dir := Vector2.ZERO
 var stamina := 1.0
 var last_fix := 0
 var build_kind := -1
+const DEMOLISH := 8           # build tool that takes a construction down (after the 8 defences)
 var shop_open := false
 var map_open := false
 var pred_cool := 0.0
@@ -157,6 +158,38 @@ func make_portraits():
 	mats.frame(Vector3(0, 0.45, 0), 5.2, -35.0, -30.0)
 	ui.canvas.house_tex = house_portrait.get_texture()
 	ui.canvas.mat_tex = mats.get_texture()
+	# a little 3D photo of every defence for the build bar
+	var icons := []
+	for k in Data.STRUCTURES.size():
+		var pt := Portrait.new(160)
+		add_child(pt)
+		var mesh:Mesh = actors.wall_mesh(1, 2 | 8) if k == Data.S_WALL else actors.structure_mesh(k, 1 if Data.STRUCTURES[k].hp.size() > 1 else 0)
+		pt.add_mesh(mesh, Transform3D(), actors.toon)
+		var h := 0.75
+		var dist := 3.4
+		match k:
+			Data.S_TURRET:
+				pt.add_mesh(actors.turret_head(0), Transform3D(Basis(Vector3.UP, 0.6), Vector3(0, 0.88, 0)), actors.toon)
+				pt.add_mesh(actors.turret_head(1), Transform3D(Basis(Vector3.UP, 0.6), Vector3(0, 1.4, 0)), actors.toon)
+				h = 1.05
+				dist = 4.4
+			Data.S_LIGHT:
+				pt.add_mesh(actors.light_head(), Transform3D(Basis(Vector3.UP, 2.4).rotated(Vector3.RIGHT, -0.4), Vector3(0, 3.1, 0)), actors.toon)
+				h = 1.8
+				dist = 7.0
+			Data.S_COIL:
+				pt.add_mesh(actors.coil_top(), Transform3D(Basis(), Vector3(0, 1.45, 0)), actors.glow_mat)
+				h = 0.85
+				dist = 3.9
+			Data.S_WALL:
+				h = 1.0
+				dist = 4.4
+			Data.S_MINE:
+				h = 0.2
+				dist = 1.7
+		pt.frame(Vector3(0, h, 0), dist, -30.0, -22.0)
+		icons.append(pt.get_texture())
+	ui.build_icons = icons
 
 func make_crosshair() -> ImageTexture:
 	var img := Image.create(40, 40, false, Image.FORMAT_RGBA8)
@@ -512,7 +545,7 @@ func key(code:int):
 	if act == "use" and me.p.distance_to(Map.BOARD) < 2.2 and state.ph != P.NIGHT:
 		ui.toggle_board()
 		return
-	if build_kind >= 0 and code >= KEY_1 and code <= KEY_8:
+	if build_kind >= 0 and code >= KEY_1 and code <= KEY_9:
 		set_build(code - KEY_1)
 		return
 	match act:
@@ -527,7 +560,9 @@ func key(code:int):
 		"ready": send_action("ready")
 		"melee": melee()
 		"demolish":
-			if build_kind >= 0: send_action("demolish", [sim.nav.cell_of(cursor)])
+			# X takes down what is under the cursor; outside build mode it opens the tool
+			if build_kind >= 0 and sim.nav.skind[maxi(0, sim.nav.cell_of(cursor))] >= 0: demolish_at_cursor()
+			else: set_build(DEMOLISH)
 		"roll": start_roll()
 	if build_kind < 0 and code >= KEY_1 and code <= KEY_7:
 		var g := code - KEY_1
@@ -549,7 +584,7 @@ func toggle_map():
 
 func cycle_gun(d:int):
 	if build_kind >= 0:
-		set_build(posmod(build_kind + d, Data.STRUCTURES.size()))
+		set_build(posmod(build_kind + d, Data.STRUCTURES.size() + 1))
 		return
 	var me := my_state()
 	if me.is_empty(): return
@@ -580,10 +615,25 @@ func place():
 	if me.is_empty(): return
 	var cell := sim.nav.cell_of(cursor)
 	if cell < 0: return
+	if build_kind == DEMOLISH: return demolish_at_cursor()
 	# a turret placed on a turret stacks on it: double, then triple
 	var stacking := build_kind == Data.S_TURRET and sim.nav.skind[cell] == Data.S_TURRET
 	if not stacking and (sim.structures.has(cell) or (mode == "join" and sim.nav.skind[cell] >= 0)): return
 	send_action("build", [build_kind, cell])
+
+func demolish_at_cursor():
+	var cell := sim.nav.cell_of(cursor)
+	if cell < 0 or sim.nav.skind[cell] < 0:
+		ui.say("Apunta a una construcción para desmontarla", Color("ff6b6b"))
+		return
+	if sim.nav.center(cell).distance_to(local_pos) > 9.5:
+		ui.say("Acércate más para desmontarla", Color("ff6b6b"))
+		return
+	send_action("demolish", [cell])
+	var c := sim.nav.center(cell)
+	fx.burst("debris", v3(c.x, c.y, 0.3))
+	fx.burst("dust", v3(c.x, c.y, 0.1))
+	audio.play("crash", v3(c.x, c.y, 0.5), -6, 1.2)
 
 func move_input() -> Vector2:
 	if autopilot.has("move"): return autopilot.move
@@ -1093,7 +1143,22 @@ func _process(dt:float):
 	screen_mat.set_shader_parameter("vignette", 0.3 + 0.25 * night)
 	# build preview
 	var local := {"build": build_kind}
-	if build_kind >= 0 and not p.is_empty():
+	if build_kind == DEMOLISH and not p.is_empty():
+		var cell := sim.nav.cell_of(cursor)
+		var info = actors.struct_info.get(cell) if cell >= 0 else null
+		var costs := []
+		for k in Data.STRUCTURES.size(): costs.append(client_cost(p, k))
+		local.costs = costs
+		if info != null:
+			var c := sim.nav.center(cell)
+			var refund := int(Data.STRUCTURES[info[0]].cost * 0.5 * float(info[2]) / maxf(1.0, float(info[3])))
+			var near:bool = c.distance_to(local_pos) <= 9.5
+			actors.show_ghost(info[0], Vector3(c.x, 0, c.y), false, 1.08)
+			local.build_hint = ("Clic: desmontar %s · recuperas %d %s" % [Data.STRUCTURES[info[0]].name.to_lower(), refund, "material" if refund == 1 else "materiales"]) if near else "Acércate más para desmontarla"
+		else:
+			actors.show_ghost(-1, Vector3.ZERO, false)
+			local.build_hint = "Apunta a una construcción para desmontarla"
+	elif build_kind >= 0 and not p.is_empty():
 		var cell := sim.nav.cell_of(cursor)
 		var c := sim.nav.center(cell) if cell >= 0 else cursor
 		var cost := client_cost(p, build_kind)
@@ -1102,19 +1167,21 @@ func _process(dt:float):
 		var costs := []
 		for k in Data.STRUCTURES.size(): costs.append(client_cost(p, k))
 		local.costs = costs
-		var hint := "%s: %s" % [Data.STRUCTURES[build_kind].name, Data.STRUCTURES[build_kind].desc]
+		var hint := ""
+		if s.mat < cost: hint = "Faltan materiales: tienes %d y cuesta %d" % [s.mat, cost]
+		elif cell >= 0 and c.distance_to(local_pos) > 9.5 and sim.nav.skind[cell] < 0: hint = "Demasiado lejos: acércate para construir aquí"
 		if cell >= 0 and sim.nav.skind[cell] >= 0:
 			var info = actors.struct_info.get(cell)
 			if info != null:
 				var def:Dictionary = Data.STRUCTURES[info[0]]
 				var up := "al máximo" if info[1] >= def.hp.size() - 1 else "F mejorar (%d mat.)" % def.up[info[1]]
-				hint = "%s nivel %d · %s · X desmontar" % [def.name, info[1] + 1, up]
+				hint = "Aquí hay %s de nivel %d · %s · X desmontar" % [def.name.to_lower(), info[1] + 1, up]
 				actors.show_ghost(-1, Vector3.ZERO, false)
 				if info[0] == Data.S_TURRET and build_kind == Data.S_TURRET:
 					hint = "Torreta %s · clic: apilar otra encima (%d mat.)" % [["simple", "doble", "triple"][info[1]], def.up[info[1]]] if info[1] < 2 else "Torreta triple · al máximo"
 		elif not sim.in_territory(c):
 			hint = "Fuera de tu territorio: construye cerca de la casa o de una propiedad conquistada"
-		local.build_hint = hint + "\nClic: colocar · 1–8 o rueda: elegir · Clic derecho / B: salir"
+		local.build_hint = hint
 	var ui_k := 1.0 / maxf(0.1, get_tree().root.content_scale_factor)
 	# the system cursor hides during play: the HUD draws the crosshair instead
 	var playing:bool = not paused and not shop_open and not map_open and not ui.board.visible and not ui.settings_panel.visible and not ui.help_panel.visible and s.ph != P.OVER and not p.is_empty()

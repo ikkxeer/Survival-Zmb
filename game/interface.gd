@@ -14,7 +14,6 @@ const Data = preload("res://game/data.gd")
 const Map = preload("res://game/map.gd")
 const P := Data.Phase
 const St = preload("res://game/ui/style.gd")
-const Book3D = preload("res://game/ui/book3d.gd")
 const Map3D = preload("res://game/ui/map3d.gd")
 const HUD = preload("res://game/ui/hud.gd")
 
@@ -102,11 +101,7 @@ var mm_data := {}
 
 func _exit_tree():
 	## Let go of the viewport textures so the renderer can free them at exit.
-	if book_view: book_view.texture = null
 	St._fonts.clear()
-	if book3d:
-		book3d.map_mat.albedo_texture = null
-		book3d.map_mat.emission_texture = null
 
 func _ready():
 	layer = 5
@@ -776,34 +771,127 @@ func build_hud():
 	close.focus_mode = Control.FOCUS_NONE
 	board.visible = false
 
+var build_icons := []          # 3D portraits of each defence, set by main
+var build_sel := -1
+var build_costs := []
+var build_mat := 0
+var build_info:Label
+var build_title:Label
+var build_stats:Label
+var build_row:HBoxContainer
+
 func build_buildbar():
+	## A hotbar of cards (3D photo, key, name, cost) with an info strip for the
+	## selected one. The chosen card lifts up; ones you cannot afford are greyed.
 	hud.add_child(build_bar)
-	build_bar.add_theme_stylebox_override("panel", paper_box(St.PAPER, 22, 12))
-	anchor(build_bar, 0.5, 1.0, Vector2(0, -192))
-	build_bar.custom_minimum_size = Vector2(940, 0)
-	var col := vbox(build_bar, 8)
-	var row := hbox(col, 8)
-	for i in Data.STRUCTURES.size():
-		var b := Button.new()
-		b.custom_minimum_size = Vector2(108, 70)
-		b.toggle_mode = true
-		b.focus_mode = Control.FOCUS_NONE
-		b.pressed.connect(func(): build_pick.emit(i))
-		row.add_child(b)
-		var inner := vbox(b, 0)
-		inner.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		inner.offset_top = 5
-		inner.offset_left = 6
-		var k := label(inner, "%d · %s" % [i + 1, Data.STRUCTURES[i].name], 14, St.INK)
-		k.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		k.custom_minimum_size.x = 96
-		var cost := label(inner, "", 14, St.INK)
-		build_cards.append([b, cost])
+	build_bar.add_theme_stylebox_override("panel", paper_box(St.PAPER, 24, 14))
+	anchor(build_bar, 0.5, 1.0, Vector2(0, -12))
+	var col := vbox(build_bar, 10)
+	# info strip: name, description, stats, context hint
+	var info := hbox(col, 14)
+	var text := vbox(info, 2)
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	build_title = title(text, "", St.INK, 24)
+	build_info = label(text, "", 15, St.INK_SOFT)
+	build_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	build_info.custom_minimum_size.x = 600
+	build_stats = label(text, "", 14, St.INK)
+	build_stats.add_theme_font_override("font", St.font("body", 850))
 	col.add_child(build_hint)
 	build_hint.add_theme_font_size_override("font_size", 15)
-	build_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	build_hint.add_theme_color_override("font_color", Color("b8473f"))
 	build_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	build_hint.custom_minimum_size.x = 600
+	build_row = hbox(col, 8)
+	build_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	for i in Data.STRUCTURES.size() + 1:
+		var b := Button.new()
+		b.custom_minimum_size = Vector2(94, 128)
+		b.focus_mode = Control.FOCUS_NONE
+		for st in ["normal", "hover", "pressed", "hover_pressed", "disabled"]: b.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+		b.pressed.connect(func():
+			action.emit("ui_click", [])
+			build_pick.emit(i))
+		build_row.add_child(b)
+		var card := Control.new()
+		card.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.draw.connect(draw_build_card.bind(card, b, i))
+		b.add_child(card)
+		build_cards.append([b, card])
+	# controls row
+	var keys := hbox(col, 16)
+	keys.alignment = BoxContainer.ALIGNMENT_CENTER
+	for item in [["Clic", "colocar"], ["F", "mejorar"], ["9 · X", "desmontar"], ["1–8 · rueda", "elegir"], ["B · clic dcho.", "salir"]]:
+		var chip := hbox(keys, 6)
+		var kp := panel(chip, St.CARD, 8, 6)
+		var kl := label(kp, item[0], 13, St.INK)
+		kl.add_theme_font_override("font", St.font("title", 600))
+		label(chip, item[1], 13, St.INK_SOFT)
 	build_bar.visible = false
+
+func draw_build_card(c:Control, b:Button, i:int):
+	var demolish := i >= Data.STRUCTURES.size()
+	var sel := i == build_sel
+	var hover := b.is_hovered()
+	var cost:int = build_costs[i] if i < build_costs.size() else 0
+	var afford := demolish or build_mat >= cost
+	var lift := -12.0 if sel else (-4.0 if hover else 0.0)
+	var r := Rect2(Vector2(2, 14 + lift), Vector2(c.size.x - 4, c.size.y - 16))
+	if sel: c.draw_circle(r.get_center() + Vector2(0, -20), 46, Color(St.SUN, 0.25))
+	var accent := St.CORAL if demolish else Color(["c98a55", "9aa7b8", "4cc9c0", "e85d5d", "f2c14e", "fff2c0", "c98a55", "e8463c"][i])
+	var fill := St.SUN.lightened(0.55) if sel else (St.CARD if afford else St.PAPER_DARK)
+	if demolish: fill = St.CORAL.lightened(0.35 if sel else 0.6)
+	c.draw_style_box(St.card(fill, 16, St.SUN.darkened(0.3) if sel else St.INK, 4 if sel else 2, 5 if sel else 3), r)
+	# coloured band at the top of the card
+	c.draw_style_box(St.card(Color(accent, 0.55), 12, Color(0, 0, 0, 0), 0, 0), Rect2(r.position + Vector2(5, 5), Vector2(r.size.x - 10, 58)))
+	# the 3D photo, or a hammer for demolishing
+	var photo := Rect2(r.position + Vector2(r.size.x * 0.5 - 42, -14), Vector2(84, 84))
+	if demolish:
+		St.icon(c, "hammer", photo.get_center() + Vector2(0, 6), 52)
+	elif i < build_icons.size():
+		c.draw_texture_rect(build_icons[i], photo, false, Color(1, 1, 1, 1.0 if afford else 0.55))
+	# key cap
+	St.keycap(c, r.position + Vector2(15, 16), str(i + 1), 24, St.SUN if sel else St.CARD)
+	# name
+	var name := "Desmontar" if demolish else String(Data.STRUCTURES[i].name)
+	if name == "Banco de taller": name = "Banco"
+	if name == "Mina de petardos": name = "Mina"
+	St.text(c, Vector2(r.position.x, r.position.y + 84), name, 14, St.INK if afford else St.INK_SOFT, "title", 600, HORIZONTAL_ALIGNMENT_CENTER, r.size.x)
+	# cost chip
+	var chip := Rect2(Vector2(r.position.x + r.size.x * 0.5 - 30, r.end.y - 22), Vector2(60, 22))
+	if demolish:
+		St.text(c, Vector2(chip.position.x - 10, chip.position.y + 16), "+½ coste", 13, Color("8a2f2a"), "body", 900, HORIZONTAL_ALIGNMENT_CENTER, chip.size.x + 20)
+	else:
+		c.draw_style_box(St.card(St.CARD if afford else St.CORAL.lightened(0.5), 11, St.INK, 2, 0), chip)
+		St.icon(c, "plank", chip.position + Vector2(16, 11), 18)
+		St.text(c, chip.position + Vector2(28, 16), str(cost), 15, St.INK if afford else Color("a3302a"), "title", 600)
+
+func refresh_build_bar(s:Dictionary, local:Dictionary):
+	var sel:int = local.get("build", -1)
+	var costs:Array = local.get("costs", [])
+	var changed:bool = sel != build_sel or costs != build_costs or s.mat != build_mat
+	build_sel = sel
+	build_costs = costs
+	build_mat = s.mat
+	for c in build_cards: c[1].queue_redraw()
+	if not changed: return
+	if sel >= Data.STRUCTURES.size():
+		build_title.text = "Desmontar"
+		build_info.text = "Quita una construcción y devuelve la mitad de su coste, según lo dañada que esté. Úsalo para mover defensas a otro acceso."
+		build_stats.text = ""
+		build_stats.visible = false
+		return
+	var d:Dictionary = Data.STRUCTURES[sel]
+	build_title.text = d.name
+	build_info.text = d.desc
+	var bits := ["Resistencia %d" % int(d.hp[0]), "%d nivel%s" % [d.hp.size(), "" if d.hp.size() == 1 else "es"]]
+	if d.block: bits.append("bloquea el paso")
+	if d.vault: bits.append("se puede saltar")
+	if d.electric: bits.append("necesita corriente en un apagón")
+	if sel == Data.S_TURRET: bits.append("apilable hasta triple")
+	build_stats.text = " · ".join(bits)
+	build_stats.visible = true
 
 func build_shop():
 	hud.add_child(shop)
@@ -953,48 +1041,36 @@ func sell_value(p:Dictionary, g:int) -> int:
 	for i in int(p.guns[g]) - 1: spent += int(w.up[i])
 	return spent / 2
 
-const BOOK := Vector2(1040, 668)
-const BOOK_MAP := Rect2(0, 0, 936, 540)
-var book3d
-var book_view:TextureRect
-var map_surface:SubViewport
+const BIG_MAP := Vector2(1000, 640)
 var close_button:Button
+var map_tween:Tween
 
 func build_map():
-	## The map is a real 3D book. The 2D map (3D terrain plus markers) is drawn in
-	## its own viewport and printed onto the open pages; opening plays a short
-	## cinematic: the book drops in, the cover swings open and pages turn.
+	## The big map is the minimap grown large: a paper frame with the same 3D
+	## model of the neighbourhood, opening out of the minimap's corner in a blink.
 	hud.add_child(map_panel)
-	map_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	map_panel.add_theme_stylebox_override("panel", paper_box(St.CARD, 26, 10))
 	anchor(map_panel, 0.5, 0.5, Vector2(0, 0))
-	book3d = Book3D.new(Vector2i(BOOK))
-	add_child(book3d)
-	book_view = TextureRect.new()
-	book_view.custom_minimum_size = BOOK
-	book_view.texture = book3d.get_texture()
-	book_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	book_view.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	map_panel.add_child(book_view)
-	map_surface = SubViewport.new()
-	map_surface.size = Vector2i(BOOK_MAP.size * 1.5)
-	map_surface.size_2d_override = Vector2i(BOOK_MAP.size)
-	map_surface.size_2d_override_stretch = true
-	map_surface.transparent_bg = false
-	map_surface.render_target_update_mode = SubViewport.UPDATE_DISABLED
-	add_child(map_surface)
 	bigmap = Control.new()
-	bigmap.size = BOOK_MAP.size
+	bigmap.custom_minimum_size = BIG_MAP
+	bigmap.clip_contents = true
 	bigmap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	bigmap.draw.connect(func(): draw_map(bigmap, true))
-	map_surface.add_child(bigmap)
-	map3d.set_sizes(map3d.mini_size, BOOK_MAP.size)
-	book3d.set_map_texture(map_surface.get_texture())
+	map_panel.add_child(bigmap)
+	map3d.set_sizes(map3d.mini_size, BIG_MAP)
+	var deco := Control.new()
+	deco.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	deco.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	deco.draw.connect(func():
+		St.bunting(deco, Vector2(30, -4), Vector2(deco.size.x - 30, -4), 18, 10, 18, 1)
+		var tw := St.text_width("El barrio", 22, "title", 650) + 44
+		deco.draw_style_box(St.card(St.SUN, 12, St.INK, 3, 3), Rect2(Vector2(24, deco.size.y - 26), Vector2(tw, 38)))
+		St.text(deco, Vector2(24, deco.size.y + 1), "El barrio", 22, St.INK, "title", 650, HORIZONTAL_ALIGNMENT_CENTER, tw))
+	map_panel.add_child(deco)
 	close_button = Button.new()
 	close_button.text = "✕"
 	close_button.focus_mode = Control.FOCUS_NONE
 	close_button.custom_minimum_size = Vector2(48, 48)
-	close_button.size = Vector2(48, 48)
-	close_button.position = Vector2(BOOK.x - 124, 96)
 	close_button.tooltip_text = "Cerrar el plano"
 	for st in ["normal", "hover", "pressed"]:
 		close_button.add_theme_stylebox_override(st, St.card(St.CORAL if st != "hover" else St.CORAL.lightened(0.2), 24, St.INK, 3, 4 if st != "pressed" else 1))
@@ -1004,20 +1080,24 @@ func build_map():
 	close_button.pressed.connect(func():
 		action.emit("ui_click", [])
 		close_map.emit())
-	close_button.modulate.a = 0.0
-	book_view.add_child(close_button)
+	deco.add_child(close_button)
+	deco.resized.connect(func(): close_button.position = Vector2(deco.size.x - 30, -18))
 	map_panel.visibility_changed.connect(func():
-		if map_panel.visible:
-			map_surface.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-			close_button.modulate.a = 0.0
-			book3d.play_open()
-		else:
-			map_surface.render_target_update_mode = SubViewport.UPDATE_DISABLED
-			book3d.stop())
+		if not map_panel.visible: return
+		# grow out of the minimap in the top-right corner
+		if map_tween: map_tween.kill()
+		var full := BIG_MAP + Vector2(20, 14)
+		map_panel.pivot_offset = Vector2(full.x, 0)
+		map_panel.scale = Vector2(0.2, 0.2)
+		map_panel.modulate.a = 0.0
+		var from := minimap_panel.get_global_rect()
+		var rest := get_viewport().get_visible_rect().size * 0.5 / maxf(0.1, get_tree().root.content_scale_factor) - full * 0.5
+		map_panel.position = rest + (from.end - Vector2(0, from.size.y) - (rest + Vector2(full.x, 0))) * 0.6
+		map_tween = create_tween().set_parallel(true)
+		map_tween.tween_property(map_panel, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		map_tween.tween_property(map_panel, "position", rest, 0.2).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		map_tween.tween_property(map_panel, "modulate:a", 1.0, 0.12))
 	map_panel.visible = false
-
-func book_rect() -> Rect2:
-	return book_view.get_global_rect()
 
 func build_pause():
 	root.add_child(pause)
@@ -1092,19 +1172,13 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 	# build bar
 	build_bar.visible = local.get("build", -1) >= 0
 	if build_bar.visible:
-		for i in build_cards.size():
-			var b:Button = build_cards[i][0]
-			b.button_pressed = i == local.build
-			var cost:int = local.costs[i]
-			var lab:Label = build_cards[i][1]
-			lab.text = "%d" % cost
-			lab.add_theme_color_override("font_color", St.INK if s.mat >= cost else St.CORAL)
+		refresh_build_bar(s, local)
 		build_hint.text = local.get("build_hint", "")
+		build_hint.visible = build_hint.text != ""
 	if board.visible and Engine.get_process_frames() % 15 == 0: refresh_board(false)
 	if shop.visible: refresh_shop()
 	if map_panel.visible:
 		bigmap.queue_redraw()
-		close_button.modulate.a = clampf((book3d.open - 0.9) * 10.0, 0.0, 1.0)
 	map3d.update(s, mm_data.get("me", Vector2.ZERO), mm_data.get("yaw", 0.0), minimap_panel.visible, map_panel.visible)
 	minimap.queue_redraw()
 	minimap_panel.visible = s.ph != P.OVER
@@ -1287,12 +1361,10 @@ func weakest_access(s:Dictionary) -> String:
 
 func bigmap_world(pos:Vector2):
 	## World point under a screen position on the big map, or null outside it.
-	if not map_panel.visible: return null
-	var r := book_rect()
+	if not map_panel.visible or map_panel.scale.x < 0.98: return null
+	var r := bigmap.get_global_rect()
 	if not r.has_point(pos): return null
-	if not book3d.is_open(): return null
-	var m = book3d.screen_to_map(pos - r.position, BOOK_MAP.size)
-	return null if m == null else map3d.ground_at(true, m)
+	return map3d.ground_at(true, pos - r.position)
 
 func map_text(s:Dictionary) -> String:
 	var lines := []

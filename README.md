@@ -36,7 +36,7 @@ Al anochecer llegan los **brotados**: vecinos convertidos en plantas con muy mal
 <td width="50%"><img src="media/menu.jpg" alt="Menú principal con los cuatro oficios"><br><sub><b>Menú</b> · elige nombre, oficio y reglas de la partida.</sub></td>
 </tr>
 <tr>
-<td><img src="media/plano.jpg" alt="El plano del barrio dentro de un libro 3D"><br><sub><b>El plano</b> · una maqueta 3D del barrio impresa en un libro que se abre.</sub></td>
+<td><img src="media/plano.jpg" alt="El plano del barrio en 3D"><br><sub><b>El plano</b> · el minimapa se amplía en una maqueta 3D de todo el barrio.</sub></td>
 <td><img src="media/planidera.jpg" alt="La Plañidera lanza su lamento y enfurece a los brotados"><br><sub><b>Medianoche</b> · el lamento de la Plañidera enfurece a los brotados.</sub></td>
 </tr>
 </table>
@@ -126,7 +126,8 @@ El juego usa el renderizador **Forward+**. Si tu tarjeta no admite Vulkan, Godot
 | :-- | :--: |
 | Modo construcción | `B` |
 | Elegir defensa | `1`–`8` · 🖱 Rueda |
-| Colocar · mejorar · desmontar | Clic · `F` · `X` |
+| Colocar · mejorar | Clic · `F` |
+| Desmontar (recuperas la mitad) | `9` o `X` y clic |
 | Rebuscar, reparar, reanimar… | Mantener `E` |
 | Tienda (junto a la casa) | `T` |
 | Conquistar propiedad | `C` |
@@ -299,6 +300,7 @@ Se construye en cuadrícula, a menos de **11,5 m de la casa** o **7,5 m del esta
 | 🔦 **Foco** | 4 | Ilumina su zona, sigue al brotado más cercano y deslumbra: van lentos y reciben más daño. | 2 |
 | 🛠️ **Banco de taller** | 10 | Repara lo cercano y fabrica tracas. | 2 |
 | 💣 **Mina de petardos** | 3 | Estalla al pisarla. Un solo uso. | 1 |
+| 🔨 **Desmontar** | — | Quita una construcción tuya y devuelve la mitad de su coste según su estado. | — |
 
 <table>
 <tr>
@@ -395,7 +397,7 @@ Estilo de colores suaves y volúmenes redondeados, inspirado en los juegos de Ni
 <summary><b>🧭 Interfaz</b></summary>
 
 - **HUD limpio** con tema de papel y tinta: medallón de día y noche, retrato 3D de la casa con su anillo de resistencia, farolillos de las piezas, insignia del oficio, tarjeta del arma y avisos sobre la cabeza del personaje.
-- **Plano en un libro 3D:** la tapa de cuero se abre, se pasan las hojas y aparece una maqueta 3D del barrio impresa en las páginas. El minimapa es la misma maqueta y gira con la cámara.
+- **Plano 3D:** con `M` el minimapa se amplía al instante en una maqueta 3D de todo el barrio, con una cruz para cerrar. El minimapa es la misma maqueta y gira con la cámara.
 - **Fuentes redondeadas** Fredoka y Nunito, e iconos dibujados por código.
 
 </details>
@@ -421,7 +423,7 @@ Estilo de colores suaves y volúmenes redondeados, inspirado en los juegos de Ni
 | `game/audio.gd` | Síntesis de efectos y música. |
 | `game/interface.gd` | Menús, ajustes, tienda, tablón, plano, pausa y final. |
 | `game/ui/hud.gd` · `style.gd` | HUD dibujado por código, paleta, fuentes e iconos. |
-| `game/ui/book3d.gd` · `map3d.gd` · `portrait.gd` | Libro 3D del plano, maqueta del barrio y retratos 3D. |
+| `game/ui/map3d.gd` · `portrait.gd` | Maqueta 3D del barrio (plano y minimapa) y retratos 3D. |
 | `game/settings.gd` · `profile.gd` · `checkpoint.gd` | Preferencias, progreso entre partidas y guardado al amanecer. |
 
 </details>
