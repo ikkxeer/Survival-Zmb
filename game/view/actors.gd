@@ -1911,11 +1911,12 @@ func bundle_bob(t:float, dt:float):
 		mi.scale = mi.scale.lerp(Vector3.ONE, 1.0 - exp(-8.0 * dt))
 		mi.rotation.y = sin(t * 1.5 + id) * 0.15
 
-func show_ghost(kind:int, at:Vector3, valid:bool):
+func show_ghost(kind:int, at:Vector3, valid:bool, grow:float = 1.0):
 	if kind < 0:
 		ghost.visible = false
 		return
 	ghost.visible = true
 	ghost.mesh = ghost_mesh(kind)
 	ghost.position = at
+	ghost.scale = Vector3.ONE * grow
 	ghost_mat.set_shader_parameter("color", Color(0.45, 1.0, 0.6, 0.5) if valid else Color(1.0, 0.35, 0.35, 0.5))

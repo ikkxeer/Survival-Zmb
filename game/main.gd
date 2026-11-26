@@ -66,6 +66,7 @@ var roll_dir := Vector2.ZERO
 var stamina := 1.0
 var last_fix := 0
 var build_kind := -1
+const DEMOLISH := 8           # build tool that takes a construction down (after the 8 defences)
 var shop_open := false
 var map_open := false
 var pred_cool := 0.0
@@ -512,7 +513,7 @@ func key(code:int):
 	if act == "use" and me.p.distance_to(Map.BOARD) < 2.2 and state.ph != P.NIGHT:
 		ui.toggle_board()
 		return
-	if build_kind >= 0 and code >= KEY_1 and code <= KEY_8:
+	if build_kind >= 0 and code >= KEY_1 and code <= KEY_9:
 		set_build(code - KEY_1)
 		return
 	match act:
@@ -527,7 +528,9 @@ func key(code:int):
 		"ready": send_action("ready")
 		"melee": melee()
 		"demolish":
-			if build_kind >= 0: send_action("demolish", [sim.nav.cell_of(cursor)])
+			# X takes down what is under the cursor; outside build mode it opens the tool
+			if build_kind >= 0 and sim.nav.skind[maxi(0, sim.nav.cell_of(cursor))] >= 0: demolish_at_cursor()
+			else: set_build(DEMOLISH)
 		"roll": start_roll()
 	if build_kind < 0 and code >= KEY_1 and code <= KEY_7:
 		var g := code - KEY_1
@@ -549,7 +552,7 @@ func toggle_map():
 
 func cycle_gun(d:int):
 	if build_kind >= 0:
-		set_build(posmod(build_kind + d, Data.STRUCTURES.size()))
+		set_build(posmod(build_kind + d, Data.STRUCTURES.size() + 1))
 		return
 	var me := my_state()
 	if me.is_empty(): return
@@ -580,10 +583,25 @@ func place():
 	if me.is_empty(): return
 	var cell := sim.nav.cell_of(cursor)
 	if cell < 0: return
+	if build_kind == DEMOLISH: return demolish_at_cursor()
 	# a turret placed on a turret stacks on it: double, then triple
 	var stacking := build_kind == Data.S_TURRET and sim.nav.skind[cell] == Data.S_TURRET
 	if not stacking and (sim.structures.has(cell) or (mode == "join" and sim.nav.skind[cell] >= 0)): return
 	send_action("build", [build_kind, cell])
+
+func demolish_at_cursor():
+	var cell := sim.nav.cell_of(cursor)
+	if cell < 0 or sim.nav.skind[cell] < 0:
+		ui.say("Apunta a una construcción para desmontarla", Color("ff6b6b"))
+		return
+	if sim.nav.center(cell).distance_to(local_pos) > 9.5:
+		ui.say("Acércate más para desmontarla", Color("ff6b6b"))
+		return
+	send_action("demolish", [cell])
+	var c := sim.nav.center(cell)
+	fx.burst("debris", v3(c.x, c.y, 0.3))
+	fx.burst("dust", v3(c.x, c.y, 0.1))
+	audio.play("crash", v3(c.x, c.y, 0.5), -6, 1.2)
 
 func move_input() -> Vector2:
 	if autopilot.has("move"): return autopilot.move
@@ -1093,7 +1111,23 @@ func _process(dt:float):
 	screen_mat.set_shader_parameter("vignette", 0.3 + 0.25 * night)
 	# build preview
 	var local := {"build": build_kind}
-	if build_kind >= 0 and not p.is_empty():
+	if build_kind == DEMOLISH and not p.is_empty():
+		var cell := sim.nav.cell_of(cursor)
+		var info = actors.struct_info.get(cell) if cell >= 0 else null
+		var costs := []
+		for k in Data.STRUCTURES.size(): costs.append(client_cost(p, k))
+		local.costs = costs
+		if info != null:
+			var c := sim.nav.center(cell)
+			var refund := int(Data.STRUCTURES[info[0]].cost * 0.5 * float(info[2]) / maxf(1.0, float(info[3])))
+			var near:bool = c.distance_to(local_pos) <= 9.5
+			actors.show_ghost(info[0], Vector3(c.x, 0, c.y), false, 1.08)
+			local.build_hint = ("Clic: desmontar %s · recuperas %d %s" % [Data.STRUCTURES[info[0]].name.to_lower(), refund, "material" if refund == 1 else "materiales"]) if near else "Acércate más para desmontarla"
+		else:
+			actors.show_ghost(-1, Vector3.ZERO, false)
+			local.build_hint = "Desmontar: apunta a una construcción y haz clic. Recuperas la mitad de su coste según su estado."
+		local.build_hint += "\n1–8: volver a construir · Clic derecho / B: salir"
+	elif build_kind >= 0 and not p.is_empty():
 		var cell := sim.nav.cell_of(cursor)
 		var c := sim.nav.center(cell) if cell >= 0 else cursor
 		var cost := client_cost(p, build_kind)
@@ -1114,7 +1148,7 @@ func _process(dt:float):
 					hint = "Torreta %s · clic: apilar otra encima (%d mat.)" % [["simple", "doble", "triple"][info[1]], def.up[info[1]]] if info[1] < 2 else "Torreta triple · al máximo"
 		elif not sim.in_territory(c):
 			hint = "Fuera de tu territorio: construye cerca de la casa o de una propiedad conquistada"
-		local.build_hint = hint + "\nClic: colocar · 1–8 o rueda: elegir · Clic derecho / B: salir"
+		local.build_hint = hint + "\nClic: colocar · 1–8 o rueda: elegir · 9 o X: desmontar · Clic derecho / B: salir"
 	var ui_k := 1.0 / maxf(0.1, get_tree().root.content_scale_factor)
 	# the system cursor hides during play: the HUD draws the crosshair instead
 	var playing:bool = not paused and not shop_open and not map_open and not ui.board.visible and not ui.settings_panel.visible and not ui.help_panel.visible and s.ph != P.OVER and not p.is_empty()

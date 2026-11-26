@@ -35,10 +35,10 @@ func run():
 	await process_frame
 	await process_frame
 	var site:Vector2 = Map.SITES[1].beacon
-	ui.book3d.skip_to_open()
+	ui.map_tween.custom_step(1.0)
 	await process_frame
-	var r:Rect2 = ui.book_rect()
-	var pixel:Vector2 = r.position + ui.book3d.map_to_screen(ui.map3d.project(true, Vector3(site.x, 0.0, site.y)), ui.BOOK_MAP.size)
+	var r:Rect2 = ui.bigmap.get_global_rect()
+	var pixel:Vector2 = r.position + ui.map3d.project(true, Vector3(site.x, 0.0, site.y))
 	var back = ui.bigmap_world(pixel)
 	check(back != null and back.distance_to(site) < 0.01, "Proyección de las propiedades en el plano")
 	var click := InputEventMouseButton.new()
