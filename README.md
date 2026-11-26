@@ -1,247 +1,490 @@
-# La última verbena
+<div align="center">
 
-Supervivencia cooperativa en 3D para PC, de 1 a 4 jugadores. Las guirnaldas siguen encendidas y los vecinos se han atrincherado en la casa de la verbena. Al anochecer llegan los **brotados**, vecinos convertidos en plantas con malas pulgas. De día hay que rebuscar, rescatar, conquistar la calle y levantar defensas. De noche toca aguantar hasta el amanecer.
+# 🎆 La última verbena
 
-![Cuatro vecinos defienden la plaza de noche, con bobinas, alambradas y barricadas](media/noche.jpg)
+### Supervivencia cooperativa en 3D · de 1 a 4 vecinos · un barrio español en fiestas
 
-![La plaza de día mientras el equipo se prepara](media/dia.jpg)
+*Las guirnaldas siguen encendidas y los vecinos se han atrincherado en la casa de la verbena.<br>
+Al anochecer llegan los **brotados**: vecinos convertidos en plantas con muy malas pulgas.*
 
-## Jugar
+![Godot 4.7](https://img.shields.io/badge/Godot-4.7.2-478cbf?logo=godotengine&logoColor=white)
+![Plataforma](https://img.shields.io/badge/PC-Windows%20%C2%B7%20Linux-6c5ce7)
+![Jugadores](https://img.shields.io/badge/cooperativo-1%E2%80%934%20jugadores-ff6b6b)
+![Red](https://img.shields.io/badge/red-ENet%20LAN-06d6a0)
+![Idioma](https://img.shields.io/badge/idioma-espa%C3%B1ol-ffd166)
+![Recursos](https://img.shields.io/badge/arte%20y%20sonido-100%25%20generados%20por%20c%C3%B3digo-f78fb3)
 
-Abre `project.godot` con **Godot 4.7** (probado con 4.7.2) y pulsa **F5**. También puedes ejecutar `godot --path .`. Usa el renderizador Forward+. Si la tarjeta gráfica no admite Vulkan, Godot pasa automáticamente al renderizador de compatibilidad.
+![Cuatro vecinos defienden la plaza de noche frente a los brotados](media/noche.jpg)
 
-En el menú escribe tu nombre, elige un oficio y pulsa **Jugar en solitario**.
+**[▶ Jugar](#-cómo-jugar)** · **[🎮 Controles](#-controles)** · **[🌗 Una partida](#-el-ciclo-de-una-partida)** · **[🧟 Brotados](#-los-brotados)** · **[🧱 Defensas](#-construcción-y-territorio)** · **[🛠 Desarrollo](#-para-desarrolladores)**
 
-Para jugar en red, una persona pulsa **Crear partida en red**. Al crearla aparece un aviso con sus IP locales. Hasta tres compañeros escriben esa IP y pulsan **Unirse**, también con la partida ya empezada. Hay que permitir UDP 24680 en el cortafuegos del anfitrión. Por Internet hace falta una dirección accesible o una red privada compartida (Tailscale, ZeroTier…). La partida termina si sale el anfitrión.
+</div>
 
-| Acción | Control |
-| --- | --- |
-| Moverse · correr · voltereta | WASD según la cámara (W aleja de la cámara y el personaje mira hacia donde camina; al disparar se gira hacia el puntero) · Mayús · Espacio |
-| Apuntar y disparar · sartenazo | Ratón y clic izquierdo · clic derecho corto o V |
-| Acercar o alejar la cámara (de vista táctica a tercera persona) | Rueda del ratón |
-| Girar la cámara | Arrastra con el botón derecho |
-| Recargar · cambiar de arma | R · 1–7 |
-| Rebuscar, reparar, reanimar, liberar, fabricar | Mantener E |
-| Habilidad del oficio · traca · botiquín | Q · F · H |
-| Modo construcción | B. Luego 1–8 o rueda elige, clic coloca, F mejora, X desmonta y clic derecho sale |
-| Tienda (junto a la casa) · conquistar propiedad | T · C |
-| Plano del barrio (norte arriba) · señalar un destino | M o Tab · clic en el plano o clic central en el mundo |
-| Pedir apoyo en tu posición, también al caer | G |
-| Listo para la noche · ayuda · pausa | N · F1 · Esc |
+---
 
-Todas las teclas se cambian en **Ajustes → Controles** y se guardan en `user://ajustes.cfg` junto con la sensibilidad de cámara, los volúmenes (general, efectos y música), el tamaño de la interfaz y las opciones de accesibilidad (sacudidas, destellos y números de daño). La ayuda (F1) muestra siempre las teclas elegidas.
+## ✨ En pocas palabras
 
-**Coordinación.** Las señales duran ocho segundos, se pueden enviar una cada segundo y medio, aparecen en el mundo con el oficio y la distancia y en el plano y el minimapa. El aviso de brecha indica qué acceso (norte, este, sur u oeste) recibe daño, si se ha perdido una defensa o si golpean la casa, y resalta el mismo lado en los mapas. Reconstruir una defensa en ese lado despeja la brecha.
+| ☀️ De día | 🌙 De noche | 🌅 Al amanecer |
+| :-- | :-- | :-- |
+| Rebuscas en coches y contenedores, rescatas vecinos, conquistas propiedades y levantas defensas alrededor de la casa. | Los brotados entran por las calles anunciadas, en dos o tres asaltos. Aguanta, repara y reanima a tus compañeros. | Cobras las recompensas, compras armas, mejoras defensas y te preparas para una noche más dura. |
 
-[Lista de prioridades y criterios de prueba](TODO.md) · [Distribución para Windows](distribution/DISTRIBUCION.md)
+> 🎯 **La meta:** recuperar las cuatro piezas del escenario, **encender la verbena** y aguantar la gran noche final. Si cae la casa… se acabó la fiesta.
 
-## El ciclo de una partida
+<table>
+<tr>
+<td width="50%"><img src="media/dia.jpg" alt="La plaza de día mientras el equipo se prepara"><br><sub><b>De día</b> · el equipo prepara la plaza con su lista de tareas.</sub></td>
+<td width="50%"><img src="media/menu.jpg" alt="Menú principal con los cuatro oficios"><br><sub><b>Menú</b> · elige nombre, oficio y reglas de la partida.</sub></td>
+</tr>
+<tr>
+<td><img src="media/plano.jpg" alt="El plano del barrio dentro de un libro 3D"><br><sub><b>El plano</b> · una maqueta 3D del barrio impresa en un libro que se abre.</sub></td>
+<td><img src="media/planidera.jpg" alt="La Plañidera lanza su lamento y enfurece a los brotados"><br><sub><b>Medianoche</b> · el lamento de la Plañidera enfurece a los brotados.</sub></td>
+</tr>
+</table>
 
-**Día (preparación).** El reloj marca cuánto falta para el anochecer. El HUD anuncia el evento de la noche y por qué calles entrarán los brotados. Así el equipo puede decidir dónde fortificar. Hay 28 puntos de botín (contenedores, coches, palés, cajas de feria, botiquines de pared y cajas de munición) que se vacían al rebuscarlos y se rellenan al amanecer. Durante el día pueden pasar cosas:
+---
 
-- Un **vecino atrapado** pide ayuda en una casa custodiada. Si lo liberas y lo escoltas, se une a la comunidad. El carpintero da materiales, la enfermera cura en la plaza y el vigía dispara desde el tejado.
-- Un **globo de feria** deja caer suministros en algún punto del mapa.
-- Una **horda errante** cruza el barrio.
-- Brotados sueltos rondan las calles.
+## 📖 Índice
 
-Cuando todos tocan la **campana** de la plaza o pulsan **N**, la noche llega antes. El primer día una lista de pasos y dos marcas (botín cercano y una propiedad arriesgada) orientan a quien empieza. Quien se queda en casa puede preparar en la tienda un **lote** con munición, botiquín y traca para un compañero.
+1. [▶ Cómo jugar](#-cómo-jugar)
+2. [🎮 Controles](#-controles)
+3. [🌗 El ciclo de una partida](#-el-ciclo-de-una-partida)
+4. [👷 Oficios](#-oficios)
+5. [🔫 Armas y combate](#-armas-y-combate)
+6. [🧟 Los brotados](#-los-brotados)
+7. [🧱 Construcción y territorio](#-construcción-y-territorio)
+8. [🪙 Economía, tienda y comunidad](#-economía-tienda-y-comunidad)
+9. [🎨 Arte, animación e interfaz](#-arte-animación-e-interfaz)
+10. [🛠 Para desarrolladores](#-para-desarrolladores)
+11. [📜 Créditos y licencias](#-créditos-y-licencias)
 
-**Noche (supervivencia).** Los brotados llegan en grupos por los frentes anunciados. Van a por la casa y a por los estandartes de las propiedades conquistadas. La IA usa campos de flujo sobre una cuadrícula de 1 m. Cada brotado compara rodear las defensas con romperlas según su resistencia, persigue a los jugadores que ve y golpea lo que le cierra el paso. Cada noche aplica un evento:
+---
 
-| Evento | Efecto |
-| --- | --- |
-| Serena | Oleada normal. |
-| Apagón | Farolas y defensas eléctricas sin corriente salvo junto a un generador. Solo quedan las linternas. |
-| Estampida | Muchos más corredores. |
-| Niebla | Bruma lechosa y más trepadores. |
-| Tormenta | Lluvia y rayos que caen al azar sobre brotados, defensas y vecinos. |
-| Verbena roja | Luna roja: brotados más rápidos y más fichas. |
-| Noche de gigantes | Cada cinco noches llega un **Gigantón** que pisa en área y convoca brotados. |
+## ▶ Cómo jugar
 
-La noche llega en dos o tres **asaltos**. Entre uno y otro hay 15 segundos de **respiro**: da tiempo a reparar, reanimar o salir a por la caja que suelta un globo, pero no a todo.
+### Opción A · Versión para Windows
 
-**Amanecer (recuperación).** Llegan las recompensas de las propiedades y de la comunidad. Los caídos vuelven y el botín se repone. Es el momento de comprar, mejorar y reparar antes del siguiente día.
+1. Descomprime `LaUltimaVerbena-win64.zip` en cualquier carpeta.
+2. Abre **`LaUltimaVerbena.exe`**.
+3. Escribe tu nombre, elige un oficio y pulsa **Jugar en solitario**.
 
-**Tablón de encargos y comunidad.** Junto a la tienda, el tablón ofrece cada día un encargo corto y otro ambicioso (búsqueda, transporte o defensa) con su lugar, riesgo y recompensa. Desde el tablón también se decide dónde trabaja cada vecino rescatado: en casa con su habilidad o en una propiedad, cuya bonificación sube un 50 %.
+> 💡 El ZIP se genera con `python distribution/empaquetar.py` (todos los detalles en [DISTRIBUCION.md](distribution/DISTRIBUCION.md)).
 
-A veces el tablón ofrece un **relevo eléctrico** perdido: la exploradora lo localiza con su habilidad, alguien lo trae y la ingeniera lo instala rápido en el cuadro junto a la casa (corriente garantizada y torretas más rápidas).
+### Opción B · Desde el código
 
-**Reglas opcionales.** Antes de empezar se puede elegir «Barrio a oscuras» (apagón cada noche, un globo diario y más fichas) o «Estampida» (un frente más, el doble de corredores y días cortos con más materiales).
+1. Instala **[Godot 4.7](https://godotengine.org/)** (probado con 4.7.2).
+2. Abre `project.godot` y pulsa **F5**, o ejecuta:
 
-**La meta: encender la verbena.** Cuatro propiedades guardan una pieza del escenario: cuadro eléctrico, guirnalda maestra, altavoces y bidón de gasoil. Al conquistarlas, hay que llevar cada pieza al escenario de la plaza; quien carga va más despacio y la suelta si cae. Con las cuatro instaladas se enciende la verbena y empieza la noche final: 120 segundos de ataque por todas las calles. Si la casa aguanta, ganáis. Después, el anfitrión puede ofrecer una revancha con el mismo grupo.
+```bash
+godot --path .
+```
 
-La partida acaba si cae la casa o si todo el equipo queda fuera de combate. Si cae la casa, la cámara se vuelve hacia ella y se ve cómo se derrumba: las paredes se parten y caen hacia fuera, el tejado se hunde en V, el mirador vuelca, el cartel se descuelga y quedan escombros y polvo antes de la pantalla final. Un jugador caído aguanta 30 segundos. Un compañero puede reanimarlo manteniendo E, y él mismo puede levantarse con un botiquín.
+El juego usa el renderizador **Forward+**. Si tu tarjeta no admite Vulkan, Godot pasa solo al de compatibilidad.
 
-## Oficios
+### 👥 Jugar con amigos
 
-| Oficio | Ventajas | Habilidad (Q) |
-| --- | --- | --- |
-| Ingeniera | Construye un 25 % más barato, repara el doble y sus defensas aguantan un 20 % más. | Remiendo exprés: repara todo lo que tiene cerca. |
-| Médico | Cura sin gastar materiales y reanima el doble de rápido. Empieza con dos botiquines. | Ola de tila: cura y levanta a los compañeros cercanos. |
-| Soldado | +25 % de daño, recarga rápida y un 50 % más de munición. | Traca final: 6 s de fuego rápido sin gastar balas. |
-| Exploradora | Corre más, rebusca el doble de rápido y saca un 50 % más de botín. | Carrerilla: 5 s más rápida y con la mitad de daño. |
+| Paso | Quién | Qué hace |
+| :--: | :-- | :-- |
+| 1 | Anfitrión | Pulsa **Crear partida en red**. Aparece un aviso con sus IP locales. |
+| 2 | Hasta 3 amigos | Escriben esa IP y pulsan **Unirse** (también con la partida ya empezada). |
+| 3 | Anfitrión | Permite **UDP 24680** en su cortafuegos. |
 
-Entre partidas, cada oficio acumula experiencia y sube de rango. En el rango 2 la ingeniera aporta materiales extra, el médico empieza con tres botiquines, el soldado con el trabuco y la exploradora con fichas; en el rango 3 todos tienen +15 de vida. El perfil se guarda en `user://perfil.cfg` con copia de seguridad.
+- 🌐 Por Internet hace falta una dirección accesible o una red privada compartida (Tailscale, ZeroTier…).
+- 🔁 Si la sesión se corta, el menú ofrece **Continuar partida** desde el último amanecer y cada vecino recupera lo suyo con su mismo nombre.
+- ⚠️ La partida termina si sale el anfitrión.
 
-Cada oficio sube cinco niveles con su experiencia: matar, reparar, curar, rebuscar, construir o reanimar. Cada nivel da más vida, mejora el oficio y reduce la recarga de la habilidad. Todos pueden construir, reanimar y usar cualquier arma.
+---
 
-## Combate
+## 🎮 Controles
 
-- **Lanzacorchos** (pistola, munición infinita).
-- **Trabuco de confeti** (escopeta de siete perdigones que empuja).
-- **Metralleta de petardos** (subfusil).
-- **Carabina de feria** (rifle de asalto que atraviesa).
-- **Rifle de tómbola** (francotirador que atraviesa filas).
-- **Lanzatracas** (explosivos en parábola).
-- **Soplete de verbena** (chorro de chispas que quema).
+<table>
+<tr><th>🏃 Movimiento y cámara</th><th>⚔️ Combate</th></tr>
+<tr valign="top"><td>
 
-Cada arma tiene cargador, reserva, tiempo de recarga, dispersión, alcance, retroceso, sonido y efectos propios, y se mejora dos veces en la tienda. Las balas son proyectiles visibles (un núcleo brillante con una estela corta que se afina) que viajan desde la boca del arma a la velocidad propia de cada arma, también las de las torretas, con fogonazo orientado, humo, casquillos e impactos distintos si dan en un brotado o fallan. En la pestaña **Vender** de la tienda se recupera la mitad de lo invertido en un arma y sus mejoras (la pistola de feria no se vende), y también se venden botiquines y tracas. El rifle y el lanzatracas necesitan la Comisaría. El soplete necesita la Gasolinera. Además hay sartenazo cuerpo a cuerpo, tracas arrojadizas, golpes críticos y bonificación contra brotados deslumbrados por un foco.
+| Acción | Tecla |
+| :-- | :--: |
+| Moverse (relativo a la cámara) | `W` `A` `S` `D` |
+| Correr | `Mayús` |
+| Voltereta | `Espacio` |
+| Acercar / alejar la cámara | 🖱 Rueda |
+| Girar la cámara | 🖱 Arrastrar con botón derecho |
 
-Los brotados mueren en una explosión de confeti y hojas. Los números de daño, los destellos al impactar, las sacudidas de cámara y los efectos de luz refuerzan cada disparo sin perder el tono animado.
+</td><td>
 
-## Brotados
+| Acción | Tecla |
+| :-- | :--: |
+| Apuntar y disparar | 🖱 Ratón · clic izquierdo |
+| Sartenazo | `V` · clic derecho corto |
+| Recargar · cambiar de arma | `R` · `1`–`7` |
+| Habilidad del oficio | `Q` |
+| Traca · botiquín | `F` · `H` |
 
-| Tipo | Rasgo |
-| --- | --- |
-| Brotado | El común, con un brote en la cabeza. |
-| Corredor | Rápido y frágil, con sudadera. |
-| Cabezudo | Enorme cabeza con sombrero de seta. Resistente y pega fuerte. |
-| Derribador | Cono de tráfico y una viga. Destroza barricadas y prefiere atravesar muros. |
-| Trepador | Brazos largos. Escala las defensas en lugar de romperlas. |
-| Escupidor | Barriga hinchada y flor en la cabeza. Escupe a distancia. |
-| Petardero | Chaleco de petardos. Explota al acercarse o al morir y daña también a otros brotados. |
-| Gigantón | Gigante de feria coronado. Jefe de oleada. |
+</td></tr>
+<tr><th>🔨 Construir y gestionar</th><th>🤝 Equipo</th></tr>
+<tr valign="top"><td>
 
-Los tipos aparecen poco a poco y se combinan según la noche. La dificultad crece con nuevas mezclas, más frentes, eventos y presión sobre el territorio, y no solo con más vida.
+| Acción | Tecla |
+| :-- | :--: |
+| Modo construcción | `B` |
+| Elegir defensa | `1`–`8` · 🖱 Rueda |
+| Colocar · mejorar · desmontar | Clic · `F` · `X` |
+| Rebuscar, reparar, reanimar… | Mantener `E` |
+| Tienda (junto a la casa) | `T` |
+| Conquistar propiedad | `C` |
 
-## Construcción y territorio
+</td><td>
 
-Se construye en cuadrícula, en cualquier casilla libre a menos de 11,5 m de la casa o a 7,5 m del estandarte de una propiedad conquistada. Una barricada de madera rodeada de muros se convierte en tramo de muro continuo.
+| Acción | Tecla |
+| :-- | :--: |
+| Plano del barrio | `M` · `Tab` |
+| Señalar un punto | Clic en el plano · clic central |
+| Pedir apoyo (también caído) | `G` |
+| Listo para la noche | `N` |
+| Ayuda · pausa | `F1` · `Esc` |
 
-| Defensa | Función | Niveles |
-| --- | --- | --- |
-| Barricada | Bloquea. Los vecinos la saltan. | Madera → tablones con sacos → chapa |
-| Alambrada | Frena y araña. | 3 |
-| Bobina | Descarga en cadena. | 3 |
-| Torreta | Dispara sola y gira hacia el blanco. | 3 |
-| Generador | Da corriente en los apagones y acelera las torretas cercanas. | 2 |
-| Foco | Ralentiza y deslumbra. Los brotados iluminados reciben más daño. | 2 |
-| Banco de taller | Repara las defensas cercanas y fabrica tracas. | 2 |
-| Mina de petardos | Explota al pisarla. Un solo uso. | 1 |
+</td></tr>
+</table>
 
-Hay seis propiedades conquistables. Cada una tiene su estandarte, su ventaja y sus guardianes: hay que despejarlos de día antes de pagar la conquista.
+> ⚙️ Todas las teclas se cambian en **Ajustes → Controles**. Allí también están la sensibilidad, los volúmenes, el tamaño de la interfaz y la accesibilidad (sacudidas, destellos y números de daño). La ayuda (`F1`) siempre muestra tus teclas.
 
-- **Taller:** defensas más baratas y reparación de la casa al amanecer.
-- **Dispensario:** curas y botiquines.
-- **Economato:** fichas.
-- **Almacén:** materiales.
-- **Gasolinera:** corriente garantizada y soplete.
-- **Comisaría:** armas pesadas, munición y tracas.
+---
 
-Cada conquista encarece la siguiente, añade brotados a cada noche y suma un estandarte que los brotados intentarán derribar. Si cae, la propiedad se pierde hasta que se reconquiste.
+## 🌗 El ciclo de una partida
 
-**Economía.** Los materiales son del equipo: sirven para construir, reparar, conquistar y reforzar la casa. Las fichas son de cada jugador: sirven para armas, mejoras, munición, botiquines, tracas y la mejora colectiva de la casa.
+### ☀️ Día · preparación
 
-## Dirección artística
+El medallón de arriba marca cuánto falta para el anochecer y avisa del **evento de la noche** y de **por qué calles** entrarán los brotados.
 
-El estilo toma como referencia la paleta y los volúmenes suaves de los juegos de Nintendo citados en el encargo, con una identidad propia: un barrio español en fiestas.
+- 🔍 **28 puntos de botín** (coches, contenedores, palés, cajas de feria, botiquines y cajas de munición) que se rellenan cada amanecer.
+- 🆘 **Vecinos atrapados** en casas custodiadas: si los liberas, se unen a la comunidad.
+- 🎈 **Globos de feria** que dejan caer suministros.
+- 🧟 **Hordas errantes** y brotados sueltos rondando las calles.
+- 🔔 Si todos tocan la **campana** de la plaza (o pulsan `N`), la noche llega antes.
 
-- **Sombreado toon propio** (`game/shaders/toon.gdshader`): terminador suave, luz de borde, brillo plástico, sombras teñidas por la luz ambiente y ventanas que se encienden solas al anochecer.
-- **Modelado procedural** (`game/view/kit.gd`): cajas biseladas, cilindros, elipsoides y tejados de teja. El barrio se combina en pocas mallas por zona, con color por vértice.
-- **Personajes chibi** con ojos brillantes, rubor y equipo de oficio (casco con linterna, cofia y bolsa médica, casco y canana, sombrero de explorador con pluma). Animación procedural de pasos, apuntado, retroceso, recarga, voltereta, sartenazo, parpadeo, caída y reanimación. Contorno fino para leerlos desde la cámara alta.
-- **Ciclo de día y noche** continuo: mañana, mediodía, tarde dorada, atardecer rosado y noche azul con luna, estrellas, farolas, guirnaldas, farolillos y linternas.
-- **Clima:** nubes que proyectan sombra sobre el césped, lluvia con suelo mojado, niebla lechosa, relámpagos y luna roja.
-- **Elementos vivos:** césped y flores que se mecen, árboles con viento, banderines de papel picado, pétalos y hojas por el aire, mariposas de día, luciérnagas de noche, humo de chimeneas y fuente con agua animada.
-- **Combate:** trazadoras, fogonazos con luz, chispas, confeti, humo, ondas expansivas, rayos y números de daño.
-- **Posproceso:** bloom, oclusión ambiental, niebla de altura, desenfoque de profundidad en Ultra, viñeta, pulso rojo al recibir daño y desaturación al caer.
+> 🌱 El primer día, una nota de papel con pasos y dos marcas en pantalla (botín cercano y una propiedad arriesgada) guían a quien empieza.
 
-Todo se genera en código, sin texturas ni modelos externos, y el audio también: disparos, gruñidos, explosiones, campanas del amanecer y música en bucle (vals de verbena de día, pulso tenso de noche que crece con el combate).
+### 🌙 Noche · supervivencia
 
-**Animación.** Los personajes se animan por capas: un ciclo de pasos con fases de apoyo y de vuelo (el pie apoyado retrocede a la velocidad del suelo, así que no patina), balanceo de cadera y de hombros, y muelles que dan peso: el cuerpo se inclina al acelerar y frenar, la cabeza estabiliza, el arma retrocede y se asienta, y los golpes hacen encogerse. Al esprintar se inclinan, bombean los brazos, levantan polvo y la cámara abre un poco el campo de visión. La voltereta se encoge en bola y aterriza con un pequeño aplastamiento y polvo; las barricadas se saltan con impulso. La recarga es una secuencia (inclinar el arma, coger el cargador del cinturón, encajarlo y montar) y el sartenazo carga, golpea con la cadera y acompaña. Cada brotado tiene su forma de andar (arrastrando una pierna, a la carrera, pesado, en cuclillas, tambaleándose), levanta los brazos antes de golpear y se lanza al atacar, se encoge en la dirección del disparo, sale arañando del suelo al aparecer y, al morir, cae de espaldas y se hunde en vez de desaparecer. Los grandes hacen temblar el suelo al pisar.
+Los brotados llegan en grupos por los frentes anunciados, a por la casa y a por los estandartes de tus propiedades. Cada uno decide si **rodear** tus defensas o **romperlas**, persigue a quien ve y golpea lo que le cierra el paso. La noche llega en **dos o tres asaltos**, con **15 segundos de respiro** entre uno y otro.
 
-**Disparar.** Mira dibujada que se abre con cada disparo y al moverse, marca de impacto (dorada en los críticos), marca de baja, anillo de recarga y mira roja con el cargador vacío (con su clic en seco). Cada arma empuja la cámara hacia atrás en la dirección de tiro con su propia fuerza, el personaje gira al instante hacia el puntero al disparar y la recarga empieza sola al gastar la última bala.
+| Evento | Qué pasa |
+| :-- | :-- |
+| 🌌 **Serena** | Oleada normal. |
+| 🔌 **Apagón** | Sin corriente salvo junto a un generador. Solo quedan las linternas. |
+| 🏃 **Estampida** | Muchos más corredores. |
+| 🌫️ **Niebla** | Bruma lechosa y más trepadores. |
+| ⛈️ **Tormenta** | Lluvia y rayos que caen al azar sobre todo. |
+| 🌕 **Verbena roja** | Luna roja: brotados más rápidos y más fichas. |
+| 👹 **Noche de gigantes** | Cada cinco noches llega un **Gigantón**. |
 
-**La Plañidera (medianoche).** A partir de la segunda noche, hacia la mitad de cada noche (excepto las del Gigantón), suena una campana y llega la Plañidera: una figura de luto con peineta, mantilla y un farol frío que flota sin dar pasos. Se mantiene lejos de los jugadores y cada 8 s lanza un lamento que enfurece hasta a 6 brotados a su alrededor (van más rápido y se tiñen de rojo). Si se queda sola o pasa un rato, se desvanece. Aparece en el plano y con un marcador en pantalla.
+> 🕛 **Medianoche.** Desde la segunda noche, a mitad de la noche suena una campana grave y aparece la **Plañidera** (salvo en las noches del Gigantón). Más detalles en [Los brotados](#-los-brotados).
 
-**Defensas.** Cada defensa tiene su propio aspecto: barricadas con sacos terreros y banderín (tablones, tablones reforzados y chapa con remaches), alambrada de espino en caballos de frisa, bobina tipo Tesla con aisladores de porcelana, torreta con escudo y sacos, generador con ruedas y bidón, banco de taller con panel de herramientas y mina de petardos. El foco es un mástil con un proyector que ilumina toda la zona donde deslumbra (marcada en el suelo de noche) y gira para seguir al brotado más cercano. La cabeza de la torreta apunta al blanco en cada disparo y el proyectil sale del cañón con una estela larga para que se vea hacia dónde va.
+### 🌅 Amanecer · recuperación
 
-**Torretas apilables.** Si con la torreta elegida haces clic sobre una torreta ya construida, se le coloca otra encima: doble y, con una tercera, triple (máximo). Cada torreta apilada dispara por su cuenta, cada una a su propio blanco si hay varios, y sube la vida y el alcance. Las barricadas son ahora mucho más altas (1,9 m, y 2,1 m las de chapa) y se siguen pudiendo saltar.
+Llegan las recompensas de propiedades y vecinos, vuelven los caídos y se repone el botín. Es el momento de comprar, mejorar y reparar. La partida se guarda sola en cada amanecer.
 
-**Rebuscar.** Al mantener E junto a un coche o un contenedor, el personaje se gira hacia él, se inclina y revuelve con las dos manos; el maletero o la tapa se abren, el coche se balancea y salen volando latas, tornillos y trapos.
+### 🎆 La meta: encender la verbena
 
-**El Gigantón.** Un gigante de feria reventado desde dentro: piel podrida, raíces por piernas, espinas en la espalda, fauces con colmillos, cuatro ojos rojos que brillan, un brazo con garras y otro acabado en un garrote con clavos.
+1. Cuatro propiedades guardan una pieza del escenario: **cuadro eléctrico, guirnalda maestra, altavoces y bidón de gasoil**.
+2. Al conquistarlas, lleva cada pieza al **escenario** de la plaza. Quien la carga va más despacio y la suelta si cae.
+3. Con las cuatro instaladas, enciende la verbena: empiezan **120 segundos** de ataque por todas las calles.
+4. Si la casa aguanta, **¡ganáis!** Y después, revancha con el mismo grupo.
 
-## Arquitectura
+> 💀 **Derrota.** Si cae la casa, la cámara se gira hacia ella y se ve cómo se derrumba pieza a pieza. También se pierde si cae todo el equipo. Un jugador caído aguanta 30 s: un compañero lo reanima manteniendo `E`, o él mismo con un botiquín.
+
+<p align="center"><img src="media/derrumbe.jpg" alt="Secuencia del derrumbe de la casa de la verbena" width="85%"><br><sub>El derrumbe de la casa: las paredes se parten y caen hacia fuera, el tejado se dobla en V y queda una nube de polvo.</sub></p>
+
+### 🎲 Reglas opcionales
+
+| Regla | Cambio |
+| :-- | :-- |
+| **Clásica** | La experiencia base. |
+| **Barrio a oscuras** | Apagón cada noche, un globo diario y más fichas. |
+| **Estampida** | Un frente más, el doble de corredores y días cortos con más materiales. |
+
+---
+
+## 👷 Oficios
+
+Todos pueden construir, reanimar y usar cualquier arma, pero cada oficio brilla en algo.
+
+| Oficio | Ventajas | Habilidad `Q` |
+| :-- | :-- | :-- |
+| 🔧 **Ingeniera** | Construye un 25 % más barato, repara el doble y sus defensas aguantan un 20 % más. | **Remiendo exprés** · repara todo lo cercano. |
+| 🩺 **Médico** | Cura sin gastar materiales, reanima el doble de rápido y empieza con dos botiquines. | **Ola de tila** · cura y levanta a quien esté cerca. |
+| 🪖 **Soldado** | +25 % de daño, recarga rápida y un 50 % más de munición. | **Traca final** · 6 s de fuego rápido sin gastar balas. |
+| 🧭 **Exploradora** | Corre más, rebusca el doble de rápido y saca un 50 % más de botín. | **Carrerilla** · 5 s más rápida y con la mitad de daño. |
+
+📈 **Progresión.**
+- **En la partida:** cada oficio sube **cinco niveles** (más vida, mejor oficio y habilidad que recarga antes).
+- **Entre partidas:** acumula experiencia y sube de **rango**.
+  - **Rango 2:** materiales extra, tres botiquines, el trabuco de inicio o fichas, según el oficio.
+  - **Rango 3:** +15 de vida para todos.
+
+---
+
+## 🔫 Armas y combate
+
+| Arma | Tipo | Cargador | Alcance | Notas |
+| :-- | :-- | :--: | :--: | :-- |
+| 🍾 **Lanzacorchos** | Pistola | 12 | 13 m | Munición infinita. No se vende. |
+| 🎉 **Trabuco de confeti** | Escopeta | 6 | 7,5 m | 7 perdigones que empujan. |
+| 🧨 **Metralleta de petardos** | Subfusil | 32 | 11 m | Cadencia altísima. |
+| 🎯 **Carabina de feria** | Rifle de asalto | 24 | 16 m | Atraviesa a un enemigo. |
+| 🎟️ **Rifle de tómbola** | Francotirador | 5 | 28 m | Atraviesa filas. Requiere la Comisaría. |
+| 💥 **Lanzatracas** | Explosivos | 4 | 13 m | Daño en área. Requiere la Comisaría. |
+| 🔥 **Soplete de verbena** | Lanzallamas | 90 | 5 m | Quema en cono. Requiere la Gasolinera. |
+| 🍳 **Sartén** | Cuerpo a cuerpo | — | 1,9 m | Siempre a mano. |
+
+Cada arma se **mejora dos veces** en la tienda (+25 % de daño por nivel). Además hay **tracas** arrojadizas, **golpes críticos** y daño extra contra brotados deslumbrados por un foco.
+
+#### 💫 Sensación al disparar
+
+- **Mira viva:** se abre con cada disparo y al moverte, marca los impactos (dorada en los críticos) y las bajas, muestra un anillo de recarga y se vuelve roja con el cargador vacío, con su clic en seco.
+- **Peso:** cada arma tiene su retroceso y empuja la cámara en la dirección de tiro. El personaje gira al instante hacia el puntero al disparar.
+- **Balas que se ven:** proyectiles con estela que salen de la boca del arma, con fogonazo, humo, casquillos e impactos distintos si aciertas o fallas.
+- **Sin pausas tontas:** la recarga empieza sola al gastar la última bala.
+
+---
+
+## 🧟 Los brotados
+
+| | Tipo | Desde | Rasgo |
+| :--: | :-- | :--: | :-- |
+| 🌱 | **Brotado** | Noche 1 | El común. Algunos arrastran una pierna. |
+| 💨 | **Corredor** | Noche 2 | Rápido y frágil, corre agachado con los brazos atrás. |
+| 🍄 | **Cabezudo** | Noche 3 | Cabeza enorme con sombrero de seta. Aguanta y pega fuerte. |
+| 🚧 | **Derribador** | Noche 3 | Cono de tráfico y viga. Destroza barricadas. |
+| 🧗 | **Trepador** | Noche 4 | Brazos largos: escala tus defensas en lugar de romperlas. |
+| 🌸 | **Escupidor** | Noche 4 | Barriga hinchada; escupe desde lejos. |
+| 🧨 | **Petardero** | Noche 5 | Chaleco de petardos. Explota y hiere también a otros brotados. |
+| 👹 | **Gigantón** | Cada 5 noches | Jefe: pisa en área, convoca brotados y hace temblar el suelo. |
+| 🕯️ | **Plañidera** | Medianoche, noche 2+ | Evento especial (ver abajo). |
+
+<table>
+<tr>
+<td width="34%" valign="top"><img src="media/giganton.jpg" alt="El Gigantón"><br><sub><b>El Gigantón</b> · un gigante de feria reventado desde dentro: raíces, espinas, fauces, cuatro ojos rojos, garras y un garrote con clavos.</sub></td>
+<td width="66%" valign="top">
+
+#### 🕯️ La Plañidera
+
+Llega a **medianoche** a partir de la segunda noche (nunca en las del Gigantón), anunciada por una campana grave.
+
+- Una figura de luto con **peineta, mantilla y un farol frío** que **flota** sin dar pasos.
+- Se mantiene **lejos** de los jugadores.
+- Cada 8 s lanza un **lamento** que enfurece hasta a **6 brotados** a su alrededor: se tiñen de rojo y van más rápidos.
+- Si se queda sola, o pasa más de un minuto, **se desvanece**.
+- Aparece en el plano y con un marcador en pantalla.
+
+> 🎯 **Consejo:** derribadla rápido o los brotados que la rodean se os echarán encima.
+
+</td>
+</tr>
+</table>
+
+La dificultad crece con **nuevas mezclas**, más frentes, eventos y presión sobre tu territorio, no solo con más vida.
+
+---
+
+## 🧱 Construcción y territorio
+
+Se construye en cuadrícula, a menos de **11,5 m de la casa** o **7,5 m del estandarte** de una propiedad conquistada.
+
+| Defensa | Coste | Función | Niveles |
+| :-- | :--: | :-- | :--: |
+| 🪵 **Barricada** | 3 | Bloquea el paso (casi 2 m). Los vecinos la saltan. | Madera → tablones → chapa |
+| 🌀 **Alambrada** | 2 | Frena y araña a los brotados. | 3 |
+| ⚡ **Bobina** | 6 | Descarga eléctrica en cadena. | 3 |
+| 🔫 **Torreta** | 9 | Dispara sola. **Apila otra encima para hacerla doble y triple.** | 3 |
+| 🔋 **Generador** | 8 | Corriente en los apagones y torretas más rápidas. | 2 |
+| 🔦 **Foco** | 4 | Ilumina su zona, sigue al brotado más cercano y deslumbra: van lentos y reciben más daño. | 2 |
+| 🛠️ **Banco de taller** | 10 | Repara lo cercano y fabrica tracas. | 2 |
+| 💣 **Mina de petardos** | 3 | Estalla al pisarla. Un solo uso. | 1 |
+
+<table>
+<tr>
+<td width="50%"><img src="media/defensas.jpg" alt="Defensas de noche con focos y torretas"><br><sub>De noche los focos marcan su zona en el suelo y siguen a los brotados.</sub></td>
+<td width="50%"><img src="media/torretas.jpg" alt="Torreta simple, doble y triple"><br><sub>Torreta simple, doble y triple: cada una dispara a su propio blanco.</sub></td>
+</tr>
+</table>
+
+### 🏳️ Propiedades
+
+Cada una tiene **estandarte, ventaja y guardianes**: despéjalos de día antes de pagar la conquista.
+
+| Propiedad | Ventaja |
+| :-- | :-- |
+| 🔧 **Taller** | Defensas más baratas y reparación de la casa al amanecer. |
+| ➕ **Dispensario** | Curas y botiquines. |
+| 🛒 **Economato** | Fichas. |
+| 📦 **Almacén** | Materiales. |
+| ⛽ **Gasolinera** | Corriente garantizada y soplete. |
+| 🚓 **Comisaría** | Armas pesadas, munición y tracas. |
+
+> ⚖️ Cada conquista encarece la siguiente, añade brotados a cada noche y suma un estandarte que intentarán derribar.
+
+---
+
+## 🪙 Economía, tienda y comunidad
+
+| | Materiales 🪵 | Fichas 🪙 |
+| :-- | :-- | :-- |
+| **De quién** | De todo el equipo | De cada jugador |
+| **Para qué** | Construir, reparar, conquistar y reforzar la casa | Armas, mejoras, munición, botiquines y tracas |
+
+<img align="right" src="media/tienda.jpg" alt="El puesto de la verbena (tienda)" width="42%">
+
+**🛍️ El puesto de la verbena** (`T` junto a la casa) tiene cuatro pestañas:
+
+- **Armas:** comprar y mejorar.
+- **Equipo:** botiquines, tracas y **lotes** para un compañero.
+- **Barrio:** reforzar la casa y ver las propiedades.
+- **Vender:** recupera la mitad de lo invertido.
+
+**📋 Tablón de encargos.** Cada día ofrece uno **corto** y otro **ambicioso**: búsqueda, transporte, defensa o un **relevo eléctrico** perdido, que la exploradora localiza y la ingeniera instala.
+
+**🏘️ Comunidad.** Los vecinos rescatados trabajan en casa o en una propiedad, cuya ventaja sube un 50 %:
+- **Carpintero:** materiales cada amanecer.
+- **Enfermera:** cura en la plaza.
+- **Vigía:** dispara desde el tejado.
+
+<br clear="right">
+
+---
+
+## 🎨 Arte, animación e interfaz
+
+> 🎨 **Todo se genera por código:** modelos, sombreado, efectos, iconos, música y sonido. No hay texturas ni modelos externos; solo se incluyen dos fuentes libres.
+
+Estilo de colores suaves y volúmenes redondeados, inspirado en los juegos de Nintendo, con identidad propia: **un barrio español en fiestas** con banderines, farolillos y guirnaldas.
+
+<details>
+<summary><b>🌈 Mundo y ambiente</b></summary>
+
+- **Sombreado toon propio:** luz suave, borde de luz, brillo plástico y ventanas que se encienden solas al anochecer.
+- **Ciclo de día y noche continuo:** mañana, tarde dorada, atardecer rosado y noche azul con luna, estrellas y guirnaldas.
+- **Clima:** nubes con sombra, lluvia con suelo mojado, niebla, relámpagos y luna roja.
+- **Vida:** césped y árboles al viento, mariposas, luciérnagas, humo de chimeneas y una fuente con agua animada.
+- **Posproceso:** bloom, oclusión ambiental, niebla de altura, desenfoque en Ultra y viñeta.
+
+</details>
+
+<details>
+<summary><b>🏃 Animación de personajes y brotados</b></summary>
+
+<p align="center"><img src="media/animacion_personajes.jpg" alt="Hoja de animación de los cuatro oficios" width="95%"></p>
+
+- **Pasos sin patinar:** el pie apoyado retrocede a la velocidad del suelo y la zancada se ajusta a la velocidad real.
+- **Peso e inercia:** el cuerpo se inclina al acelerar y frenar, la cabeza estabiliza, el arma retrocede y se asienta, y los golpes hacen encogerse.
+- **Correr:** inclinación, brazos bombeando, polvo en cada paso y la cámara abre la vista.
+- **Voltereta y saltos:** bola, aterrizaje con aplastamiento y polvo; las barricadas se saltan con impulso.
+- **Recarga en fases:** inclinar, coger el cargador, encajar y montar. El sartenazo carga, golpea con la cadera y acompaña.
+- **Rebuscar:** el personaje se inclina hacia el coche, el maletero se abre y salen latas y tornillos.
+
+<p align="center"><img src="media/animacion_brotados.jpg" alt="Los brotados lanzándose al ataque" width="95%"></p>
+
+- **Brotados:**
+  - **Andar propio:** cada tipo camina a su manera, con brazos y cabeza flojos y espasmos.
+  - **Ataque:** se echan atrás, levantan los brazos y se lanzan.
+  - **Impactos:** se encogen en la dirección del disparo.
+  - **Aparecer:** salen arañando del suelo.
+  - **Morir:** caen y se hunden en vez de desaparecer.
+
+</details>
+
+<details>
+<summary><b>🧭 Interfaz</b></summary>
+
+- **HUD limpio** con tema de papel y tinta: medallón de día y noche, retrato 3D de la casa con su anillo de resistencia, farolillos de las piezas, insignia del oficio, tarjeta del arma y avisos sobre la cabeza del personaje.
+- **Plano en un libro 3D:** la tapa de cuero se abre, se pasan las hojas y aparece una maqueta 3D del barrio impresa en las páginas. El minimapa es la misma maqueta y gira con la cámara.
+- **Fuentes redondeadas** Fredoka y Nunito, e iconos dibujados por código.
+
+</details>
+
+---
+
+## 🛠 Para desarrolladores
+
+<details open>
+<summary><b>🗂️ Estructura del proyecto</b></summary>
 
 | Archivo | Responsabilidad |
-| --- | --- |
-| `game/data.gd` | Datos de diseño: oficios, armas, brotados, defensas, propiedades, eventos y supervivientes. |
-| `game/map.gd` | Trazado del barrio alineado a la cuadrícula de navegación. |
-| `game/nav.gd` | Cuadrícula, colisiones, rayos y campos de flujo (Dijkstra con cola de cubos, reconstrucción diferida). |
-| `game/match.gd` | Simulación autoritativa: fases, IA, combate, economía, territorio y eventos. Genera instantáneas compactas y eventos con número de serie. |
-| `game/main.gd` | Sesión ENet, entradas, predicción local del movimiento y reparto de eventos a efectos, audio e interfaz. |
-| `game/view/camera_rig.gd` | Cámara continua de vista táctica a tercera persona, giro, zoom y distancia a las fachadas. |
-| `game/settings.gd` | Preferencias y controles reasignables con guardado versionado y escritura segura. |
-| `game/view/world.gd` | Barrio, vegetación, decoración, luces, ciclo de día y clima. |
-| `game/view/actors.gd`, `rig.gd` | Héroes, brotados, defensas, botín, estandartes, globos, supervivientes y su animación. |
+| :-- | :-- |
+| `game/data.gd` | Datos de diseño: oficios, armas, brotados, defensas, propiedades, eventos y vecinos. |
+| `game/map.gd` | Trazado del barrio alineado a la cuadrícula de navegación, coches incluidos. |
+| `game/nav.gd` | Cuadrícula, colisiones (también cajas orientadas de coches), rayos y campos de flujo. |
+| `game/match.gd` | Simulación autoritativa: fases, IA, combate, economía, territorio y eventos. |
+| `game/main.gd` | Sesión ENet, entradas, predicción local y reparto de eventos a efectos, audio e interfaz. |
+| `game/view/world.gd` | Barrio, vegetación, luces, ciclo de día, clima y derrumbe de la casa. |
+| `game/view/actors.gd` · `rig.gd` | Modelos de héroes, brotados y defensas, y su animación por capas. |
 | `game/view/fx.gd` | Efectos con reservas de objetos reutilizables. |
-| `game/audio.gd` | Síntesis de efectos y música renderizada en un hilo de trabajo. |
-| `game/interface.gd` | Menú, ajustes, ayuda, minimapa, mapa, tienda, construcción, pausa y final, con el tema de papel y tinta. |
-| `game/ui/book3d.gd` | El libro 3D del plano: tapa de cuero con dorados, lomo, bloque de hojas que se hunde en el pliegue, hojas que se pasan y el plano impreso en las páginas. Toda la animación de apertura depende de un único valor (`open`) y la cámara se mueve con él. |
-| `game/ui/map3d.gd` | Maqueta 3D del barrio para el plano y el minimapa: edificios con volumen, árboles, coches y tus defensas sobre una losa, vistos con cámara inclinada. El minimapa te sigue y gira con la cámara; los marcadores se dibujan encima proyectándolos con la misma cámara. |
-| `game/ui/hud.gd`, `game/ui/style.gd`, `game/ui/portrait.gd` | HUD dibujado por código (medallón del día, retrato 3D de la casa con su anillo de resistencia, palé de materiales, farolillos, insignia del oficio, arma, avisos sobre la cabeza), la paleta, fuentes e iconos comunes, y los retratos renderizados con los modelos del juego. |
+| `game/view/camera_rig.gd` | Cámara continua de vista táctica a tercera persona. |
+| `game/audio.gd` | Síntesis de efectos y música. |
+| `game/interface.gd` | Menús, ajustes, tienda, tablón, plano, pausa y final. |
+| `game/ui/hud.gd` · `style.gd` | HUD dibujado por código, paleta, fuentes e iconos. |
+| `game/ui/book3d.gd` · `map3d.gd` · `portrait.gd` | Libro 3D del plano, maqueta del barrio y retratos 3D. |
+| `game/settings.gd` · `profile.gd` · `checkpoint.gd` | Preferencias, progreso entre partidas y guardado al amanecer. |
 
-**Red.** El anfitrión decide todo lo que afecta al resultado. Cada cliente predice su propio movimiento y sus fogonazos para que el control responda sin retraso, y envía posición, puntería y botones a 30 Hz. El anfitrión valida la velocidad y corrige si hace falta. Las instantáneas viajan comprimidas a 20 Hz: unos 2 KB con decenas de brotados. Los eventos (disparos, impactos, construcciones…) llevan número de serie y se repiten durante varias instantáneas, así que una pérdida de paquete no borra efectos.
+</details>
 
-**Registro de partida.** El anfitrión guarda en `user://registros/` un archivo JSON por línea con noches, frentes y grupos de cada asalto, brechas con su tiempo de cierre, esperas de más de 20 s, lotes y amaneceres. Sirve para las pruebas con jugadores de [TODO.md](TODO.md).
+<details>
+<summary><b>🌐 Red, guardado y rendimiento</b></summary>
 
-**Continuar una partida.** En cada amanecer, el anfitrión o quien juega en solitario guarda la partida. Si la sesión se interrumpe, el menú ofrece «Continuar partida» y cada vecino recupera lo suyo al volver con el mismo nombre. Al unirse, el cliente envía su versión, y el anfitrión explica por qué rechaza una conexión: versión distinta, partida llena o partida terminada.
+- **Red:**
+  - El anfitrión decide todo lo que afecta al resultado.
+  - Cada cliente predice su movimiento y sus disparos, y envía controles a 30 Hz.
+  - Las instantáneas viajan comprimidas a 20 Hz: unos 2 KB con decenas de brotados.
+  - Los eventos llevan número de serie y se repiten, así que una pérdida de paquete no borra efectos.
+- **Versiones:** el anfitrión explica por qué rechaza una conexión (versión distinta, partida llena o terminada).
+- **Guardado:** al amanecer en `user://` con escritura segura. El registro de partida va en `user://registros/` para las pruebas con jugadores.
+- **Rendimiento:**
+  - Hasta 72 brotados activos, con cubos espaciales para buscar vecinos, MultiMesh para la vegetación y efectos reutilizados.
+  - Cuatro niveles gráficos.
+  - Unos 7 ms de CPU por fotograma con más de 70 brotados.
 
-**Rendimiento.** Hay un máximo de 72 brotados activos. Las búsquedas de vecinos usan cubos espaciales y las mallas compartidas se precalculan al cargar. La vegetación se dibuja con MultiMesh y los efectos reutilizan nodos. Los ajustes gráficos tienen cuatro niveles: sombras, oclusión ambiental, antialiasing, escala de render, densidad de césped, niebla volumétrica y desenfoque. En la prueba de estrés, la lógica y la presentación tardan unos 7 ms de CPU por fotograma con más de 70 brotados.
+</details>
 
-## Verificación
-
-```bash
-godot --headless -s tests/match_test.gd
-```
-
-```bash
-godot --headless -s tests/soak_test.gd
-```
-
-```bash
-godot --headless -s tests/camera_test.gd
-```
-
-```bash
-godot --headless -s tests/shop_ui_test.gd
-```
+<details>
+<summary><b>🧪 Pruebas</b></summary>
 
 ```bash
-godot --headless -s tests/coop_test.gd
+godot --headless -s tests/match_test.gd     # 42 reglas de la simulación
 ```
+
+| Prueba | Qué comprueba |
+| :-- | :-- |
+| `match_test.gd` | Construcción, rutas, coches sólidos, tienda y venta, disparo, conquista, torretas apilables, la Plañidera, derrotas… |
+| `coop_test.gd` | Plano, señales, brechas y petición de ayuda. |
+| `shop_ui_test.gd` | Clics reales en la tienda mientras la partida sigue. |
+| `goal_test.gd` | Piezas, noche final, victoria, derrota y revancha. |
+| `camera_test.gd` | Movimiento relativo a la cámara, giro, zoom y puntería. |
+| `jobs_test.gd` · `decisions_test.gd` | Encargos, destinos de los vecinos y reglas opcionales. |
+| `profile_test.gd` · `checkpoint_test.gd` · `settings_test.gd` | Rangos, guardados y ajustes, incluida la recuperación de archivos a medias. |
+| `soak_test.gd` | Cuatro bots juegan varias noches y se mide el coste de cada paso. |
+| `network_test.gd` · `join_test.gd` | Anfitrión y clientes ENet reales; sala llena y versión distinta. |
+| `run_session.py` | Tres noches en red con latencia simulada; compara el estado final en todos los procesos. |
+| `benchmark.gd` | Oleada llena en cada calidad gráfica. |
 
 ```bash
-godot --headless -s tests/network_test.gd -- --host
+python tests/run_session.py --jugadores 2 --noches 3
 ```
 
-- `shop_ui_test.gd` abre la tienda en una partida real y hace clics largos con el ratón mientras la partida sigue: comprar y vender deben funcionar.
-- `match_test.gd` comprueba 42 reglas (entre ellas, la llegada y el lamento de la Plañidera (entre ellas, que coches, brotados y balas no atraviesan los coches): construcción, rutas alrededor de muros, rebuscar, tienda, disparo y recarga, conquista, reanimación, habilidades, ciclo de fases, derribadores y derrotas.
-- `goal_test.gd` comprueba las piezas, la carga, la caída con pieza, la instalación, la noche final, la victoria, la derrota y la revancha.
-- `profile_test.gd` comprueba los rangos, las ventajas, el guardado versionado y la recuperación de un archivo a medias.
-- `jobs_test.gd` comprueba el tablón de encargos y la generación de 60 días sin destinos inaccesibles ni repeticiones.
-- `strategy_compare.gd` juega las tres primeras noches con bots y el mismo presupuesto invertido en armas, torretas o conquistas para detectar si una opción domina.
-- `decisions_test.gd` comprueba los destinos de los vecinos rescatados y las reglas opcionales.
-- `checkpoint_test.gd` comprueba el guardado al amanecer, la reconexión en otro orden y la recuperación de un archivo a medias.
-- `join_test.gd` (un anfitrión con `--host` y cinco clientes, uno con `--version=0.1.0`) comprueba los mensajes de partida llena y versión distinta.
-- `settings_test.gd` comprueba que ajustes y teclas se conservan al reiniciar, que una tecla ocupada se intercambia y que la ayuda muestra las teclas elegidas.
-- `python tests/run_session.py --jugadores 1|2|4` juega tres noches con un anfitrión y clientes reales por ENet (latencia simulada y una salida a mitad de oleada) y compara el estado final en todos los procesos.
-- `godot --path . -s tests/benchmark.gd` mide una oleada llena en cada calidad gráfica y guarda `user://benchmark.md`.
-- `soak_test.gd` hace que cuatro bots jueguen varias noches y mide el coste de cada paso de simulación y el tamaño de las instantáneas.
-- `camera_test.gd` comprueba el movimiento relativo a la cámara girada, los límites de giro y zoom, la parada ante las fachadas y que el puntero coincide con el plano de tiro.
-- `coop_test.gd` comprueba el plano (proyección, clic para señalar sin disparar), la frecuencia, los límites y la caducidad de las señales, las brechas y su limpieza, y la petición de ayuda al caer.
-- `network_test.gd` levanta el anfitrión. Lanza tres veces `godot --headless -s tests/network_test.gd` en otras terminales en los 15 segundos siguientes: todos envían una señal, cada cliente construye una barricada y los cuatro procesos deben ver las tres barricadas y las cuatro señales.
+</details>
 
-## Siguientes pasos
+📌 Las prioridades y los criterios de prueba están en **[TODO.md](TODO.md)**.
 
-Las prioridades, con sus criterios de prueba, están en [TODO.md](TODO.md).
+---
+
+## 📜 Créditos y licencias
+
+- **Motor:** [Godot Engine](https://godotengine.org/) 4.7.2, licencia MIT.
+- **Fuentes:** [Fredoka](https://github.com/google/fonts/tree/main/ofl/fredoka) y [Nunito](https://github.com/google/fonts/tree/main/ofl/nunito), SIL Open Font License 1.1 (textos en `game/fonts/`).
+- **Todo lo demás** (modelos, sombreado, efectos, iconos, música y sonido) se genera por código en este repositorio.
+
+El inventario completo está en [distribution/licencias/Materiales.txt](distribution/licencias/Materiales.txt).
+
+<div align="center">
+<br>
+
+**¡Que no se apague la verbena!** 🎆
+
+</div>
