@@ -165,7 +165,7 @@ El medallón de arriba marca cuánto falta para el anochecer y avisa del **event
 
 ### 🌙 Noche · supervivencia
 
-Los brotados llegan en grupos por los frentes anunciados, a por la casa y a por los estandartes de tus propiedades. Cada uno decide si **rodear** tus defensas o **romperlas**, persigue a quien ve y golpea lo que le cierra el paso. La noche llega en **dos o tres asaltos**, con **15 segundos de respiro** entre uno y otro.
+Los brotados llegan en grupos por los frentes anunciados, a por la casa y a por los estandartes de tus propiedades. Si un grupo sale de la tierra fuera de cámara, una marca 🌱 en el borde de la pantalla indica por dónde. Cada uno decide si **rodear** tus defensas o **romperlas**, persigue a quien ve y golpea lo que le cierra el paso. La noche llega en **dos o tres asaltos**, con **15 segundos de respiro** entre uno y otro.
 
 | Evento | Qué pasa |
 | :-- | :-- |
@@ -284,6 +284,8 @@ Llega a **medianoche** a partir de la segunda noche (nunca en las del Gigantón)
 
 La dificultad crece con **nuevas mezclas**, más frentes, eventos y presión sobre tu territorio, no solo con más vida.
 
+> 👥 **Se adapta al grupo.** Con menos jugadores llegan menos brotados, algo más frágiles y por menos calles a la vez (dos como mucho en solitario, que además tiene unos segundos más para cruzar de un lado a otro de la casa). Los grupos se turnan entre las calles anunciadas, así que cada acceso tiene su respiro.
+
 ---
 
 ## 🧱 Construcción y territorio
@@ -397,7 +399,7 @@ Estilo de colores suaves y volúmenes redondeados, inspirado en los juegos de Ni
 <summary><b>🧭 Interfaz</b></summary>
 
 - **HUD limpio** con tema de papel y tinta: medallón de día y noche, retrato 3D de la casa con su anillo de resistencia, farolillos de las piezas, insignia del oficio, tarjeta del arma y avisos sobre la cabeza del personaje.
-- **Plano 3D:** con `M` el minimapa se amplía al instante en una maqueta 3D de todo el barrio, con una cruz para cerrar. El minimapa es la misma maqueta y gira con la cámara.
+- **Plano 3D:** con `M` el minimapa se amplía al instante en una maqueta 3D de todo el barrio, con una cruz para cerrar, y al cerrarlo se encoge de vuelta hacia el minimapa. El minimapa es la misma maqueta y gira con la cámara.
 - **Fuentes redondeadas** Fredoka y Nunito, e iconos dibujados por código.
 
 </details>
@@ -461,7 +463,8 @@ godot --headless -s tests/match_test.gd     # 42 reglas de la simulación
 | `camera_test.gd` | Movimiento relativo a la cámara, giro, zoom y puntería. |
 | `jobs_test.gd` · `decisions_test.gd` | Encargos, destinos de los vecinos y reglas opcionales. |
 | `profile_test.gd` · `checkpoint_test.gd` · `settings_test.gd` | Rangos, guardados y ajustes, incluida la recuperación de archivos a medias. |
-| `soak_test.gd` | Cuatro bots juegan varias noches y se mide el coste de cada paso. |
+| `soak_test.gd` | Cuatro bots juegan varias noches con una semilla fija (`-- --semilla=N`) y se mide el coste de cada paso. |
+| `balance_test.gd` | Varias partidas completas con bots y semillas fijas: qué noche rompe la defensa y qué brotados dañan la casa. `-- --partidas=5 --jugadores=2` |
 | `network_test.gd` · `join_test.gd` | Anfitrión y clientes ENet reales; sala llena y versión distinta. |
 | `run_session.py` | Tres noches en red con latencia simulada; compara el estado final en todos los procesos. |
 | `benchmark.gd` | Oleada llena en cada calidad gráfica. |

@@ -23,6 +23,8 @@ const P := Data.Phase
 const PORT := 24680
 const SEND_RATE := 1.0 / 20.0
 
+const RISE_GROUP := 5.0     # metres: brotados rising this close count as one group
+const RISE_LINGER := 2.5    # seconds the edge warning stays after they are up
 var world := World.new()
 var actors := Actors.new()
 var fx := Fx.new()
@@ -91,6 +93,7 @@ var journal_file:FileAccess
 var fireworks := 0.0
 var last_mid := 0
 var last_alert := ""
+var rise_marks := []        # [where, seconds left, how many]: groups clawing out of the ground
 var last_phase := -1
 var crosshair:ImageTexture
 
@@ -343,7 +346,8 @@ func stop(reason:String):
 	shop_open = false
 	map_open = false
 	ui.toggle_shop(false)
-	ui.map_panel.visible = false
+	ui.hide_map_now()
+	rise_marks.clear()
 	set_paused(false)
 	ui.status.text = reason
 	ui.show_menu(true)
@@ -579,7 +583,7 @@ func toggle_shop():
 
 func toggle_map():
 	map_open = not map_open
-	ui.map_panel.visible = map_open
+	ui.show_map(map_open)
 	if map_open: audio.play("swing", null, -4, 0.5)
 
 func cycle_gun(d:int):
@@ -653,7 +657,7 @@ func _physics_process(dt:float):
 	if not me.is_empty():
 		local_move(dt, me)
 		var mouse := get_viewport().get_mouse_position()
-		var over_ui := ui.shop.visible or ui.map_panel.visible or ui.board.visible or paused or ui.build_bar.get_global_rect().has_point(mouse) and build_kind >= 0
+		var over_ui := ui.shop.visible or (ui.map_panel.visible and not ui.map_closing) or ui.board.visible or paused or ui.build_bar.get_global_rect().has_point(mouse) and build_kind >= 0
 		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and build_kind < 0 and not over_ui and not map_click: buttons |= 1
 		if prefs.pressed("use") and not shop_open: buttons |= 2
 		if roll_t > 0: buttons |= 4
@@ -1203,6 +1207,7 @@ func _process(dt:float):
 		if camera.is_position_behind(wp): sp = Vector2(sp.x, 99999.0)
 		sectors.append(sp)
 	local.sectors = sectors
+	track_rises(s, dt)
 	ui.mm_data = {"yaw": camera.yaw, "me": local_pos if local_pos != Vector2.INF else Vector2.ZERO, "indicators": indicators(s, me)}
 	ui.render(s, me, local, dt)
 	# a new breach or blows on the house: audible alarm above the music
@@ -1272,7 +1277,42 @@ func indicators(s:Dictionary, me:int) -> Array:
 	var en:PackedFloat32Array = s.en
 	for i in range(0, en.size(), 8):
 		if int(en[i + 1]) == Data.WAILER: add.call(v3(en[i + 2], en[i + 3], 3.0), Color("b9a6ff"), "Plañidera")
+	# groups coming out of the ground off camera: only at the screen edge, pointing to them
+	for m in rise_marks:
+		if m[2] < 2: continue
+		var wp := v3(m[0].x, m[0].y, 1.0)
+		var sp := camera.unproject_position(wp)
+		var behind := camera.is_position_behind(wp)
+		if behind: sp = Vector2(vp.x - sp.x, vp.y * 4.0)    # mirrored by the projection: push it below the screen
+		if not behind and Rect2(Vector2.ZERO, vp).has_point(sp): continue
+		out.append([sp, Color("8fd16a"), "🌱 Brotan %d" % m[2], false])
 	return out
+
+func track_rises(s:Dictionary, dt:float):
+	## Groups of brotados rising together, merged by proximity, kept a moment after they are up.
+	for m in rise_marks: m[1] -= dt
+	rise_marks = rise_marks.filter(func(m): return m[1] > 0)
+	var en:PackedFloat32Array = s.get("en", PackedFloat32Array())
+	var fresh := []
+	for i in range(0, en.size(), 8):
+		if int(en[i + 6]) & 1024 == 0: continue
+		var at := Vector2(en[i + 2], en[i + 3])
+		var group:Array = []
+		for g in fresh:
+			if g[0].distance_to(at) < RISE_GROUP: group = g
+		if group.is_empty(): fresh.append([at, 1])
+		else:
+			group[0] = (group[0] * group[1] + at) / (group[1] + 1)
+			group[1] += 1
+	for g in fresh:
+		var known := false
+		for m in rise_marks:
+			if m[0].distance_to(g[0]) < RISE_GROUP:
+				m[0] = g[0]
+				m[1] = RISE_LINGER
+				m[2] = maxi(m[2], g[1])
+				known = true
+		if not known: rise_marks.append([g[0], RISE_LINGER, g[1]])
 
 func menu_camera(dt:float):
 	menu_t += dt

@@ -78,6 +78,16 @@ const RAGE_TIME := 4.0       # how long a wail keeps brotados enraged
 const RAGE_MAX := 6          # brotados one wail can enrage
 const RAGE_SPEED := 1.25
 
+# Difficulty by party size (index = players connected - 1). A small party gets fewer and
+# slightly weaker brotados and fewer streets at once, so the load per head stays similar.
+const PARTY_COUNT = [1.0, 1.4, 1.8, 2.2]     # multiplies the night's base of 4 + 2 per night
+const PARTY_HP = [0.85, 0.92, 1.0, 1.0]
+const PARTY_FRONTS = [2, 3, 4, 4]            # most streets attacking at once
+const PARTY_BOSS_HP := 450.0                 # extra Gigantón health per player beyond the first
+const SOLO_SWITCH := 3.0
+const HOUSE_STRUCT_CAP := 2.5    # the breakers' and the Gigantón's wrecking bonus is for defences, not the house
+const SLAM_HOUSE := 30.0         # house damage of a Gigantón stomp next to it                     # extra seconds before a group comes down another street when alone
+
 # ---------------------------------------------------------------- structures
 # block: zombies (except climbers) must go round or break it. vault: players can hop over.
 const STRUCTURES = [

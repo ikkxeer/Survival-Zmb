@@ -8,12 +8,18 @@ Ideas para seguir mejorando el juego, ordenadas por lo que más aportaría. Esfu
 
 ### 1 · Arreglar y pulir lo que ya hay
 
-- [ ] 🟡 **Equilibrar las noches 3 a 5.** La partida automática de 4 bots termina unas veces en la noche 3 y otras en la 8. Medir qué noche y qué mezcla de brotados rompe la defensa (Plañidera, cabezudos, rabia) y suavizar la curva, sobre todo con 2 jugadores. Hecho cuando 5 partidas seguidas de los bots lleguen a la noche 6.
-- [ ] 🟢 **Dificultad según el número de jugadores.** Ajustar la vida y el número de brotados por jugador conectado, y repartir mejor los frentes en solitario.
-- [ ] 🟢 **Que la barra de construcción no tape nada.** Ahora pisa la etiqueta «Salir (B)» del botón de construir; ocultarla mientras se construye o recolocar la barra.
-- [ ] 🟢 **Cerrar el plano con la misma animación con la que se abre** (se encoge hacia el minimapa).
-- [ ] 🟡 **Probar el tacto en tiempo real.** Jugar 20 minutos con ratón y teclado y anotar el retroceso, la apertura de la mira, la velocidad de la cámara y el paso de los personajes; ajustar las constantes de `main.gd` y `rig.gd`.
-- [ ] 🟢 **Avisos de salida de brotados.** Mostrar en el borde de la pantalla dónde está saliendo un grupo de la tierra cuando ocurre fuera de cámara.
+- [x] 🟡 **Equilibrar las noches 3 a 5.** La partida automática de 4 bots terminaba unas veces en la noche 3 y otras en la 8.
+  - Medido con `tests/balance_test.gd` (partidas completas con semilla fija que anotan, noche a noche, la mezcla de brotados, la casa mínima, las caídas y el daño a la casa por tipo de brotado).
+  - La mayor parte de la variación no era de equilibrio: los bots se atascaban tras rebuscar, disparaban a través de la casa y nunca gastaban fichas. Ahora siguen rutas, solo disparan a lo que ven, cubren los frentes anunciados, el más cercano acude al acceso golpeado y compran carabina, munición y tracas.
+  - Había además un fallo real: un brotado grande podía quedarse encajado en una esquina estrecha y la noche no terminaba nunca. Ahora, tras tres intentos fallidos, salta a la siguiente celda de su ruta.
+  - Con esos bots el muro estaba en la noche 5: el Gigantón quitaba 68 a la casa por golpe más 45 por pisotón. El bono contra defensas del Gigantón y el derribador ya no se aplica entero a la casa (como mucho ×2,5), el pisotón le quita 30 y convoca dos brotados en vez de tres con uno o dos jugadores.
+  - Resultado (8 partidas por tamaño, semillas 1–8): 4 jugadores 8/8 y 2 jugadores 8/8 llegan a la noche 6; en solitario 7/8 y 5 de ellas llegan a la 9. Con los mismos bots y las fórmulas anteriores, 4 jugadores también llegaban 8/8, pero en solitario 7 de 8 partidas caían en la noche 6 o 7: el cambio se nota sobre todo en grupos pequeños. `soak_test` con 4 bots llega a la noche 8 con la casa intacta.
+  - Pendiente: con 4 bots competentes las noches 1–8 casi no hacen daño a la casa. La curva para grupos grandes puede quedarse corta con jugadores reales; medirlo en partidas a mano antes de endurecerla.
+- [x] 🟢 **Dificultad según el número de jugadores.** Los brotados por noche son `(4 + 2 × noche) × 1,0 / 1,4 / 1,8 / 2,2` según haya 1, 2, 3 o 4 jugadores (antes una pareja cargaba con casi el doble por cabeza que un grupo de cuatro); su vida baja un 15 % en solitario y un 8 % en pareja; los frentes a la vez se limitan a 2, 3 o 4, y el Gigantón suma 450 de vida por jugador extra (antes 600). Los grupos se turnan entre las calles anunciadas y, en solitario, el cambio de calle da 3 s más para cruzar la casa. Los valores están en `data.gd` (`PARTY_*`).
+- [x] 🟢 **Que la barra de construcción no tape nada.** Mientras se construye, el botón del martillo sigue iluminado pero oculta su etiqueta: la propia barra ya indica cómo salir («B · clic dcho.»).
+- [x] 🟢 **Cerrar el plano con la misma animación con la que se abre.** Se encoge hacia el minimapa y se desvanece; mientras se cierra ya no recibe clics.
+- [ ] 🟡 **Probar el tacto en tiempo real.** Jugar 20 minutos con ratón y teclado y anotar el retroceso, la apertura de la mira, la velocidad de la cámara y el paso de los personajes; ajustar las constantes de `main.gd` y `rig.gd`. Pendiente: requiere jugar a mano con ratón y teclado.
+- [x] 🟢 **Avisos de salida de brotados.** Cuando dos o más brotados salen de la tierra juntos fuera de cámara (también detrás), una marca «🌱 Brotan N» en el borde de la pantalla señala hacia ellos hasta 2,5 s después de que se levanten. Nota: como el resto de marcas del HUD, queda por debajo de la barra de construcción y de la nota del primer día si coincide con ellas.
 
 ### 2 · Jugabilidad
 
@@ -63,7 +69,7 @@ Ideas para seguir mejorando el juego, ordenadas por lo que más aportaría. Esfu
 - [ ] 🔴 **Jugar por Internet sin abrir puertos.** Invitaciones por Steam o un servidor de enlace, con reconexión.
 - [ ] 🟡 **Nivel de detalle para los brotados lejanos** para mantener la fluidez en portátiles con 70 enemigos.
 - [ ] 🟡 **Pruebas visuales automáticas.** Guardar capturas de referencia de las animaciones y avisar si cambian sin querer.
-- [ ] 🟢 **Semilla fija en la prueba larga** para que sus resultados se puedan comparar entre versiones.
+- [x] 🟢 **Semilla fija en la prueba larga.** `soak_test` usa la semilla 1 por defecto (`-- --semilla=N` para otra) y mide solo el coste de la simulación, no el de los bots; `balance_test` juega varias semillas seguidas. El reparto de frentes ya no usa el generador global, así que una semilla repite la misma partida.
 
 ## Entregado en la rama de coordinación cooperativa
 

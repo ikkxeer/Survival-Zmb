@@ -50,6 +50,7 @@ var queue := []
 var night_total := 0
 var midnight := false        # the Plañidera has already come tonight
 var spawn_timer := 0.0
+var front_turn := 0       # which of tonight's streets the next group comes down
 var straggler_timer := 20.0
 var day_plan := {}
 var lightning_timer := 6.0
@@ -75,6 +76,7 @@ var match_id := 0
 var jobs := []            # today's offers: {id,kind,size,p,state(0 offered,1 accepted,2 done,3 failed),mat,coins,progress,carrier,risk,area}
 var last_jobs := []
 var pending := {}
+var core_by_kind := {}    # tonight's damage to the house by brotado kind, for balance telemetry
 var relay := false        # an installed relay: guaranteed power and faster turrets         # players from a checkpoint waiting to reconnect, by name
 const KEEP = ["role", "coins", "xp", "lvl", "hpmax", "guns", "mag", "res", "med", "tr", "kills", "helped", "rank"]
 
@@ -111,6 +113,10 @@ func claimed_count() -> int:
 
 func has_site(i:int) -> bool:
 	return sites[i].claimed
+
+func party() -> int:
+	## Players connected right now, 1 to 4: scales the size, health and spread of the nights.
+	return clampi(players.size(), 1, 4)
 
 func alive_players() -> Array:
 	var list := []
@@ -884,7 +890,7 @@ func explode(at:Vector2, radius:float, dmg:float, owner:int, hostile:bool, struc
 		if c.distance_to(at) < radius + 0.5: damage_structure(cell, dmg * struct_mult)
 	for i in sites.size():
 		if sites[i].claimed and Map.SITES[i].beacon.distance_to(at) < radius + 0.5: damage_site(i, dmg * struct_mult)
-	if rect_distance(Map.BASE, at) < radius: damage_core(dmg * struct_mult * 0.6, at)
+	if rect_distance(Map.BASE, at) < radius: damage_core(dmg * struct_mult * 0.6, at, Data.BOOMER)
 	for s in survivors:
 		if s.state == 1 and s.p.distance_to(at) < radius: s.hp -= dmg
 
@@ -908,8 +914,11 @@ func trigger_mine(cell:int):
 	remove_structure(cell, true)
 	explode(nav.center(cell), 2.5, 115.0, s.owner, false, 0.0)
 
-func damage_core(dmg:float, from:Vector2 = Vector2.INF):
+func damage_core(dmg:float, from:Vector2 = Vector2.INF, kind:int = -1, enraged:bool = false):
+	var dealt := minf(core, dmg)
 	core = maxf(0.0, core - dmg)
+	var tag := "%s%s" % [Data.ENEMIES[kind].name if kind >= 0 else "otro", " (rabia)" if enraged else ""]
+	core_by_kind[tag] = core_by_kind.get(tag, 0.0) + dealt
 	if from.is_finite():
 		var sec := sector_of(from)
 		alerts[sec].house = ALERT_TIME
@@ -934,8 +943,8 @@ func damage_site(i:int, dmg:float):
 func new_enemy(kind:int, at:Vector2, goal:String, night:bool) -> Dictionary:
 	serial += 1
 	var def:Dictionary = Data.ENEMIES[kind]
-	var hp:float = def.hp * (1.0 + 0.06 * (wave - 1))
-	if kind == Data.BOSS: hp = def.hp + 600.0 * maxi(0, players.size() - 1) + 400.0 * (wave / 5 - 1)
+	var hp:float = def.hp * (1.0 + 0.06 * (wave - 1)) * Data.PARTY_HP[party() - 1]
+	if kind == Data.BOSS: hp = def.hp + Data.PARTY_BOSS_HP * (party() - 1) + 400.0 * (wave / 5 - 1)
 	var e := {"k":kind, "p":at, "hp":hp, "max":hp, "r":def.r, "goal":goal, "mode":1 if kind in [Data.BREAKER, Data.CLIMBER] else 0,
 		"cd":rng.randf_range(0.2, 1.0), "wind":0.0, "target":null, "state":0, "stun":0.0, "burn":0.0, "burner":-1,
 		"kv":Vector2.ZERO, "night":night, "victim":-1, "retarget":rng.randf(), "face":Vector2.ZERO, "flash":0.0,
@@ -979,9 +988,13 @@ func pick_goal() -> String:
 # ================================================================== phases
 func plan_day():
 	## Decide what the coming day and night look like so players can prepare.
-	var n := clampi(1 + wave / 2, 1, 4)
+	var n := clampi(1 + wave / 2, 1, Data.PARTY_FRONTS[party() - 1])
 	var all := [0, 1, 2, 3]
-	all.shuffle()
+	for i in range(3, 0, -1):    # shuffled with the match's own generator so a seed replays the same match
+		var j := rng.randi_range(0, i)
+		var tmp:int = all[i]
+		all[i] = all[j]
+		all[j] = tmp
 	fronts = all.slice(0, n)
 	if wave == 1: fronts = [2]
 	if variant == 2:
@@ -1130,7 +1143,7 @@ func start_night():
 	phase = P.NIGHT
 	clock = 0.0
 	for p in players.values(): p.ready = false
-	var count := 6 + wave * 3 + maxi(0, players.size() - 1) * 4 + claimed_count() * 2
+	var count := roundi((4 + wave * 2) * Data.PARTY_COUNT[party() - 1]) + claimed_count() * 2
 	if night_event == 2: count = int(count * 1.35)
 	queue.clear()
 	var weights := {0:10.0}
@@ -1173,7 +1186,9 @@ func start_night():
 	respite = 0.0
 	log_line({"evento":"noche", "noche":wave, "tipo":Data.NIGHT_EVENTS[night_event].name, "frentes":fronts.map(func(f): return Map.FRONT_NAMES[f]), "brotados":night_total, "asaltos":assault_count})
 	sector_damage = [0.0, 0.0, 0.0, 0.0]
+	core_by_kind = {}
 	spawn_timer = 2.0
+	front_turn = rng.randi_range(0, fronts.size() - 1)
 	lightning_timer = 5.0
 	stats.nights += 1
 	emit("night", [wave, night_event])
@@ -1185,7 +1200,10 @@ func spawn_tick(dt:float):
 	for e in enemies.values(): if e.night: active += 1
 	if enemies.size() >= MAX_ENEMIES: return
 	var group := mini(queue.size(), rng.randi_range(3, 5 + wave / 3))
-	var front:int = fronts[rng.randi_range(0, fronts.size() - 1)]
+	# groups take turns between tonight's streets, so every access gets a lull and a lone
+	# player has time to run from one side of the house to the other
+	front_turn = (front_turn + 1) % fronts.size()
+	var front:int = fronts[front_turn]
 	log_line({"evento":"grupo", "frente":Map.FRONT_NAMES[front], "tamano":group, "asalto":assault_index})
 	for i in group:
 		var kind:int = queue.pop_front()
@@ -1194,6 +1212,7 @@ func spawn_tick(dt:float):
 			e.goal = "base"
 			announce("¡Un Gigantón avanza por el %s!" % Map.FRONT_NAMES[front])
 	spawn_timer = maxf(2.2, 5.5 - wave * 0.2) * (0.6 if night_event == 2 else 1.0) + active * 0.04
+	if party() == 1 and fronts.size() > 1: spawn_timer += Data.SOLO_SWITCH
 
 func check_midnight():
 	## Halfway through every night from the second one, the Plañidera arrives.
@@ -1343,7 +1362,7 @@ func start_dawn():
 		announce("Mala noche: el barrio os manda reservas en un globo junto a la plaza")
 		log_line({"evento":"rescate_de_materiales", "materiales":materials})
 	emit("dawn", [wave])
-	log_line({"evento":"amanecer", "noche":wave - 1, "casa":int(core), "materiales":materials, "danos_por_acceso":{"norte":int(sector_damage[0]), "este":int(sector_damage[1]), "sur":int(sector_damage[2]), "oeste":int(sector_damage[3])}, "informe":report.duplicate()})
+	log_line({"evento":"amanecer", "noche":wave - 1, "casa":int(core), "materiales":materials, "danos_por_acceso":{"norte":int(sector_damage[0]), "este":int(sector_damage[1]), "sur":int(sector_damage[2]), "oeste":int(sector_damage[3])}, "dano_casa":rounded_hits(), "informe":report.duplicate()})
 	plan_day()
 
 func start_prep():
@@ -1369,6 +1388,19 @@ func remaining() -> int:
 func log_line(entry:Dictionary):
 	entry["t"] = snappedf(time, 0.1)
 	journal.append(entry)
+
+func rounded_hits() -> Dictionary:
+	var out := {}
+	for k in core_by_kind: out[k] = int(core_by_kind[k])
+	return out
+
+func reseed(value:int):
+	## Replays the same match for a given seed (balance tests compare versions with it).
+	rng.seed = value
+	for e in enemies.keys(): if enemies[e].guard: enemies.erase(e)
+	for i in Map.SITES.size():
+		for g in (3 if i == 5 else 2): spawn_guard(i)
+	plan_day()
 
 func night_alive() -> int:
 	var n := 0
@@ -1452,7 +1484,7 @@ func check_end():
 func end_game(reason:String):
 	phase = P.OVER
 	report = [reason]
-	log_line({"evento":"fin", "motivo":reason, "noche":wave, "derribos":stats.kills})
+	log_line({"evento":"fin", "motivo":reason, "noche":wave, "derribos":stats.kills, "dano_casa":rounded_hits()})
 	emit("over", [wave])
 
 func tick_players(dt:float):
@@ -2076,8 +2108,16 @@ func tick_enemies(dt:float):
 		if spd > 0.1 and dir != Vector2.ZERO and before.distance_squared_to(e.p) < 0.0001:
 			e.stuck += dt
 			if e.stuck > 1.5:
-				e.p = nav.move(e.p, dir * 0.3, 0.2, 2 if e.k == Data.CLIMBER else 1)
 				e.stuck = 0.0
+				var here := nav.cell_of(e.p)
+				e.jams = e.get("jams", 0) + 1 if e.get("jam_cell", -1) == here else 1
+				e.jam_cell = here
+				var ahead := nav.next_cell(e.goal, e.mode, e.p) if e.jams >= 3 else -1
+				if ahead >= 0 and not (structures.has(ahead) and Data.STRUCTURES[structures[ahead].k].block):
+					e.p = nav.center(ahead)    # wedged in a corner too narrow for its size: never hold the night hostage
+					e.jams = 0
+				else:
+					e.p = nav.move(e.p, dir * 0.3, 0.2, 2 if e.k == Data.CLIMBER else 1)
 		else:
 			e.stuck = 0.0
 
@@ -2119,7 +2159,7 @@ func land_attack(e:Dictionary, def:Dictionary):
 		"struct":
 			damage_structure(t.cell, dmg * def.struct)
 		"site": damage_site(t.site, dmg * def.struct)
-		"core": damage_core(dmg * def.struct * 0.5, e.p)
+		"core": damage_core(dmg * minf(def.struct, Data.HOUSE_STRUCT_CAP) * 0.5, e.p, e.k, e.rage > 0)
 		"slam": land_slam(e)
 	e.target = null
 
@@ -2162,8 +2202,9 @@ func boss_logic(e:Dictionary, dt:float):
 	e.summon -= dt
 	if e.summon <= 0:
 		e.summon = 11.0
-		for i in 3:
-			var at:Vector2 = e.p + Vector2.from_angle(TAU * i / 3.0) * 2.2
+		var n := 2 if party() <= 2 else 3
+		for i in n:
+			var at:Vector2 = e.p + Vector2.from_angle(TAU * i / float(n)) * 2.2
 			if nav.blocked_cell(at, 0.4, 1) == -1: rise(new_enemy(0, at, "base", true))
 		emit("summon", [e.p.x, e.p.y])
 	e.slam -= dt
@@ -2187,7 +2228,7 @@ func land_slam(e:Dictionary):
 		if p.p.distance_to(e.p) < 3.6: hurt_player(p, 35.0, e.p)
 	for cell in structures.keys():
 		if nav.center(cell).distance_to(e.p) < 3.0: damage_structure(cell, 140.0)
-	if rect_distance(Map.BASE, e.p) < 3.0: damage_core(45.0, e.p)
+	if rect_distance(Map.BASE, e.p) < 3.0: damage_core(Data.SLAM_HOUSE, e.p, Data.BOSS)
 
 func tick_projectiles(dt:float):
 	for i in range(projectiles.size() - 1, -1, -1):
@@ -2202,7 +2243,7 @@ func tick_projectiles(dt:float):
 				if p.p.distance_to(at) < pr.r: hurt_player(p, pr.dmg, at)
 			var cell := nav.cell_of(at)
 			if structures.has(cell): damage_structure(cell, pr.dmg * 1.2)
-			if rect_distance(Map.BASE, at) < 0.8: damage_core(pr.dmg * 0.5, pr.from)
+			if rect_distance(Map.BASE, at) < 0.8: damage_core(pr.dmg * 0.5, pr.from, Data.SPITTER)
 			for s in survivors:
 				if s.state == 1 and s.p.distance_to(at) < pr.r: s.hp -= pr.dmg
 		else:
