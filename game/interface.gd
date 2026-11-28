@@ -34,7 +34,7 @@ var address := LineEdit.new()
 var status := Label.new()
 var settings_panel := PanelContainer.new()
 var help_panel := PanelContainer.new()
-var settings := {"quality":2, "fullscreen":false, "volume":0.8, "music":0.6, "sfx":1.0, "shake":true, "flashes":true, "numbers":false, "sensitivity":1.0, "ui_scale":1.0}
+var settings := {"quality":2, "fullscreen":false, "volume":0.8, "music":0.6, "sfx":1.0, "shake":true, "flashes":true, "numbers":false, "sensitivity":1.0, "ui_scale":1.0, "captions":true, "colorblind":false}
 var prefs
 var profile
 var hero:VBoxContainer
@@ -82,7 +82,8 @@ var shop_coins := Label.new()
 var shop_sig := ""
 var board_sig := ""
 var map_panel := PanelContainer.new()
-var map_closing := false    # shrinking back into the minimap
+var map_closing := false
+var colorblind := false    # shrinking back into the minimap
 var map_info := Label.new()
 var minimap:Control
 var minimap_panel := PanelContainer.new()
@@ -633,7 +634,8 @@ func sync_settings():
 	label(col, "Comodidad y accesibilidad", 20, SKY)
 	slider_row(col, "sensitivity", "Sensibilidad de la cámara", 0.3, 2.5, 0.1)
 	slider_row(col, "ui_scale", "Tamaño de la interfaz", 0.8, 1.4, 0.05)
-	for item in [["shake", "Sacudidas de cámara"], ["flashes", "Destellos y relámpagos"], ["numbers", "Números de daño"]]:
+	for item in [["shake", "Sacudidas de cámara"], ["flashes", "Destellos y relámpagos"], ["numbers", "Números de daño"],
+			["captions", "Subtítulos de sonidos"], ["colorblind", "Colores para daltonismo"]]:
 		var c := CheckButton.new()
 		c.button_pressed = settings[item[0]]
 		c.toggled.connect(func(v): set_setting(item[0], v))
@@ -986,6 +988,10 @@ func refresh_shop(force:bool = false):
 		shop_list.remove_child(c)
 		c.queue_free()
 	shop_coins.text = "%d fichas · %d materiales" % [p.coins, s.mat]
+	var cm:Array = s.get("cm", [])
+	var cp:Array = s.get("cp", [])
+	var pr := func(base:int) -> int: return Data.shop_price(base, cm, cp)
+	if Data.at_home(cm, cp, 5) > 0: shop_coins.text += " · rebaja del feriante"
 	match shop_tab:
 		0:
 			for g in Data.WEAPONS.size():
@@ -995,19 +1001,19 @@ func refresh_shop(force:bool = false):
 				var stats := "Daño %d · %.1f disparos/s · cargador %d · %d m" % [w.dmg * w.pellets, 1.0 / w.rate, w.mag, w.range]
 				if not owned:
 					var why := "" if not locked else " · necesita %s" % Data.SITES[w.req].name
-					shop_row(w.name + why, w.desc + "\n" + stats, "Comprar · %d" % w.price, not locked and p.coins >= w.price, func(): action.emit("buy_gun", [g]), Color(w.color))
+					shop_row(w.name + why, w.desc + "\n" + stats, "Comprar · %d" % pr.call(w.price), not locked and p.coins >= pr.call(w.price), func(): action.emit("buy_gun", [g]), Color(w.color))
 				else:
 					var lvl:int = p.guns[g]
 					if lvl < 3:
-						var cost:int = w.up[lvl - 1]
+						var cost:int = pr.call(w.up[lvl - 1])
 						shop_row("%s · nivel %d" % [w.name, lvl], "Mejora a nivel %d: +25%% de daño.\n%s" % [lvl + 1, stats], "Mejorar · %d" % cost, p.coins >= cost, func(): action.emit("up_gun", [g]), Color(w.color))
 					else:
 						shop_row("%s · nivel máximo" % w.name, stats, "En uso" if p.gun == g else "Equipar", p.gun != g, func(): action.emit("switch", [g]), Color(w.color))
 					if w.reserve > 0:
-						shop_row("Munición: " + w.name, "Rellena la reserva (ahora %d)." % p.res[g], "Rellenar · %d" % w.ammo_price, p.coins >= w.ammo_price, func(): action.emit("ammo", [g]), St.WOOD)
+						shop_row("Munición: " + w.name, "Rellena la reserva (ahora %d)." % p.res[g], "Rellenar · %d" % pr.call(w.ammo_price), p.coins >= pr.call(w.ammo_price), func(): action.emit("ammo", [g]), St.WOOD)
 		1:
-			shop_row("Botiquín · %d/3" % p.med, "%s para curarte 55 de salud. Si caes, te levanta." % k("medkit"), "Comprar · %d" % Data.MEDKIT.price, p.coins >= Data.MEDKIT.price and p.med < 3, func(): action.emit("buy_medkit", []), St.MINT)
-			shop_row("Traca · %d/6" % p.tr, "%s para lanzarla: explota en área. También se fabrican en el banco de taller." % k("grenade"), "Comprar · %d" % Data.GRENADE.price, p.coins >= Data.GRENADE.price and p.tr < 6, func(): action.emit("buy_traca", []), St.CORAL)
+			shop_row("Botiquín · %d/3" % p.med, "%s para curarte 55 de salud. Si caes, te levanta." % k("medkit"), "Comprar · %d" % pr.call(Data.MEDKIT.price), p.coins >= pr.call(Data.MEDKIT.price) and p.med < 3, func(): action.emit("buy_medkit", []), St.MINT)
+			shop_row("Traca · %d/6" % p.tr, "%s para lanzarla: explota en área. También se fabrican en el banco de taller." % k("grenade"), "Comprar · %d" % pr.call(Data.GRENADE.price), p.coins >= pr.call(Data.GRENADE.price) and p.tr < 6, func(): action.emit("buy_traca", []), St.CORAL)
 			shop_row("Lote para el equipo", "Deja en el porche munición, un botiquín, una traca y 40 de salud para un compañero. Cuesta 4 materiales comunes.", "Preparar · 4 mat.", s.mat >= 4 and s.pl.size() > 1, func(): action.emit("bundle", []), St.SKY)
 		2:
 			var lvl:int = s.clvl
@@ -1223,8 +1229,25 @@ func render(s:Dictionary, id:int, local:Dictionary, dt:float):
 		var installed := 0
 		for x in s.get("pc", []): if x[0] == 4: installed += 1
 		if not won: lines.append("Piezas de la verbena instaladas: %d de 4" % installed)
-		for q in s.pl.values(): lines.append("%s (%s, nivel %d): %d derribos · %d lotes recogidos por otros" % [q.name, Data.ROLES[q.role].name, q.lvl, q.kills, q.get("helped", 0)])
+		if str(s.get("best", "")) != "": lines.append("⭐ Mejor momento: %s" % s.best)
+		lines.append("")
+		for q in s.pl.values(): lines.append(player_summary(q))
 		over_text.text = "\n".join(lines)
+
+static func player_summary(q:Dictionary) -> String:
+	## One line per neighbour on the end screen: what each one did for the team.
+	var tl:Dictionary = q.get("tl", {})
+	var parts := ["%d derribos" % q.kills]
+	var shots:int = tl.get("shots", 0)
+	if shots > 0: parts.append("precisión %d %%" % roundi(100.0 * tl.get("hits", 0) / shots))
+	var counts := [["built", "defensa construida", "defensas construidas"], ["freed", "vecino liberado", "vecinos liberados"],
+		["revived", "compañero levantado", "compañeros levantados"]]
+	for c in counts:
+		var n:int = tl.get(c[0], 0)
+		if n > 0: parts.append("%d %s" % [n, c[1] if n == 1 else c[2]])
+	var lots:int = q.get("helped", 0)
+	if lots > 0: parts.append("%d %s" % [lots, "lote recogido por otros" if lots == 1 else "lotes recogidos por otros"])
+	return "%s (%s, nivel %d): %s" % [q.name, Data.ROLES[q.role].name, q.lvl, " · ".join(parts)]
 
 func notes_for(s:Dictionary, p:Dictionary) -> Array:
 	## The paper note: the first-day checklist and the jobs you have taken.
@@ -1478,7 +1501,7 @@ func draw_map(c:Control, big:bool):
 	for i in range(0, br.size(), 3):
 		if br[i] > 0 or br[i + 1] > 0 or br[i + 2] > 0:
 			var mid:float = [-PI * 0.5, 0.0, PI * 0.5, PI][i / 3]
-			var bcol := CORAL if br[i + 1] > 0 or br[i + 2] > 0 else Color("ffb35c")
+			var bcol:Color = (canvas.danger_col if br[i + 1] > 0 or br[i + 2] > 0 else canvas.warn_col) if colorblind else (CORAL if br[i + 1] > 0 or br[i + 2] > 0 else Color("ffb35c"))
 			proj_ring(c, big, Map.BASE_CENTER, Map.BASE_BUILD_RADIUS, bcol, 5.0, mid - 0.6, mid + 0.6)
 	for pid in s.pl:
 		var q:Dictionary = s.pl[pid]

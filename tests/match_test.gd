@@ -278,5 +278,26 @@ func _initialize():
 	w.wailing = 0.0
 	for i in 30: g.tick(1.0 / 30.0)
 	check(w.p.distance_to(g.players[1].p) > before_p.distance_to(g.players[1].p), "La Plañidera se aparta de quien se le acerca")
+	# end-of-match numbers and the best moment
+	var tally := Game.new()
+	tally.join(1, 2, "Eva")
+	tally.enemies.clear()
+	var ev:Dictionary = tally.players[1]
+	ev.p = Vector2(0, 8)
+	ev.aim = Vector2(0, 1)
+	tally.new_enemy(0, Vector2(0, 11), "base", true)
+	tally.fire(1, ev)
+	ev.aim = Vector2(1, 0)
+	tally.fire(1, ev)
+	check(ev.tally.shots == 2 and ev.tally.hits == 1, "Se cuentan disparos y aciertos para la precisión")
+	for i in 5:
+		var foe := tally.new_enemy(0, Vector2(i, 30), "base", true)
+		tally.kill_enemy(tally.enemies.find_key(foe), 1)
+	check(tally.best_moment.text.contains("5 brotados de un tirón"), "Una racha de derribos es candidata a mejor momento")
+	tally.end_game("prueba")
+	var snap:Dictionary = tally.snapshot()
+	check(snap.pl[1].has("tl") and snap.best != "", "Al acabar, la instantánea lleva el recuento y el mejor momento")
+	var line:String = preload("res://game/interface.gd").player_summary(snap.pl[1])
+	check(line.contains("precisión 50 %") and line.contains("5 derribos"), "La pantalla final resume a cada vecino: " + line)
 	print("%d fallos" % failed)
 	quit(1 if failed else 0)

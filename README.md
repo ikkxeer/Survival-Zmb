@@ -145,7 +145,7 @@ El juego usa el renderizador **Forward+**. Si tu tarjeta no admite Vulkan, Godot
 </td></tr>
 </table>
 
-> ⚙️ Todas las teclas se cambian en **Ajustes → Controles**. Allí también están la sensibilidad, los volúmenes, el tamaño de la interfaz y la accesibilidad (sacudidas, destellos y números de daño). La ayuda (`F1`) siempre muestra tus teclas.
+> ⚙️ Todas las teclas se cambian en **Ajustes → Controles**. Allí también están la sensibilidad, los volúmenes, el tamaño de la interfaz y la accesibilidad: sacudidas, destellos, números de daño, **subtítulos de sonidos** (la campana de medianoche, «golpean la casa por el sur», el lamento de la Plañidera…) y **colores para daltonismo**, que cambian el rojo y el verde de salud, brechas y rabia por una paleta segura. Las brechas se distinguen además por su borde de pinchos y su «!!». La ayuda (`F1`) siempre muestra tus teclas.
 
 ---
 
@@ -189,6 +189,8 @@ Llegan las recompensas de propiedades y vecinos, vuelven los caídos y se repone
 2. Al conquistarlas, lleva cada pieza al **escenario** de la plaza. Quien la carga va más despacio y la suelta si cae.
 3. Con las cuatro instaladas, enciende la verbena: empiezan **120 segundos** de ataque por todas las calles.
 4. Si la casa aguanta, **¡ganáis!** Y después, revancha con el mismo grupo.
+
+> 🏁 **Al terminar**, la pantalla final recuerda el **mejor momento** de la partida (el golpe final al Gigantón, una racha de derribos, la casa salvada por los pelos…) y lo que hizo cada vecino: derribos, precisión, defensas construidas, vecinos liberados, compañeros levantados y lotes preparados.
 
 > 💀 **Derrota.** Si cae la casa, la cámara se gira hacia ella y se ve cómo se derrumba pieza a pieza. También se pierde si cae todo el equipo. Un jugador caído aguanta 30 s: un compañero lo reanima manteniendo `E`, o él mismo con un botiquín.
 
@@ -350,6 +352,11 @@ Cada una tiene **estandarte, ventaja y guardianes**: despéjalos de día antes d
 - **Carpintero:** materiales cada amanecer.
 - **Enfermera:** cura en la plaza.
 - **Vigía:** dispara desde el tejado.
+- **Panadera:** comida al amanecer, +30 de salud para todos.
+- **Cura:** su campana alarga 8 s los respiros entre asaltos.
+- **Feriante:** rebaja la tienda un 20 %.
+
+Cada vecino atrapado es, si puede ser, uno que la comunidad aún no tiene.
 
 <br clear="right">
 

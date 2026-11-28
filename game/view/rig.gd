@@ -8,6 +8,9 @@ extends Node3D
 ## into acceleration, heads and floppy zombie arms lag behind, weapons kick and
 ## settle, and hits make the whole body flinch.
 
+const RAGE_TINT := Color(1.25, 0.82, 0.9)      # enraged by the Plañidera: reddened
+const RAGE_TINT_CB := Color(1.05, 0.95, 1.45)   # colour-blind mode: a bright violet glow instead
+static var colorblind := false
 var body := Node3D.new()      # squash / bob / lean
 var head := Node3D.new()
 var eyes:MeshInstance3D
@@ -411,7 +414,7 @@ func animate_zombie(dt:float, t:float, vel:Vector2, flags:int, flash:float = 0.0
 	set_burn(1.0 if burning else 0.0)
 	if raging != tinted:
 		tinted = raging
-		set_tint(Color(1.25, 0.82, 0.9) if raging else Color.WHITE)
+		set_tint((RAGE_TINT_CB if colorblind else RAGE_TINT) if raging else Color.WHITE)
 	var f2 := spr2(flinch, flinch_v, Vector2.ZERO, 110.0, 9.0, dt)
 	flinch = f2[0]
 	flinch_v = f2[1]

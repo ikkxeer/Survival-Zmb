@@ -48,7 +48,7 @@ Ideas para seguir mejorando el juego, ordenadas por lo que más aportaría. Esfu
 - [ ] 🟡 **Desafío diario.** Una semilla fija cada día con reglas especiales y una tabla de récords local.
 - [ ] 🟡 **Modo sin fin.** Noches que no terminan nunca para medir hasta dónde llega el grupo.
 - [ ] 🟡 **Cosméticos desbloqueables.** Sombreros, colores de ropa y banderines de la casa al subir de rango, sin ventajas de juego.
-- [ ] 🟢 **Más vecinos rescatables:** la panadera (cura con comida al amanecer), el cura (tocar la campana adelanta la noche y da un respiro más largo) y el feriante (rebaja la tienda).
+- [x] 🟢 **Más vecinos rescatables:** la panadera (+30 de salud para todos al amanecer), el cura (respiros entre asaltos 8 s más largos) y el feriante (tienda un 20 % más barata, también en los precios que muestra). Cada uno con su aspecto (gorro de panadera y delantal, alzacuellos, camisa a rayas y canotier). El vecino atrapado es uno que aún falta en la comunidad. Como los demás, en una propiedad dejan su ventaja de casa y suben la de la propiedad. Verificado en `decisions_test`.
 
 ### 4 · Presentación
 
@@ -56,13 +56,13 @@ Ideas para seguir mejorando el juego, ordenadas por lo que más aportaría. Esfu
 - [ ] 🟡 **Música que reacciona más:** un tema propio para la medianoche y otro para el Gigantón, y una capa de percusión que sube con las brechas.
 - [ ] 🟢 **Voces sintetizadas para los brotados.** Gruñidos distintos por tipo y un grito al lanzarse a atacar.
 - [ ] 🟡 **Cámara al hombro opcional** para apuntar con más precisión en tercera persona.
-- [ ] 🟢 **Pantalla de fin más rica.** Mostrar estadísticas por jugador (precisión, defensas construidas, vecinos salvados) y un «mejor momento» de la partida.
+- [x] 🟢 **Pantalla de fin más rica.** Por vecino: derribos, precisión (disparos que aciertan a algún brotado), defensas construidas, vecinos liberados, compañeros levantados y lotes. Un «mejor momento» elige el más destacado: golpe final al Gigantón, racha de 4 o más derribos en 1,5 s, callar a la Plañidera, levantar a alguien rodeado, la casa salvada por debajo del 20 %, una pieza instalada o un rescate. Los datos viajan en la instantánea solo al acabar y se conservan en el punto de control. Verificado en `match_test`.
 
 ### 5 · Accesibilidad e idiomas
 
 - [ ] 🟡 **Inglés** y preparar los textos para otras traducciones.
-- [ ] 🟢 **Modo para daltonismo.** Los colores de los avisos, las brechas y la rabia de la Plañidera no deben depender solo del rojo y el verde.
-- [ ] 🟢 **Subtítulos de sonidos importantes** («la campana de medianoche», «golpean la casa por el norte»).
+- [x] 🟢 **Modo para daltonismo.** Opción en Ajustes: la salud, las brechas (HUD y plano) y la rabia de los brotados usan una paleta Okabe–Ito (azul, amarillo y magenta; rabia en violeta) en lugar de rojo y verde. Además, siempre, las brechas y los golpes a la casa llevan un borde de pinchos y «!!», y los avisos menores un «!». Falta revisarlo con alguien daltónico.
+- [x] 🟢 **Subtítulos de sonidos importantes.** Rótulos entre corchetes en la parte baja de la pantalla, activados por defecto (Ajustes): campana de medianoche y de la plaza, bocinas de noche y de asalto, lamento de la Plañidera con su acceso, «golpean la casa por el…» y «brecha por el…», rugido del Gigantón antes del pisotón, gritos del vecino atrapado, trueno y alarmas de propiedad perdida o pieza caída.
 
 ### 6 · Técnico
 

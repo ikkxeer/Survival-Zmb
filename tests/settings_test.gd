@@ -20,6 +20,8 @@ func run():
 	a.values.sensitivity = 1.7
 	a.values.sfx = 0.3
 	a.values.flashes = false
+	a.values.captions = false
+	a.values.colorblind = true
 	var swapped := a.rebind("grenade", KEY_Z)
 	check(swapped == "" and a.key_of("grenade") == KEY_Z, "Se reasigna una tecla libre")
 	swapped = a.rebind("ping", KEY_Q)
@@ -31,6 +33,8 @@ func run():
 	check(b.load_file(), "Se cargan al reiniciar")
 	check(is_equal_approx(b.values.sensitivity, 1.7) and is_equal_approx(b.values.sfx, 0.3) and b.values.flashes == false, "Se conservan sensibilidad, volumen y destellos")
 	check(b.key_of("grenade") == KEY_Z and b.key_of("ping") == KEY_Q, "Se conservan las teclas")
+	check(b.values.captions == false and b.values.colorblind == true, "Se conservan los subtítulos y el modo para daltonismo")
+	check(Settings.new().values.captions == true and Settings.new().values.colorblind == false, "Subtítulos activados y paleta normal por defecto")
 	var cfg := ConfigFile.new()
 	cfg.load(Settings.PATH)
 	cfg.set_value("meta", "version", 99)

@@ -74,5 +74,37 @@ func _initialize():
 	check(rush.phase == P.DAWN and rush.materials >= 9, "Estampida: cada amanecer trae materiales extra")
 	rush.tick(15.0)
 	check(rush.phase_len == 45.0, "Estampida: los días duran 45 s")
+	# the baker, the priest and the stall-keeper
+	var town := Game.new()
+	town.join(1, 2, "Mar")
+	var m:Dictionary = town.players[1]
+	town.enemies.clear()
+	town.community = [0, 1, 2]
+	town.posts = [-1, -1, -1]
+	var picks := {}
+	for i in 20: picks[town.pick_survivor()] = true
+	check(picks.keys().all(func(k): return k >= 3), "Un vecino nuevo es de los que aún faltan en la comunidad")
+	town.community = [3]
+	town.posts = [-1]
+	m.hp = 20.0
+	town.start_dawn()
+	check(m.hp >= 20.0 + 20.0 + Data.BAKER_HEAL - 0.1 and town.report.any(func(r): return r.contains("Panadera")), "La panadera cura a todos al amanecer y lo cuenta el informe")
+	town.community = [4]
+	town.posts = [-1]
+	town.phase = P.NIGHT
+	town.queue.clear()
+	town.assaults = [[0]]
+	town.tick(0.05)
+	check(absf(town.respite - (Game.RESPITE + Data.PRIEST_RESPITE)) < 0.2, "El cura alarga el respiro entre asaltos")
+	town.respite = 0.0
+	town.phase = P.PREP
+	town.community = [5]
+	town.posts = [-1]
+	m.p = Map.PLAYER_SPAWN
+	m.coins = 100
+	town.act(1, "buy_gun", [3])
+	check(m.coins == 100 - roundi(Data.WEAPONS[3].price * Data.FAIR_DISCOUNT), "El feriante en casa rebaja la tienda")
+	town.posts = [0]
+	check(town.price(10) == 10, "Si el feriante trabaja en una propiedad, la tienda vuelve a su precio")
 	print("%d fallos" % failed)
 	quit(1 if failed else 0)

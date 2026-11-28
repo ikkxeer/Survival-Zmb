@@ -295,8 +295,9 @@ func add_extras(r:Rig, blob_size:float):
 	r.add_child(r.blob)
 
 func make_person(kind:int) -> Rig:
-	var looks := [["e85d5d", "4a5a7a", "c68c5e", "6a4a2a"], ["ff9fb8", "f4f7f6", "f2c29b", "f2d06a"], ["ffd23f", "3d5a80", "8d5a3b", "222222"]]
-	var L:Array = looks[kind % 3]
+	var looks := [["e85d5d", "4a5a7a", "c68c5e", "6a4a2a"], ["ff9fb8", "f4f7f6", "f2c29b", "f2d06a"], ["ffd23f", "3d5a80", "8d5a3b", "222222"],
+		["f6c77a", "8a5a3a", "f0c09a", "8a4a2a"], ["2c2a36", "2c2a36", "e0b090", "9a9aa0"], ["e84a5f", "355c7d", "b97a50", "3a2a1a"]]
+	var L:Array = looks[kind % looks.size()]
 	var r := Rig.new()
 	r.setup_pivots(1.08, 0.36, 0.62, 0.15, 1.18)
 	r.add_part(r.body, cached("ptorso%d" % kind, func(k:Kit):
@@ -305,6 +306,10 @@ func make_person(kind:int) -> Rig:
 		if kind == 0:
 			for i in 3: k.box(Kit.at(0, 0.72 + i * 0.16, 0.225), Vector3(0.6, 0.04, 0.02), C("8a2f2f"), 0.0)
 		if kind == 2: k.box(Kit.at(0, 1.0, 0.25), Vector3(0.2, 0.1, 0.1), C("2f2f38"), 0.03)
+		if kind == 3: k.box(Kit.at(0, 0.8, 0.225), Vector3(0.46, 0.5, 0.02), C("fffaf0"), 0.05)    # apron
+		if kind == 4: k.box(Kit.at(0, 1.16, 0.2), Vector3(0.14, 0.06, 0.06), C("ffffff"), 0.02)   # collar
+		if kind == 5:
+			for i in 3: k.box(Kit.at(0, 0.74 + i * 0.16, 0.225), Vector3(0.6, 0.06, 0.02), C("fff3e0"), 0.0)   # stripes
 	), toon_char)
 	r.add_part(r.head, cached("phead%d" % kind, func(k:Kit):
 		head_base(k, C(L[2]))
@@ -316,6 +321,13 @@ func make_person(kind:int) -> Rig:
 			k.box(Kit.at(0, 0.72, 0.1), Vector3(0.36, 0.14, 0.2), C("ffffff"), 0.04)
 		if kind == 2:
 			k.sphere(Kit.at(0, 0.58, -0.02), Vector3(0.45, 0.28, 0.45), C("ffd23f"), 12, 6)
+		if kind == 3:    # baker's hat
+			k.cylinder(Kit.at(0, 0.66, 0), 0.2, 0.2, 0.18, C("ffffff"), 12)
+			k.sphere(Kit.at(0, 0.8, 0), Vector3(0.5, 0.22, 0.5), C("ffffff"), 12, 6)
+		if kind == 5:    # straw boater
+			k.cylinder(Kit.at(0, 0.6, 0), 0.36, 0.36, 0.03, C("e9c46a"), 16)
+			k.cylinder(Kit.at(0, 0.67, 0), 0.22, 0.22, 0.13, C("e9c46a"), 14)
+			k.cylinder(Kit.at(0, 0.64, 0), 0.225, 0.225, 0.04, C("c0392b"), 14)
 	), toon_char)
 	r.eyes = r.add_part(r.head, eyes_mesh(false), toon)
 	r.eyes.position = Vector3(0, 0.36, 0)

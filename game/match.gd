@@ -76,9 +76,11 @@ var match_id := 0
 var jobs := []            # today's offers: {id,kind,size,p,state(0 offered,1 accepted,2 done,3 failed),mat,coins,progress,carrier,risk,area}
 var last_jobs := []
 var pending := {}
+var best_moment := {"score":0, "text":""}    # the moment the end screen remembers
+var night_low := 1e9      # lowest the house has been tonight
 var core_by_kind := {}    # tonight's damage to the house by brotado kind, for balance telemetry
 var relay := false        # an installed relay: guaranteed power and faster turrets         # players from a checkpoint waiting to reconnect, by name
-const KEEP = ["role", "coins", "xp", "lvl", "hpmax", "guns", "mag", "res", "med", "tr", "kills", "helped", "rank"]
+const KEEP = ["role", "coins", "xp", "lvl", "hpmax", "guns", "mag", "res", "med", "tr", "kills", "helped", "rank", "tally"]
 
 func _init():
 	rng.randomize()
@@ -188,6 +190,7 @@ func join(id:int, role:int, name:String = "", rank:int = 1) -> bool:
 		"tr": 2, "kills": 0, "notice": "", "nt": 0.0, "hold": "", "ht": 0.0, "hm": 0.0, "hkey": "",
 		"prompt": "", "ready": false, "melee": 0.0, "heal": 0.0, "acc": 0.0, "last": time, "fix": 0,
 		"ping": null, "ping_left": 0.0, "active": time, "last_p": Vector2.ZERO, "helped": 0, "carry": -1, "cargo": -1, "dmg": 0.0, "flame": 0.0, "cursor": Vector2.ZERO,
+		"tally": {"shots":0, "hits":0, "built":0, "freed":0, "revived":0}, "streak":0, "streak_t":-9.0,
 	}
 	players[id] = p
 	if pending.has(p.name):
@@ -436,15 +439,15 @@ func act(id:int, action:String, args:Array = []):
 		"buy_medkit":
 			if not near_shop(p.p): return say(p, "La tienda está en la casa")
 			if p.med >= 3: return say(p, "Llevas el máximo de botiquines")
-			if p.coins < Data.MEDKIT.price: return say(p, "Faltan fichas")
-			p.coins -= Data.MEDKIT.price
+			if p.coins < price(Data.MEDKIT.price): return say(p, "Faltan fichas")
+			p.coins -= price(Data.MEDKIT.price)
 			p.med += 1
 			emit("buy", [id])
 		"buy_traca":
 			if not near_shop(p.p): return say(p, "La tienda está en la casa")
 			if p.tr >= 6: return say(p, "Llevas el máximo de tracas")
-			if p.coins < Data.GRENADE.price: return say(p, "Faltan fichas")
-			p.coins -= Data.GRENADE.price
+			if p.coins < price(Data.GRENADE.price): return say(p, "Faltan fichas")
+			p.coins -= price(Data.GRENADE.price)
 			p.tr += 1
 			emit("buy", [id])
 		"core_up": core_upgrade(p)
@@ -514,6 +517,7 @@ func build(id:int, p:Dictionary, kind:int, cell:int):
 	structures[cell] = {"k":kind, "lvl":0, "hp":hp, "max":hp, "cool":0.0, "owner":id, "aim":0.0, "on":true}
 	nav.set_structure(cell, kind, hp)
 	stats.built += 1
+	p.tally.built += 1
 	give_xp(p, 2)
 	if def.block or kind == Data.S_WIRE:
 		var sec := sector_of(c)
@@ -597,8 +601,8 @@ func buy_gun(p:Dictionary, g:int):
 	if p.guns.has(g): return act_switch(p, g)
 	var w:Dictionary = Data.WEAPONS[g]
 	if w.req >= 0 and not has_site(w.req): return say(p, "Necesitas conquistar %s" % Data.SITES[w.req].name)
-	if p.coins < w.price: return say(p, "Faltan fichas (%d)" % w.price)
-	p.coins -= w.price
+	if p.coins < price(w.price): return say(p, "Faltan fichas (%d)" % price(w.price))
+	p.coins -= price(w.price)
 	p.guns[g] = 1
 	p.mag[g] = w.mag
 	p.res[g] = max_reserve(p, g) / 2 if w.reserve > 0 else -1
@@ -650,7 +654,7 @@ func up_gun(p:Dictionary, g:int):
 	if not p.guns.has(g): return say(p, "Primero compra el arma")
 	var lvl:int = p.guns[g]
 	if lvl >= 3: return say(p, "Ya está al máximo")
-	var cost:int = Data.WEAPONS[g].up[lvl - 1]
+	var cost:int = price(Data.WEAPONS[g].up[lvl - 1])
 	if p.coins < cost: return say(p, "Faltan fichas (%d)" % cost)
 	p.coins -= cost
 	p.guns[g] = lvl + 1
@@ -662,9 +666,9 @@ func buy_ammo(p:Dictionary, g:int):
 	if not p.guns.has(g) or p.res[g] < 0: return
 	var top := max_reserve(p, g)
 	if p.res[g] >= top: return say(p, "Munición completa")
-	var price:int = Data.WEAPONS[g].ammo_price
-	if p.coins < price: return say(p, "Faltan fichas (%d)" % price)
-	p.coins -= price
+	var cost := price(Data.WEAPONS[g].ammo_price)
+	if p.coins < cost: return say(p, "Faltan fichas (%d)" % cost)
+	p.coins -= cost
 	p.res[g] = top
 	emit("buy", [p.p.x, p.p.y])
 
@@ -781,11 +785,14 @@ func fire(id:int, p:Dictionary):
 	match w.kind:
 		"hit":
 			var pellets:int = w.pellets
+			var landed := false
 			for i in pellets:
 				var off := 0.0
 				if pellets > 1: off = (float(i) / (pellets - 1) - 0.5) * w.spread + rng.randf_range(-0.04, 0.04)
 				else: off = rng.randf_range(-0.5, 0.5) * w.spread
-				hitscan(id, origin, p.aim.rotated(off), w.range, dmg, w.pierce, w.knock, p.gun)
+				if hitscan(id, origin, p.aim.rotated(off), w.range, dmg, w.pierce, w.knock, p.gun): landed = true
+			p.tally.shots += 1
+			if landed: p.tally.hits += 1
 		"lob":
 			var to:Vector2 = p.p + p.aim * w.range
 			var tgt:Vector2 = p.get("cursor", to)
@@ -807,7 +814,7 @@ func fire(id:int, p:Dictionary):
 				p.flame = 0.12
 				emit("flame", [id, origin.x, origin.y, p.aim.x, p.aim.y])
 
-func hitscan(owner:int, origin:Vector2, dir:Vector2, reach:float, dmg:float, pierce:int, knock:float, gun:int):
+func hitscan(owner:int, origin:Vector2, dir:Vector2, reach:float, dmg:float, pierce:int, knock:float, gun:int) -> bool:
 	var length := nav.ray(origin, dir, reach)
 	var hits := []
 	for key in enemies:
@@ -825,6 +832,7 @@ func hitscan(owner:int, origin:Vector2, dir:Vector2, reach:float, dmg:float, pie
 			end = origin + dir * maxf(0.2, hits[i][0])
 			struck = 1
 	emit("shot", [owner, gun, origin.x, origin.y, end.x, end.y, struck])
+	return not hits.is_empty()
 
 func damage_enemy(key:int, dmg:float, owner:int, dir:Vector2 = Vector2.ZERO, knock:float = 0.0, can_crit:bool = false):
 	if not enemies.has(key): return
@@ -857,9 +865,16 @@ func kill_enemy(key:int, owner:int):
 	var credit := owner
 	if owner <= 0 and owner != -9 and structures.has(-owner - 100): credit = structures[-owner - 100].owner
 	if players.has(credit):
-		players[credit].coins += coins
-		players[credit].kills += 1
-		give_xp(players[credit], def.xp)
+		var q:Dictionary = players[credit]
+		q.coins += coins
+		q.kills += 1
+		give_xp(q, def.xp)
+		if credit == owner:
+			q.streak = q.streak + 1 if time - q.streak_t < 1.5 else 1
+			q.streak_t = time
+			if q.streak >= 4: moment(q.streak * 9, "%s derribó %d brotados de un tirón en la noche %d" % [q.name, q.streak, wave])
+		if e.k == Data.BOSS: moment(100, "%s dio el golpe final al Gigantón en la noche %d" % [q.name, wave])
+		elif e.k == Data.WAILER: moment(40, "%s calló el lamento de la Plañidera en la noche %d" % [q.name, wave])
 	if e.k == Data.BOOMER: explode(e.p, 2.6, 45.0, -9, true, 2.2)
 	if e.k == Data.BOSS:
 		for q in players.values():
@@ -917,6 +932,7 @@ func trigger_mine(cell:int):
 func damage_core(dmg:float, from:Vector2 = Vector2.INF, kind:int = -1, enraged:bool = false):
 	var dealt := minf(core, dmg)
 	core = maxf(0.0, core - dmg)
+	night_low = minf(night_low, core)
 	var tag := "%s%s" % [Data.ENEMIES[kind].name if kind >= 0 else "otro", " (rabia)" if enraged else ""]
 	core_by_kind[tag] = core_by_kind.get(tag, 0.0) + dealt
 	if from.is_finite():
@@ -1187,6 +1203,7 @@ func start_night():
 	log_line({"evento":"noche", "noche":wave, "tipo":Data.NIGHT_EVENTS[night_event].name, "frentes":fronts.map(func(f): return Map.FRONT_NAMES[f]), "brotados":night_total, "asaltos":assault_count})
 	sector_damage = [0.0, 0.0, 0.0, 0.0]
 	core_by_kind = {}
+	night_low = 1e9
 	spawn_timer = 2.0
 	front_turn = rng.randi_range(0, fronts.size() - 1)
 	lightning_timer = 5.0
@@ -1307,6 +1324,8 @@ func start_dawn():
 	phase = P.DAWN
 	clock = 14.0
 	phase_len = 14.0
+	if night_low > 0 and night_low < core_max * 0.2:
+		moment(int(70 - night_low / core_max * 100), "La casa aguantó la noche %d con solo %d de resistencia" % [wave, int(night_low)])
 	wave += 1
 	report = []
 	var gain_mat := 5 + (4 if variant == 2 else 0)
@@ -1333,6 +1352,7 @@ func start_dawn():
 		p.coins += gain_coin + (site_boost(2, 6) if has_site(2) else 0)
 		p.hp = minf(p.hpmax, p.hp + (p.hpmax * minf(1.0, 0.5 * (1.0 + 0.5 * site_helpers(1))) if has_site(1) else 20.0))
 		if has_site(1): p.med = mini(3, p.med + 1 + (1 if site_helpers(1) > 0 else 0))
+		if home_count(3) > 0: p.hp = minf(p.hpmax, p.hp + Data.BAKER_HEAL * home_count(3))
 		if has_site(5):
 			p.tr = mini(6, p.tr + 1)
 			for g in p.guns: if p.res[g] >= 0: p.res[g] = max_reserve(p, g)
@@ -1341,6 +1361,7 @@ func start_dawn():
 	for i in community.size():
 		if posts[i] >= 0: report.append("%s en %s: bonificación +50%%" % [Data.SURVIVORS[community[i]].name, Data.SITES[posts[i]].name])
 	if has_site(1): report.append("Dispensario: curas y botiquines")
+	if home_count(3) > 0: report.append("Panadera: +%d de salud para todos" % int(Data.BAKER_HEAL * home_count(3)))
 	if has_site(5): report.append("Comisaría: munición y tracas")
 	report.push_front("+%d materiales · +%d fichas" % [gain_mat, gain_coin])
 	var worst := 0
@@ -1388,6 +1409,9 @@ func remaining() -> int:
 func log_line(entry:Dictionary):
 	entry["t"] = snappedf(time, 0.1)
 	journal.append(entry)
+
+func moment(score:int, text:String):
+	if score > best_moment.score: best_moment = {"score":score, "text":text}
 
 func rounded_hits() -> Dictionary:
 	var out := {}
@@ -1465,9 +1489,9 @@ func tick_phase(dt:float):
 			if queue.is_empty() and night_alive() == 0:
 				if assaults.is_empty(): start_dawn()
 				else:
-					respite = RESPITE
-					emit("respite", [RESPITE])
-					announce("Respiro de %d s: reparad, reanimad o salid a por la caja del globo" % int(RESPITE))
+					respite = RESPITE + Data.PRIEST_RESPITE * home_count(4)
+					emit("respite", [respite])
+					announce("Respiro de %d s%s: reparad, reanimad o salid a por la caja del globo" % [int(respite), " (el cura toca la campana)" if home_count(4) > 0 else ""])
 					event_drop()
 		P.DAWN:
 			clock -= dt
@@ -1547,6 +1571,8 @@ func interact(id:int, p:Dictionary, dt:float):
 			if p.ht >= p.hm:
 				revive(target.mate, 60.0 if p.role == 1 else 35.0)
 				give_xp(p, 10)
+				p.tally.revived += 1
+				if phase == P.NIGHT and night_alive() >= 6: moment(30 + night_alive(), "%s levantó a %s con %d brotados encima (noche %d)" % [p.name, target.mate.name, night_alive(), wave])
 				p.hkey = ""
 		"heal":
 			var mate:Dictionary = target.mate
@@ -1560,6 +1586,8 @@ func interact(id:int, p:Dictionary, dt:float):
 				p.hkey = ""
 				give_xp(p, 12)
 				emit("rescue", [s.p.x, s.p.y])
+				p.tally.freed += 1
+				moment(25, "%s liberó a la %s de las garras de los brotados" % [p.name, Data.SURVIVORS[s.kind].name.to_lower()] if s.kind == 1 or s.kind == 3 else "%s liberó al %s de las garras de los brotados" % [p.name, Data.SURVIVORS[s.kind].name.to_lower()])
 				announce("%s ha liberado a un %s. ¡Acompañadlo a casa!" % [p.name, Data.SURVIVORS[s.kind].name.to_lower()])
 		"drop":
 			if p.ht >= p.hm:
@@ -1583,6 +1611,7 @@ func interact(id:int, p:Dictionary, dt:float):
 				p.carry = -1
 				p.hkey = ""
 				give_xp(p, 20)
+				moment(15 + 5 * installed_pieces(), "%s instaló %s en el escenario" % [p.name, Data.PIECES[pieces.find(pc)].name.to_lower()])
 				emit("install", [installed_pieces()])
 				log_line({"evento":"pieza", "jugador":p.name, "instaladas":installed_pieces()})
 				announce("Pieza instalada: %d de %d" % [installed_pieces(), pieces.size()] + (". ¡Todo listo para encender la verbena!" if installed_pieces() == pieces.size() else ""))
@@ -1784,12 +1813,22 @@ func open_drop(p:Dictionary, d:Dictionary):
 	announce("%s abre los suministros: +%d materiales" % [p.name, mat])
 
 # ------------------------------------------------------------------ day events
+func pick_survivor() -> int:
+	## Someone the community does not have yet, when possible.
+	var missing := []
+	for k in Data.SURVIVORS.size(): if not k in community: missing.append(k)
+	if missing.is_empty(): return rng.randi_range(0, Data.SURVIVORS.size() - 1)
+	return missing[rng.randi_range(0, missing.size() - 1)]
+
+func price(base:int) -> int:
+	return Data.shop_price(base, community, posts)
+
 func event_survivor():
 	if survivors.size() > 0 or community.size() >= 6: return
 	var doors := Map.house_doors()
 	var at:Vector2 = doors[rng.randi_range(0, doors.size() - 1)]
 	serial += 1
-	survivors.append({"id":serial, "p":at, "kind":rng.randi_range(0, 2), "state":0, "hp":70.0})
+	survivors.append({"id":serial, "p":at, "kind":pick_survivor(), "state":0, "hp":70.0})
 	for i in 2:
 		var e := new_enemy(0, at + Vector2(rng.randf_range(-3, 3), rng.randf_range(-3, 3)), "base", false)
 		if nav.blocked_cell(e.p, e.r, 1) != -1: e.p = at
@@ -2298,6 +2337,7 @@ func snapshot() -> Dictionary:
 			"rl":p.rl, "rlmax":p.rlmax, "ab":p.ab, "buff":p.buff, "med":p.med, "tr":p.tr, "kills":p.kills, "helped":p.helped, "carry":p.carry, "cargo":p.cargo, "rank":p.get("rank", 1),
 			"notice":p.notice if p.nt > 0 else "", "hold":p.hold, "hk":p.hkey, "ht":p.ht, "hm":p.hm, "prompt":p.prompt, "ready":p.ready,
 			"roll":p.roll, "fix":p.fix, "ping":p.ping, "ping_left":p.ping_left, "dmg":p.dmg, "fire":p.fire and p.rl <= 0, "use":p.use}
+		if phase == P.OVER: pl[id].tl = p.tally.duplicate()    # the end screen's numbers, only once
 	var si := []
 	for s in sites: si.append([s.claimed, s.hp, s.max])
 	var sv := []
@@ -2314,7 +2354,7 @@ func snapshot() -> Dictionary:
 	return {"ph":phase, "w":wave, "c":clock, "cl":phase_len, "tod":time_of_day(), "core":core, "cmax":core_max, "clvl":core_level,
 		"mat":materials, "ev":night_event, "wx":weather, "fr":fronts, "rem":remaining(), "rs":respite, "as":[assault_index, assault_count], "bu":bundles.map(func(b): return [b.id, b.p.x, b.p.y, b.owner]), "tot":night_total,
 		"pl":pl, "en":en, "st":st, "si":si, "lo":loot.duplicate(), "pr":pr, "sv":sv, "dr":dr, "cm":community.duplicate(), "cp":posts.duplicate(), "var":variant,
-		"fx":events.duplicate(), "rep":report, "boss":boss, "sk":sk, "stats":stats, "time":time, "cc":claim_cost(), "br":br, "pc":pieces.map(func(pc): return [pc.state, pc.p.x, pc.p.y, pc.carrier]), "fin":finale_t if finale else -1.0, "vic":victory, "mid":match_id, "jobs":jobs.map(func(j): return [j.id, j.kind, j.size, j.p.x, j.p.y, j.state, j.mat, j.coins, j.progress, j.carrier, j.risk, j.area, j.get("found", true)]), "relay":relay, "sh":site_hit.duplicate()}
+		"fx":events.duplicate(), "rep":report, "boss":boss, "sk":sk, "stats":stats, "time":time, "cc":claim_cost(), "br":br, "pc":pieces.map(func(pc): return [pc.state, pc.p.x, pc.p.y, pc.carrier]), "fin":finale_t if finale else -1.0, "vic":victory, "mid":match_id, "jobs":jobs.map(func(j): return [j.id, j.kind, j.size, j.p.x, j.p.y, j.state, j.mat, j.coins, j.progress, j.carrier, j.risk, j.area, j.get("found", true)]), "relay":relay, "sh":site_hit.duplicate(), "best":best_moment.text if phase == P.OVER else ""}
 
 func load_structures(st:PackedInt32Array):
 	## Used by clients so local movement prediction collides with the same structures.

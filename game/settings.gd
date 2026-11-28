@@ -17,6 +17,7 @@ const ACTIONS = [
 var values := {
 	"quality": 2, "fullscreen": false, "volume": 0.8, "music": 0.6, "sfx": 1.0,
 	"shake": true, "flashes": true, "numbers": false, "sensitivity": 1.0, "ui_scale": 1.0, "name": "",
+	"captions": true, "colorblind": false,
 }
 var binds := {}
 

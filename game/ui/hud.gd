@@ -15,6 +15,16 @@ var local := {}
 var me := 0
 var t := 0.0
 var toasts := []           # [text, colour, life]
+var captions := []         # subtitles of important sounds: [text, life]
+var captions_on := true
+# state colours; the colour-blind palette (Okabe–Ito) never tells danger apart by red against green
+var ok_col := S.MINT
+var warn_col := S.SUN
+var danger_col := S.CORAL
+const CB_OK := Color("56b4e9")
+const CB_WARN := Color("f0e442")
+const CB_DANGER := Color("d55ec8")
+const CAPTION_LIFE := 3.2
 var ann := {}              # title, sub, colour, t, life
 var report_lines := []
 var report_t := 0.0
@@ -66,6 +76,9 @@ func feed(state:Dictionary, id:int, loc:Dictionary, dt:float):
 	for i in range(toasts.size() - 1, -1, -1):
 		toasts[i][2] -= dt
 		if toasts[i][2] <= 0: toasts.remove_at(i)
+	for i in range(captions.size() - 1, -1, -1):
+		captions[i][1] -= dt
+		if captions[i][1] <= 0: captions.remove_at(i)
 	if not ann.is_empty():
 		ann.t += dt
 		if ann.t > ann.life: ann = {}
@@ -79,6 +92,32 @@ func toast(msg:String, col:Color = S.SUN):
 			return
 	toasts.append([msg, col, 5.0])
 	while toasts.size() > 3: toasts.pop_front()
+
+func set_colorblind(on:bool):
+	ok_col = CB_OK if on else S.MINT
+	warn_col = CB_WARN if on else S.SUN
+	danger_col = CB_DANGER if on else S.CORAL
+
+func caption(text:String):
+	## A subtitle for a sound that matters, like on television: [Campana de medianoche].
+	if not captions_on: return
+	for c in captions:
+		if c[0] == text:
+			c[1] = CAPTION_LIFE
+			return
+	captions.append([text, CAPTION_LIFE])
+	while captions.size() > 3: captions.pop_front()
+
+func draw_captions():
+	var y := size.y * 0.7
+	for i in range(captions.size() - 1, -1, -1):
+		var a := clampf(captions[i][1] / 0.4, 0.0, 1.0)
+		var msg := "[%s]" % captions[i][0]
+		var w := S.text_width(msg, 17, "body", 800) + 28
+		var rect := Rect2(Vector2(size.x * 0.5 - w * 0.5, y - 30), Vector2(w, 32))
+		draw_style_box(S.card(Color(S.INK, 0.82 * a), 10, Color(0, 0, 0, 0), 0, 0), rect)
+		S.text(self, rect.position + Vector2(14, 22), msg, 17, Color(1, 1, 1, a), "body", 800)
+		y -= 38
 
 func announce(title:String, sub:String, col:Color, life:float):
 	ann = {"title":title, "sub":sub, "col":col, "t":0.0, "life":life}
@@ -110,6 +149,7 @@ func _draw():
 	draw_weapon()
 	draw_prompt()
 	draw_toasts()
+	draw_captions()
 	draw_report()
 	draw_announce()
 	draw_crosshair()
@@ -162,7 +202,7 @@ func draw_house():
 	## day medallion: the ring is its strength, the ribbon says how it is doing.
 	var o := Vector2(24, 16) + Vector2(sin(t * 60.0), cos(t * 47.0)) * 4.0 * house_shake
 	var frac:float = s.core / maxf(1.0, s.cmax)
-	var col := S.MINT if frac > 0.5 else (S.SUN if frac > 0.25 else S.CORAL)
+	var col := ok_col if frac > 0.5 else (warn_col if frac > 0.25 else danger_col)
 	var c := o + Vector2(54, 56)
 	var r := 44.0
 	var night:bool = s.ph == P.NIGHT
@@ -336,7 +376,7 @@ func draw_team():
 		var col := Color(Data.ROLES[q.role].color)
 		var frac:float = q.hp / maxf(1.0, q.hpmax)
 		var down:bool = q.st != 0
-		S.ring(self, c, 23, frac, S.MINT if frac > 0.35 else S.CORAL, 5.0, Color(S.INK, 0.25))
+		S.ring(self, c, 23, frac, ok_col if frac > 0.35 else danger_col, 5.0, Color(S.INK, 0.25))
 		draw_circle(c, 19, S.INK)
 		draw_circle(c, 16.5, col if not down else Color("8a7f8f"))
 		S.text(self, c + Vector2(-20, 8), q.name.left(1).to_upper(), 22, Color.WHITE, "title", 600, HORIZONTAL_ALIGNMENT_CENTER, 40, 4, S.INK)
@@ -383,7 +423,7 @@ func draw_badge():
 	var low:bool = frac < 0.3 and p.st == 0
 	draw_circle(c + Vector2(0, 5), 58, Color(S.INK, 0.3))
 	draw_circle(c, 58, S.INK)
-	S.ring(self, c, 51, frac, S.MINT if frac > 0.5 else (S.SUN if frac > 0.3 else S.CORAL), 10.0, Color(1, 1, 1, 0.15))
+	S.ring(self, c, 51, frac, ok_col if frac > 0.5 else (warn_col if frac > 0.3 else danger_col), 10.0, Color(1, 1, 1, 0.15))
 	draw_circle(c, 44, col.lightened(0.1))
 	draw_circle(c + Vector2(-12, -14), 16, Color(1, 1, 1, 0.25))
 	S.text(self, c + Vector2(-44, 16), p.name.left(1).to_upper(), 46, Color.WHITE, "title", 600, HORIZONTAL_ALIGNMENT_CENTER, 88, 8, S.INK)
@@ -508,11 +548,17 @@ func draw_world_marks():
 		var on := Rect2(Vector2(40, 40), size - Vector2(80, 80)).has_point(pos)
 		pos = pos.clamp(Vector2(40, 40), size - Vector2(40, 40))
 		var pulse := 0.5 + 0.5 * sin(t * 10.0)
-		var col := S.CORAL if breach or br[i * 3 + 2] > 0 else S.SUN
+		var serious:bool = breach or br[i * 3 + 2] > 0
+		var col := danger_col if serious else warn_col
 		draw_circle(pos, 26 + 6 * pulse, Color(col, 0.25))
+		if serious:
+			# not only a colour: a spiky ring and a double mark for breaches and blows on the house
+			var spikes := PackedVector2Array()
+			for k in 17: spikes.append(pos + Vector2.from_angle(TAU * k / 16.0 + t * 0.8) * (27.0 if k % 2 == 0 else 22.0))
+			draw_polyline(spikes, S.INK, 3.0, true)
 		draw_circle(pos, 20, S.INK)
 		draw_circle(pos, 17, col)
-		S.text(self, pos + Vector2(-20, 10), "!", 28, Color.WHITE, "title", 600, HORIZONTAL_ALIGNMENT_CENTER, 40, 4, S.INK)
+		S.text(self, pos + Vector2(-20, 10), "!!" if serious else "!", 28 if not serious else 24, Color.WHITE, "title", 600, HORIZONTAL_ALIGNMENT_CENTER, 40, 4, S.INK)
 		if not on:
 			var dir := (pos - size * 0.5).normalized()
 			draw_colored_polygon(PackedVector2Array([pos + dir * 34, pos + dir * 22 + Vector2(-dir.y, dir.x) * 9, pos + dir * 22 - Vector2(-dir.y, dir.x) * 9]), S.INK)

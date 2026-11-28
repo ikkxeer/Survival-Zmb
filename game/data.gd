@@ -174,7 +174,24 @@ const SURVIVORS = [
 	{"name":"Carpintero", "desc":"+3 materiales cada amanecer."},
 	{"name":"Enfermera", "desc":"Cura poco a poco a quien esté en la plaza."},
 	{"name":"Vigía", "desc":"Dispara desde el tejado de la casa."},
+	{"name":"Panadera", "desc":"Reparte comida al amanecer: +30 de salud para todos."},
+	{"name":"Cura", "desc":"Su campana alarga los respiros entre asaltos (+8 s)."},
+	{"name":"Feriante", "desc":"Rebaja la tienda un 20 %."},
 ]
+const BAKER_HEAL := 30.0
+const PRIEST_RESPITE := 8.0
+const FAIR_DISCOUNT := 0.8
+
+static func at_home(cm:Array, cp:Array, kind:int) -> int:
+	## Community members of a kind living at the house (not sent to a property).
+	var n := 0
+	for i in cm.size():
+		if int(cm[i]) == kind and (i >= cp.size() or int(cp[i]) < 0): n += 1
+	return n
+
+static func shop_price(base:int, cm:Array, cp:Array) -> int:
+	## Prices in the shop: the stall-keeper at home takes a fifth off.
+	return maxi(1, roundi(base * FAIR_DISCOUNT)) if at_home(cm, cp, 5) > 0 else base
 
 static func level_for(xp:int) -> int:
 	var lvl := 1

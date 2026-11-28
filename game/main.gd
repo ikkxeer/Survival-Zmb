@@ -437,6 +437,10 @@ func apply_settings(s:Dictionary):
 	audio.sfx = s.sfx
 	fx.show_numbers = s.numbers
 	fx.bright = s.flashes
+	ui.canvas.captions_on = s.get("captions", true)
+	ui.canvas.set_colorblind(s.get("colorblind", false))
+	ui.colorblind = s.get("colorblind", false)
+	actors.Rig.colorblind = s.get("colorblind", false)
 	camera.sensitivity = s.sensitivity
 	get_tree().root.content_scale_factor = s.ui_scale
 
@@ -882,6 +886,7 @@ func handle_event(type:String, d:Array, me:int):
 				audio.play("groan%d" % randi_range(0, 2), actors.horde[d[0]].position + Vector3(0, 1.5, 0), -8, randf_range(0.9, 1.2))
 		"slam_warn":
 			fx.ring(v3(d[0], d[1]), Color("ff5a5a"), 7.2, 7.2, 0.95, true)
+			ui.canvas.caption("Rugido del Gigantón: va a pisotear")
 			audio.play("groan2", v3(d[0], d[1], 2), 2, 0.6)
 		"slam":
 			fx.explosion(v3(d[0], d[1]), 3.6)
@@ -914,18 +919,22 @@ func handle_event(type:String, d:Array, me:int):
 			ui.big(Data.SITES[d[0]].name.to_upper() + " ES DEL BARRIO", Data.SITES[d[0]].bonus, Color(Data.SITES[d[0]].color).lightened(0.3), 4.0)
 		"lost":
 			audio.play("alarm", null, -2)
+			ui.canvas.caption("Alarma: perdemos %s" % Data.SITES[d[0]].name)
 			ui.big("¡%s PERDIDO!" % Data.SITES[d[0]].name.to_upper(), "Reconquistadlo de día", Color("ff6b6b"), 3.5)
 		"midnight":
 			ui.big("MEDIANOCHE", "Llega la Plañidera: su llanto enfurece a los brotados que la rodean", Color("b9a6ff"), 5.0)
 			audio.play("toll", null, -2, 1.0)
+			ui.canvas.caption("Campana de medianoche")
 		"wail":
 			var at := v3(d[0], d[1])
 			fx.ring(at, Color("b9a6ff"), 1.0, Data.WAIL_RADIUS * 2.0, 1.0)
 			fx.ring(at, Color("ff6b8a"), 0.5, Data.WAIL_RADIUS * 1.4, 0.7)
 			fx.light(at + Vector3(0, 2, 0), Color("b9a6ff"), 6.0, 0.6, 14.0)
 			audio.play("wail", at + Vector3(0, 2, 0), 3, randf_range(0.92, 1.05))
+			ui.canvas.caption("Lamento de la Plañidera por el %s" % side_of(d[0], d[1]))
 		"night":
 			audio.play("horn", null, 0)
+			ui.canvas.caption("Bocina: empieza la noche")
 			var ev:Dictionary = Data.NIGHT_EVENTS[d[1]]
 			ui.big("NOCHE %d" % d[0], ev.name + " · " + ev.desc, Color("c9b6ff"), 4.5)
 		"dawn":
@@ -985,6 +994,7 @@ func handle_event(type:String, d:Array, me:int):
 			audio.play("coin", v3(d[0], d[1], 1), -2, 0.7)
 		"piece_drop":
 			audio.play("alarm", v3(d[0], d[1], 1), -4)
+			ui.canvas.caption("Alarma: una pieza ha caído al suelo")
 			fx.ring(v3(d[0], d[1]), Color("ffd166"), 0.5, 3.0, 1.0)
 		"install":
 			fx.burst("stars", v3(Map.STAGE.x, Map.STAGE.y, 0.8))
@@ -1016,6 +1026,7 @@ func handle_event(type:String, d:Array, me:int):
 			ui.refresh_board()
 		"assault":
 			audio.play("horn", null, -2, 1.1)
+			ui.canvas.caption("Bocina: nuevo asalto")
 			ui.big("ASALTO %d DE %d" % [d[0], d[1]], "Vuelven a la carga", Color("ff9a8a"), 3.0)
 		"respite":
 			audio.play("dawn", null, -8, 1.4)
@@ -1025,6 +1036,7 @@ func handle_event(type:String, d:Array, me:int):
 			audio.play("coin", v3(d[0], d[1], 1), -2, 0.8)
 		"bell":
 			audio.play("bell", v3(d[0], d[1], 2.2), 0)
+			ui.canvas.caption("Campana de la plaza")
 			fx.ring(v3(d[0], d[1]), Color("ffd166"), 0.5, 6.0, 0.8)
 		"warn":
 			fx.ring(v3(d[0], d[1]), Color("cfe4ff"), 4.0, 4.0, 1.0, true)
@@ -1032,7 +1044,10 @@ func handle_event(type:String, d:Array, me:int):
 			fx.bolt(v3(d[0], d[1]))
 			if prefs.values.flashes: world.lightning()
 			audio.play("thunder", null, 0)
-		"survivor": audio.play("alarm", v3(d[0], d[1], 1), -6, 1.3)
+			ui.canvas.caption("Trueno")
+		"survivor":
+			audio.play("alarm", v3(d[0], d[1], 1), -6, 1.3)
+			ui.canvas.caption("Gritos de un vecino atrapado")
 		"drop": audio.play("coin", null, -2, 0.7)
 		"land":
 			fx.burst("puff", v3(d[0], d[1], 0.3))
@@ -1215,8 +1230,16 @@ func _process(dt:float):
 	var br:Array = s.get("br", [])
 	for i in range(0, br.size(), 3):
 		if br[i + 1] > 0 or br[i + 2] > 0: urgent += str(i)
-	if urgent != "" and urgent != last_alert and s.ph == P.NIGHT: audio.alert()
+	if urgent != "" and urgent != last_alert and s.ph == P.NIGHT:
+		audio.alert()
+		for i in range(0, br.size(), 3):
+			if br[i + 1] > 0 and not last_alert.contains(str(i)): ui.canvas.caption("Alarma: brecha por el %s" % Map.FRONT_NAMES[i / 3])
+			elif br[i + 2] > 0 and not last_alert.contains(str(i)): ui.canvas.caption("Golpean la casa por el %s" % Map.FRONT_NAMES[i / 3])
 	last_alert = urgent
+
+func side_of(x:float, z:float) -> String:
+	## Which access of the house a sound comes from: norte, este, sur u oeste.
+	return Map.FRONT_NAMES[Match.sector_of(Vector2(x, z))]
 
 func smooth_pos() -> Vector2:
 	## The local hero moves at the physics rate; drawing it between the last two
